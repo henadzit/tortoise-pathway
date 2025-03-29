@@ -141,8 +141,7 @@ tortoise_pathway/
 ├── __main__.py                # Entry point for CLI
 ├── migration.py               # Core migration classes and manager
 ├── schema_diff.py             # Schema difference detection
-├── cli.py                     # Command-line interface
-└── integrator.py              # Integration with Tortoise apps
+└── cli.py                     # Command-line interface
 ```
 
 ## Usage
@@ -235,28 +234,6 @@ To see the status of migrations:
 
 ```bash
 python -m tortoise_pathway --config myapp.config showmigrations --app models
-```
-
-### Programmatic Usage
-
-You can also use Tortoise Pathway programmatically:
-
-```python
-import asyncio
-from tortoise_pathway.integrator import TortoisePathwayIntegrator
-
-from myapp.config import TORTOISE_ORM
-
-async def run_migrations():
-    integrator = TortoisePathwayIntegrator(TORTOISE_ORM)
-    try:
-        await integrator.initialize()
-        await integrator.migrate()
-    finally:
-        await integrator.close()
-
-if __name__ == "__main__":
-    asyncio.run(run_migrations())
 ```
 
 ### Helper Function
