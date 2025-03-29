@@ -9,8 +9,7 @@ import sys
 import asyncio
 import argparse
 import importlib
-from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Dict, Any
 
 from tortoise import Tortoise
 

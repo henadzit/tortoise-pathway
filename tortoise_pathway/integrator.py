@@ -6,7 +6,6 @@ This module provides a simple way to integrate migrations with Tortoise ORM appl
 
 import os
 from typing import Dict, Any, Optional, List
-from pathlib import Path
 
 from tortoise import Tortoise
 from tortoise_pathway.migration import MigrationManager

@@ -6,7 +6,7 @@ and the actual database schema, generating migration operations.
 """
 
 import typing
-from typing import Dict, List, Set, Any, Tuple, Optional
+from typing import Dict, List, Any, Optional
 from enum import Enum
 
 from tortoise import Tortoise

@@ -6,10 +6,9 @@ across the codebase. It includes SQL generation and migration file templates.
 """
 
 import datetime
-from typing import Dict, List, Optional, Type, Any, Tuple, Union, cast, Iterable
+from typing import List, Type
 
 from tortoise import Tortoise, Model
-from tortoise.fields import Field
 
 from tortoise_pathway.schema_diff import SchemaChange, SchemaChangeType
 

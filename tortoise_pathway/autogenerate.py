@@ -13,7 +13,6 @@ from tortoise import Tortoise, Model
 
 from tortoise_pathway.migration import MigrationManager
 from tortoise_pathway.schema_diff import SchemaChange, SchemaChangeType
-from tortoise_pathway.generators import generate_timestamp, generate_auto_migration
 
 
 async def generate_initial_migration(
