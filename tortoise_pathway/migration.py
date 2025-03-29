@@ -98,7 +98,22 @@ class MigrationManager:
                 continue
 
             migration_name = file_path.stem
-            module_path = f"{self.migrations_dir.replace('/', '.')}.{migration_name}"
+
+            # Determine if migrations_dir is absolute or relative
+            migrations_path = Path(self.migrations_dir)
+
+            if migrations_path.is_absolute():
+                # For absolute paths, we need to determine the module path
+                # based on the Python package structure
+                # Try to find the relative path from the current working directory
+                rel_path = migrations_path.relative_to(Path.cwd())
+                module_path = str(rel_path).replace("/", ".").replace("\\", ".")
+                module_path = f"{module_path}.{migration_name}"
+            else:
+                # For relative paths, use the existing logic
+                module_path = (
+                    f"{self.migrations_dir.replace('/', '.').replace('\\', '.')}.{migration_name}"
+                )
 
             try:
                 module = importlib.import_module(module_path)
