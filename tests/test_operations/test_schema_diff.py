@@ -3,22 +3,14 @@ Tests for schema change operations.
 """
 
 import pytest
-from pathlib import Path
 
 from tortoise import Tortoise, fields, models
 from tortoise_pathway.schema_diff import (
-    SchemaChange,
     CreateTable,
     DropTable,
     AddColumn,
-    DropColumn,
-    AlterColumn,
-    RenameColumn,
     AddIndex,
     DropIndex,
-    AddConstraint,
-    DropConstraint,
-    get_dialect,
 )
 
 
@@ -179,7 +171,7 @@ async def test_add_index(setup_test_db):
         "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_add_index'"
     )
     index_names = [index["name"] for index in indices[1]]
-    assert f"idx_test_add_index_name" in index_names
+    assert "idx_test_add_index_name" in index_names
 
     # Test SQL generation
     forward_sql = operation.forward_sql()
@@ -215,7 +207,7 @@ async def test_drop_index(setup_test_db):
         "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
     )
     index_names = [index["name"] for index in indices[1]]
-    assert f"idx_test_drop_index_name" in index_names
+    assert "idx_test_drop_index_name" in index_names
 
     # Drop the index
     operation = DropIndex(
@@ -229,7 +221,7 @@ async def test_drop_index(setup_test_db):
         "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
     )
     index_names = [index["name"] for index in indices[1]]
-    assert f"idx_test_drop_index_name" not in index_names
+    assert "idx_test_drop_index_name" not in index_names
 
     # Test SQL generation
     forward_sql = operation.forward_sql()

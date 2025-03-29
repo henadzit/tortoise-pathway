@@ -2,11 +2,9 @@
 Tests for application with model changes after initial migration.
 """
 
-import os
 import pytest
 from pathlib import Path
 
-import tortoise_pathway
 from tortoise import Tortoise
 from tortoise_pathway.migration import MigrationManager
 

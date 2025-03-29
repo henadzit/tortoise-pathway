@@ -4,10 +4,9 @@ Pytest configuration and fixtures for Tortoise Pathway tests.
 
 import os
 import asyncio
-import shutil
 import pytest
 from pathlib import Path
-from typing import Dict, Any, Generator, AsyncGenerator, Optional, List
+from typing import Dict, Any, Generator, AsyncGenerator
 
 from tortoise import Tortoise
 from tortoise_pathway.migration import MigrationManager
@@ -30,8 +29,6 @@ async def clean_apps():
 @pytest.fixture(autouse=True)
 async def clean_migrations():
     """Clean up migrations directory after tests."""
-    # test_path = Path(request.node.fspath).parent
-    # migrations_dir = test_path / "migrations"
 
     test_migrations_dir = Path(os.getcwd()) / "tests" / "test_migrations"
 

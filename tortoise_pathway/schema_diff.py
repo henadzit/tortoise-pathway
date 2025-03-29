@@ -5,8 +5,7 @@ This module provides functionality to detect differences between Tortoise models
 and the actual database schema, generating migration operations.
 """
 
-import typing
-from typing import Dict, List, Any, Optional, Type, Union
+from typing import Dict, List, Any, Optional, Type
 
 from tortoise import Tortoise, connections
 from tortoise.fields import Field
@@ -390,9 +389,9 @@ class DropTable(SchemaChange):
         """Generate Python code to reverse table drop in a migration."""
         lines = [f"# Cannot automatically recreate dropped table {self.table_name}"]
         if self.model is not None:
-            lines.append(f"try:")
+            lines.append("try:")
             lines.append(f"    await {var_name}.revert()")
-            lines.append(f"except Exception as e:")
+            lines.append("except Exception as e:")
             lines.append(f'    print(f"Warning: Cannot recreate table {self.table_name}: {{e}}")')
         return "\n".join(lines)
 
@@ -553,7 +552,7 @@ class AddColumn(SchemaChange):
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
         if dialect == "sqlite":
-            return f"-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
+            return "-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
         else:
             return f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
 
@@ -573,7 +572,7 @@ class AddColumn(SchemaChange):
             lines.append(f"    model={self.model.__name__},")
         else:
             # Handle case where field_object is needed but model is None
-            lines.append(f"    # field_object not available - manual intervention required")
+            lines.append("    # field_object not available - manual intervention required")
 
         lines.append(")")
         lines.append(f"await {var_name}.apply()")
@@ -582,11 +581,11 @@ class AddColumn(SchemaChange):
     def to_migration_reverse(self, var_name: str = "change") -> str:
         """Generate Python code to reverse column addition in a migration."""
         lines = [f"# Reverse: {self}"]
-        lines.append(f"try:")
+        lines.append("try:")
         lines.append(f"    await {var_name}.revert()")
-        lines.append(f"except NotImplementedError as e:")
-        lines.append(f"    # SQLite may not support column dropping")
-        lines.append(f'    print(f"Warning: {{e}}")')
+        lines.append("except NotImplementedError as e:")
+        lines.append("    # SQLite may not support column dropping")
+        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
 
@@ -655,14 +654,14 @@ class DropColumn(SchemaChange):
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
         if dialect == "sqlite":
-            return f"-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
+            return "-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
         else:
             return f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
 
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for recreating a column."""
         if not self.model:
-            return f"-- Cannot automatically recreate column without model information"
+            return "-- Cannot automatically recreate column without model information"
 
         if self.model and self.column_name in self.model._meta.fields_map:
             field = self.model._meta.fields_map[self.column_name]
@@ -693,23 +692,23 @@ class DropColumn(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"try:")
+        lines.append("try:")
         lines.append(f"    await {var_name}.apply()")
-        lines.append(f"except NotImplementedError as e:")
-        lines.append(f"    # SQLite may not support dropping columns")
-        lines.append(f'    print(f"Warning: {{e}}")')
+        lines.append("except NotImplementedError as e:")
+        lines.append("    # SQLite may not support dropping columns")
+        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
     def to_migration_reverse(self, var_name: str = "change") -> str:
         """Generate Python code to reverse column drop in a migration."""
         lines = [f"# Reverse: {self}"]
         if self.model is not None:
-            lines.append(f"try:")
+            lines.append("try:")
             lines.append(f"    await {var_name}.revert()")
-            lines.append(f"except (NotImplementedError, ValueError) as e:")
-            lines.append(f'    print(f"Warning: {{e}}")')
+            lines.append("except (NotImplementedError, ValueError) as e:")
+            lines.append('    print(f"Warning: {e}")')
         else:
-            lines.append(f"# Cannot recreate column without model information")
+            lines.append("# Cannot recreate column without model information")
         return "\n".join(lines)
 
 
@@ -764,7 +763,7 @@ class AlterColumn(SchemaChange):
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for altering a column."""
         if dialect == "sqlite":
-            return f"-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the new schema."
+            return "-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the new schema."
         elif dialect == "postgres":
             column_type = "TEXT"  # Default type
             field_type = self.field_object.__class__.__name__
@@ -800,11 +799,11 @@ class AlterColumn(SchemaChange):
         # This requires old column information from params
         old_info = self.params.get("old", {})
         if not old_info:
-            return f"-- Cannot revert column alteration: old column information not available"
+            return "-- Cannot revert column alteration: old column information not available"
 
         # Even with old info, SQLite doesn't support this directly
         if dialect == "sqlite":
-            return f"-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the original schema."
+            return "-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the original schema."
 
         # For postgres and other databases that support ALTER COLUMN
         # This is a simplified version, would need more detailed logic for a real implementation
@@ -827,23 +826,23 @@ class AlterColumn(SchemaChange):
             lines.append(f"    model={self.model.__name__},")
         else:
             # Handle case where field_object is needed but model is None
-            lines.append(f"    # field_object not available - manual intervention required")
+            lines.append("    # field_object not available - manual intervention required")
 
         lines.append(")")
-        lines.append(f"try:")
+        lines.append("try:")
         lines.append(f"    await {var_name}.apply()")
-        lines.append(f"except NotImplementedError as e:")
-        lines.append(f"    # SQLite may not support column alteration")
-        lines.append(f'    print(f"Warning: {{e}}")')
+        lines.append("except NotImplementedError as e:")
+        lines.append("    # SQLite may not support column alteration")
+        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
     def to_migration_reverse(self, var_name: str = "change") -> str:
         """Generate Python code to reverse column alteration in a migration."""
-        lines = [f"# Reverse for AlterColumn requires manual intervention"]
-        lines.append(f"try:")
+        lines = ["# Reverse for AlterColumn requires manual intervention"]
+        lines.append("try:")
         lines.append(f"    await {var_name}.revert()")
-        lines.append(f"except (NotImplementedError, ValueError) as e:")
-        lines.append(f'    print(f"Warning: {{e}}")')
+        lines.append("except (NotImplementedError, ValueError) as e:")
+        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
 
@@ -898,7 +897,7 @@ class RenameColumn(SchemaChange):
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for renaming a column."""
         if dialect == "sqlite":
-            return f"-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the new schema."
+            return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the new schema."
         elif dialect == "postgres":
             return (
                 f"ALTER TABLE {self.table_name} RENAME COLUMN {self.column_name} TO {self.new_name}"
@@ -909,7 +908,7 @@ class RenameColumn(SchemaChange):
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for reverting a column rename."""
         if dialect == "sqlite":
-            return f"-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the original schema."
+            return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the original schema."
         elif dialect == "postgres":
             return (
                 f"ALTER TABLE {self.table_name} RENAME COLUMN {self.new_name} TO {self.column_name}"
@@ -927,21 +926,21 @@ class RenameColumn(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"try:")
+        lines.append("try:")
         lines.append(f"    await {var_name}.apply()")
-        lines.append(f"except NotImplementedError as e:")
-        lines.append(f"    # SQLite may not support column renaming")
-        lines.append(f'    print(f"Warning: {{e}}")')
+        lines.append("except NotImplementedError as e:")
+        lines.append("    # SQLite may not support column renaming")
+        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
     def to_migration_reverse(self, var_name: str = "change") -> str:
         """Generate Python code to reverse column rename in a migration."""
         lines = [f"# Reverse: {self}"]
-        lines.append(f"try:")
+        lines.append("try:")
         lines.append(f"    await {var_name}.revert()")
-        lines.append(f"except NotImplementedError as e:")
-        lines.append(f"    # SQLite may not support column renaming")
-        lines.append(f'    print(f"Warning: {{e}}")')
+        lines.append("except NotImplementedError as e:")
+        lines.append("    # SQLite may not support column renaming")
+        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
 
@@ -1098,7 +1097,7 @@ class AddConstraint(SchemaChange):
         # This is a simplification - real constraints need more specific SQL based on constraint type
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE
-            return f"-- Adding constraints in SQLite may require table recreation"
+            return "-- Adding constraints in SQLite may require table recreation"
         else:
             return f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
 
@@ -1108,7 +1107,7 @@ class AddConstraint(SchemaChange):
 
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE
-            return f"-- Dropping constraints in SQLite may require table recreation"
+            return "-- Dropping constraints in SQLite may require table recreation"
         else:
             return f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
 
@@ -1173,7 +1172,7 @@ class DropConstraint(SchemaChange):
 
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE
-            return f"-- Dropping constraints in SQLite may require table recreation"
+            return "-- Dropping constraints in SQLite may require table recreation"
         else:
             return f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
 
@@ -1184,7 +1183,7 @@ class DropConstraint(SchemaChange):
         # This is a simplification - real constraints need more specific SQL based on constraint type
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE
-            return f"-- Adding constraints in SQLite may require table recreation"
+            return "-- Adding constraints in SQLite may require table recreation"
         else:
             return f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
 

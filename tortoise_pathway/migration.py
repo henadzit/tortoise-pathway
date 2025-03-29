@@ -4,7 +4,6 @@ Core migration module for Tortoise ORM.
 This module contains the Migration class and functions for managing migrations.
 """
 
-import os
 import importlib
 import inspect
 import datetime
@@ -194,7 +193,7 @@ class MigrationManager:
         if not migration_name:
             # Get the last applied migration
             records = await conn.execute_query(
-                f"SELECT name FROM tortoise_migrations WHERE app = ? ORDER BY id DESC LIMIT 1",
+                "SELECT name FROM tortoise_migrations WHERE app = ? ORDER BY id DESC LIMIT 1",
                 [self.app_name],
             )
 

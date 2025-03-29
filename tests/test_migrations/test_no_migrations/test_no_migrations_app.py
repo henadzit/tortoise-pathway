@@ -2,7 +2,6 @@
 Tests for application with no migrations.
 """
 
-import os
 import pytest
 from pathlib import Path
 
