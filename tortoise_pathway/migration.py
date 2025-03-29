@@ -8,14 +8,14 @@ import os
 import importlib
 import inspect
 import datetime
-import typing
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Type, Any, Union
+from typing import Dict, List, Optional, Set, Type, Any, Union, cast
 
 from tortoise import Tortoise, Model
 from tortoise.exceptions import OperationalError
 
 from tortoise_pathway.schema_diff import SchemaDiffer, SchemaChange
+from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
 
 
 class Migration:
@@ -125,91 +125,15 @@ class MigrationManager:
             # Generate migration content based on model changes
             differ = SchemaDiffer()
             changes = await differ.detect_changes()
-            content = self._generate_auto_migration(migration_name, changes)
+            content = generate_auto_migration(migration_name, changes)
         else:
             # Create an empty migration template
-            content = self._generate_empty_migration(migration_name)
+            content = generate_empty_migration(migration_name)
 
         with open(migration_file, "w") as f:
             f.write(content)
 
         return migration_file
-
-    def _generate_empty_migration(self, migration_name: str) -> str:
-        """Generate empty migration file content."""
-        return f'''"""
-Migration {migration_name}
-"""
-
-from tortoise_pathway.migration import Migration
-
-
-class {migration_name.split("_", 1)[1].title().replace("_", "")}Migration(Migration):
-    """
-    Custom migration class.
-    """
-
-    dependencies = []
-
-    async def apply(self) -> None:
-        """Apply the migration forward."""
-        # Write your forward migration logic here
-        pass
-
-    async def revert(self) -> None:
-        """Revert the migration."""
-        # Write your backward migration logic here
-        pass
-'''
-
-    def _generate_auto_migration(self, migration_name: str, changes: List[SchemaChange]) -> str:
-        """Generate migration file content based on detected changes."""
-        # If no changes detected, return placeholder template
-        if not changes:
-            return f'''"""
-Auto-generated migration {migration_name}
-"""
-
-from tortoise_pathway.migration import Migration
-from tortoise import connections
-
-
-class {migration_name.split("_", 1)[1].title().replace("_", "")}Migration(Migration):
-    """
-    Auto-generated migration based on model changes.
-    """
-
-    dependencies = []
-
-    async def apply(self) -> None:
-        """Apply the migration forward."""
-        connection = connections.get("default")
-
-        # Auto-generated migration operations would go here
-        # For example:
-        # await connection.execute_script(
-        #     """
-        #     ALTER TABLE my_table ADD COLUMN new_column VARCHAR(255) NOT NULL DEFAULT '';
-        #     """
-        # )
-
-    async def revert(self) -> None:
-        """Revert the migration."""
-        connection = connections.get("default")
-
-        # Auto-generated rollback operations would go here
-        # For example:
-        # await connection.execute_script(
-        #     """
-        #     ALTER TABLE my_table DROP COLUMN new_column;
-        #     """
-        # )
-'''
-
-        # Generate actual migration code based on detected changes
-        differ = SchemaDiffer()
-        migration_code = differ.generate_migration_code(changes, migration_name)
-        return migration_code
 
     async def apply_migrations(self, connection=None) -> List[str]:
         """Apply pending migrations."""
@@ -246,7 +170,9 @@ class {migration_name.split("_", 1)[1].title().replace("_", "")}Migration(Migrat
 
         return applied
 
-    async def revert_migration(self, migration_name: str = None, connection=None) -> Optional[str]:
+    async def revert_migration(
+        self, migration_name: Optional[str] = None, connection=None
+    ) -> Optional[str]:
         """Revert the last applied migration or a specific migration."""
         conn = connection or Tortoise.get_connection("default")
 
@@ -261,7 +187,7 @@ class {migration_name.split("_", 1)[1].title().replace("_", "")}Migration(Migrat
                 print("No migrations to revert")
                 return None
 
-            migration_name = records[1][0]["name"]
+            migration_name = cast(str, records[1][0]["name"])
 
         if migration_name not in self.migrations:
             raise ValueError(f"Migration {migration_name} not found")

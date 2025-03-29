@@ -44,6 +44,16 @@ class SchemaChange:
     ):
         self.change_type = change_type
         self.table_name = table_name
+
+        # Ensure column_name is not None when a field_object is provided
+        if column_name is None and field_object is not None:
+            # Try to get the field name from source_field or from params
+            source_field = getattr(field_object, "source_field", None)
+            if source_field is not None:
+                column_name = source_field
+            elif params and "field_name" in params:
+                column_name = params["field_name"]
+
         self.column_name = column_name
         self.new_name = new_name
         self.field_object = field_object
@@ -77,66 +87,15 @@ class SchemaChange:
 
     def generate_sql_forward(self, dialect: str = "sqlite") -> str:
         """Generate SQL for applying this change forward."""
-        # This would have custom SQL generation for each change type
-        # For a production-ready system, it would need to handle different dialects
-        # Simplified example:
-        if self.change_type == SchemaChangeType.CREATE_TABLE:
-            # Would generate full CREATE TABLE statement
-            return f"-- CREATE TABLE {self.table_name} (...)"
+        from tortoise_pathway.generators import generate_sql_for_schema_change
 
-        elif self.change_type == SchemaChangeType.ADD_COLUMN:
-            field_type = self.field_object.__class__.__name__
-            nullable = getattr(self.field_object, "null", False)
-            default = getattr(self.field_object, "default", None)
-
-            sql = f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name}"
-
-            # Map Tortoise field types to SQL types (simplified)
-            if field_type == "CharField":
-                max_length = getattr(self.field_object, "max_length", 255)
-                sql += f" VARCHAR({max_length})"
-            elif field_type == "IntField":
-                sql += " INTEGER"
-            elif field_type == "BooleanField":
-                sql += " BOOLEAN"
-            elif field_type == "DatetimeField":
-                sql += " TIMESTAMP"
-            else:
-                sql += " TEXT"  # Default to TEXT for unknown types
-
-            if not nullable:
-                sql += " NOT NULL"
-
-            if default is not None:
-                if isinstance(default, str):
-                    sql += f" DEFAULT '{default}'"
-                else:
-                    sql += f" DEFAULT {default}"
-
-            return sql
-
-        # Other change types would be implemented similarly
-
-        return f"-- SQL for {self.change_type} not implemented yet"
+        return generate_sql_for_schema_change(self, "forward", dialect)
 
     def generate_sql_backward(self, dialect: str = "sqlite") -> str:
         """Generate SQL for reverting this change."""
-        # This would have custom SQL generation for each change type
-        # For a production-ready system, it would need to handle different dialects
+        from tortoise_pathway.generators import generate_sql_for_schema_change
 
-        if self.change_type == SchemaChangeType.CREATE_TABLE:
-            return f"DROP TABLE {self.table_name}"
-
-        elif self.change_type == SchemaChangeType.ADD_COLUMN:
-            # SQLite has limited support for dropping columns
-            if dialect == "sqlite":
-                return f"-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
-            else:
-                return f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
-
-        # Other change types would be implemented similarly
-
-        return f"-- Backward SQL for {self.change_type} not implemented yet"
+        return generate_sql_for_schema_change(self, "backward", dialect)
 
 
 class SchemaDiffer:
@@ -228,7 +187,8 @@ class SchemaDiffer:
                     pk = getattr(field_object, "pk", False)
 
                     # Get the actual DB column name
-                    db_column = getattr(field_object, "source_field", field_name)
+                    source_field = getattr(field_object, "source_field", None)
+                    db_column = source_field if source_field is not None else field_name
 
                     columns[db_column] = {
                         "field_name": field_name,
@@ -241,40 +201,60 @@ class SchemaDiffer:
 
                 # Get indexes
                 indexes = []
-                if hasattr(model._meta, "indexes"):
+                if hasattr(model._meta, "indexes") and isinstance(
+                    model._meta.indexes, (list, tuple)
+                ):
                     for index_fields in model._meta.indexes:
-                        index_columns = [
-                            model._meta.fields_map[field_name].source_field
-                            if hasattr(model._meta.fields_map[field_name], "source_field")
-                            else field_name
-                            for field_name in index_fields
-                        ]
+                        if not isinstance(index_fields, (list, tuple)):
+                            continue
 
-                        indexes.append(
-                            {
-                                "name": f"idx_{'_'.join(index_columns)}",
-                                "unique": False,
-                                "columns": index_columns,
-                            }
-                        )
+                        index_columns = []
+                        for field_name in index_fields:
+                            if field_name in model._meta.fields_map:
+                                source_field = getattr(
+                                    model._meta.fields_map[field_name], "source_field", None
+                                )
+                                column_name = (
+                                    source_field if source_field is not None else field_name
+                                )
+                                index_columns.append(column_name)
+
+                        if index_columns:
+                            indexes.append(
+                                {
+                                    "name": f"idx_{'_'.join(index_columns)}",
+                                    "unique": False,
+                                    "columns": index_columns,
+                                }
+                            )
 
                 # Get unique constraints
-                if hasattr(model._meta, "unique_together"):
+                if hasattr(model._meta, "unique_together") and isinstance(
+                    model._meta.unique_together, (list, tuple)
+                ):
                     for unique_fields in model._meta.unique_together:
-                        unique_columns = [
-                            model._meta.fields_map[field_name].source_field
-                            if hasattr(model._meta.fields_map[field_name], "source_field")
-                            else field_name
-                            for field_name in unique_fields
-                        ]
+                        if not isinstance(unique_fields, (list, tuple)):
+                            continue
 
-                        indexes.append(
-                            {
-                                "name": f"uniq_{'_'.join(unique_columns)}",
-                                "unique": True,
-                                "columns": unique_columns,
-                            }
-                        )
+                        unique_columns = []
+                        for field_name in unique_fields:
+                            if field_name in model._meta.fields_map:
+                                source_field = getattr(
+                                    model._meta.fields_map[field_name], "source_field", None
+                                )
+                                column_name = (
+                                    source_field if source_field is not None else field_name
+                                )
+                                unique_columns.append(column_name)
+
+                        if unique_columns:
+                            indexes.append(
+                                {
+                                    "name": f"uniq_{'_'.join(unique_columns)}",
+                                    "unique": True,
+                                    "columns": unique_columns,
+                                }
+                            )
 
                 model_schema[table_name] = {"columns": columns, "indexes": indexes, "model": model}
 
@@ -316,11 +296,18 @@ class SchemaDiffer:
             # Columns to add (in model but not in DB)
             for column_name in model_columns - db_columns:
                 field_info = model_schema[table_name]["columns"][column_name]
+
+                # Make sure column_name is correct (not None)
+                if column_name is None and "field_name" in field_info:
+                    actual_column_name = field_info["field_name"]
+                else:
+                    actual_column_name = column_name
+
                 changes.append(
                     SchemaChange(
                         change_type=SchemaChangeType.ADD_COLUMN,
                         table_name=table_name,
-                        column_name=column_name,
+                        column_name=actual_column_name,
                         field_object=field_info["field_object"],
                         params=field_info,
                     )
@@ -366,65 +353,3 @@ class SchemaDiffer:
             # Index changes would be implemented similarly
 
         return changes
-
-    def generate_migration_code(self, changes: List[SchemaChange], migration_name: str) -> str:
-        """Generate migration code based on detected changes."""
-        operations = []
-        reverse_operations = []
-
-        for change in changes:
-            operations.append(f"# {change}")
-            reverse_operations.append(f"# Reverse for: {change}")
-
-            # This is simplified - a real implementation would generate actual Python code
-            if change.change_type == SchemaChangeType.CREATE_TABLE:
-                # Example - would generate full Python code to create table
-                operations.append(f'await connection.execute_script("""')
-                operations.append(f"CREATE TABLE {change.table_name} (")
-                operations.append(f"    -- Would generate appropriate columns")
-                operations.append(f");")
-                operations.append(f'""")')
-
-                reverse_operations.append(
-                    f'await connection.execute_script("DROP TABLE {change.table_name}")'
-                )
-
-            elif change.change_type == SchemaChangeType.ADD_COLUMN:
-                # Add column operation
-                sql = change.generate_sql_forward()
-                operations.append(f'await connection.execute_script("{sql}")')
-
-                reverse_sql = change.generate_sql_backward()
-                reverse_operations.append(f'await connection.execute_script("{reverse_sql}")')
-
-            # Other change types would be handled similarly
-
-        # Generate the final migration code
-        code = f'''"""
-Auto-generated migration {migration_name}
-"""
-
-from tortoise_pathway.migration import Migration
-from tortoise import connections
-
-
-class {migration_name.split("_", 1)[1].title().replace("_", "")}Migration(Migration):
-    """
-    Auto-generated migration based on model changes.
-    """
-
-    dependencies = []
-
-    async def apply(self) -> None:
-        """Apply the migration forward."""
-        connection = connections.get("default")
-
-        {chr(10).join("        " + op for op in operations)}
-
-    async def revert(self) -> None:
-        """Revert the migration."""
-        connection = connections.get("default")
-
-        {chr(10).join("        " + op for op in reverse_operations)}
-'''
-        return code

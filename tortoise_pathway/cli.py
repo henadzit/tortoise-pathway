@@ -33,7 +33,8 @@ async def init_tortoise(config_module: str) -> Dict[str, Any]:
 
     except ImportError:
         print(f"Error: Could not import {config_module}")
-        sys.exit(1)
+        raise
+        # sys.exit(1)
     except Exception as e:
         print(f"Error initializing Tortoise: {e}")
         sys.exit(1)
