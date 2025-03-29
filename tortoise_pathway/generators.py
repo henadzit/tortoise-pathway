@@ -6,11 +6,24 @@ across the codebase. It includes SQL generation and migration file templates.
 """
 
 import datetime
-from typing import List, Type
+from typing import List, Type, Union
 
 from tortoise import Tortoise, Model
 
-from tortoise_pathway.schema_diff import SchemaChange, SchemaChangeType
+from tortoise_pathway.schema_diff import (
+    SchemaChange,
+    CreateTable,
+    DropTable,
+    RenameTable,
+    AddColumn,
+    DropColumn,
+    AlterColumn,
+    RenameColumn,
+    AddIndex,
+    DropIndex,
+    AddConstraint,
+    DropConstraint,
+)
 
 
 def generate_table_creation_sql(model: Type[Model], dialect: str = "sqlite") -> str:
@@ -219,29 +232,17 @@ def generate_sql_for_schema_change(
         SQL string for applying the change.
     """
     if direction == "forward":
-        if change.change_type == SchemaChangeType.CREATE_TABLE:
-            model = change.params.get("model")
-            if model:
-                return generate_table_creation_sql(model, dialect)
+        if isinstance(change, CreateTable):
+            if change.model:
+                return generate_table_creation_sql(change.model, dialect)
             return f"CREATE TABLE {change.table_name} (id INTEGER PRIMARY KEY);"
 
-        elif change.change_type == SchemaChangeType.ADD_COLUMN:
-            # Ensure we have a valid column name
-            if change.column_name is None:
-                # Try to get the field name from the field object's params
-                if "field_name" in change.params:
-                    column_name = change.params["field_name"]
-                else:
-                    # Fallback to a safe default to avoid SQL errors
-                    column_name = "new_column"
-            else:
-                column_name = change.column_name
-
+        elif isinstance(change, AddColumn):
             field_type = change.field_object.__class__.__name__
             nullable = getattr(change.field_object, "null", False)
             default = getattr(change.field_object, "default", None)
 
-            sql = f"ALTER TABLE {change.table_name} ADD COLUMN {column_name}"
+            sql = f"ALTER TABLE {change.table_name} ADD COLUMN {change.column_name}"
 
             # Map Tortoise field types to SQL types (simplified)
             if field_type == "CharField":
@@ -267,33 +268,97 @@ def generate_sql_for_schema_change(
 
             return sql
 
-        elif change.change_type == SchemaChangeType.DROP_TABLE:
+        elif isinstance(change, DropTable):
             return f"DROP TABLE {change.table_name}"
 
-        # Add other change types as needed
+        elif isinstance(change, RenameTable):
+            if dialect == "sqlite":
+                return f"ALTER TABLE {change.table_name} RENAME TO {change.new_name}"
+            elif dialect == "postgres":
+                return f"ALTER TABLE {change.table_name} RENAME TO {change.new_name}"
+            else:
+                return f"-- Rename table not implemented for dialect: {dialect}"
+
+        elif isinstance(change, AlterColumn):
+            if dialect == "sqlite":
+                return f"-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the new schema."
+            elif dialect == "postgres":
+                column_type = "TEXT"  # Default type
+                field_type = change.field_object.__class__.__name__
+
+                if field_type == "CharField":
+                    max_length = getattr(change.field_object, "max_length", 255)
+                    column_type = f"VARCHAR({max_length})"
+                elif field_type == "IntField":
+                    column_type = "INTEGER"
+                elif field_type == "BooleanField":
+                    column_type = "BOOLEAN"
+                elif field_type == "DatetimeField":
+                    column_type = "TIMESTAMP"
+
+                return f"ALTER TABLE {change.table_name} ALTER COLUMN {change.column_name} TYPE {column_type}"
+            else:
+                return f"-- Alter column not implemented for dialect: {dialect}"
+
+        elif isinstance(change, RenameColumn):
+            if dialect == "sqlite":
+                return f"-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the new schema."
+            elif dialect == "postgres":
+                return f"ALTER TABLE {change.table_name} RENAME COLUMN {change.column_name} TO {change.new_name}"
+            else:
+                return f"-- Rename column not implemented for dialect: {dialect}"
+
+        elif isinstance(change, AddIndex):
+            return f"CREATE INDEX idx_{change.table_name}_{change.column_name} ON {change.table_name} ({change.column_name})"
+
+        elif isinstance(change, DropIndex):
+            return f"DROP INDEX idx_{change.table_name}_{change.column_name}"
+
+        elif isinstance(change, AddConstraint):
+            return f"-- Add constraint operation not implemented yet"
+
+        elif isinstance(change, DropConstraint):
+            return f"-- Drop constraint operation not implemented yet"
 
     elif direction == "backward":
-        if change.change_type == SchemaChangeType.CREATE_TABLE:
+        if isinstance(change, CreateTable):
             return f"DROP TABLE {change.table_name}"
 
-        elif change.change_type == SchemaChangeType.ADD_COLUMN:
-            # Ensure we have a valid column name
-            column_name = change.column_name
-            if column_name is None:
-                if "field_name" in change.params:
-                    column_name = change.params["field_name"]
-                else:
-                    column_name = "new_column"
-
+        elif isinstance(change, AddColumn):
             # SQLite has limited support for dropping columns
             if dialect == "sqlite":
                 return f"-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
             else:
-                return f"ALTER TABLE {change.table_name} DROP COLUMN {column_name}"
+                return f"ALTER TABLE {change.table_name} DROP COLUMN {change.column_name}"
 
-        # Add other reverse operations as needed
+        elif isinstance(change, DropTable):
+            if change.model:
+                return generate_table_creation_sql(change.model, dialect)
+            return f"-- Cannot automatically recreate table without model information"
 
-    return f"-- SQL for {change.change_type} not implemented yet"
+        elif isinstance(change, RenameTable):
+            if dialect == "sqlite":
+                return f"ALTER TABLE {change.new_name} RENAME TO {change.table_name}"
+            elif dialect == "postgres":
+                return f"ALTER TABLE {change.new_name} RENAME TO {change.table_name}"
+            else:
+                return f"-- Rename table not implemented for dialect: {dialect}"
+
+        elif isinstance(change, RenameColumn):
+            if dialect == "sqlite":
+                return f"-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the old schema."
+            elif dialect == "postgres":
+                return f"ALTER TABLE {change.table_name} RENAME COLUMN {change.new_name} TO {change.column_name}"
+            else:
+                return f"-- Rename column not implemented for dialect: {dialect}"
+
+        elif isinstance(change, AddIndex):
+            return f"DROP INDEX idx_{change.table_name}_{change.column_name}"
+
+        elif isinstance(change, DropIndex):
+            return f"CREATE INDEX idx_{change.table_name}_{change.column_name} ON {change.table_name} ({change.column_name})"
+
+    return f"-- SQL generation not implemented for this change type"
 
 
 def generate_migration_class_name(migration_name: str) -> str:
@@ -378,7 +443,6 @@ Auto-generated migration {migration_name}
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise import connections
 
 
 class {class_name}(Migration):
@@ -390,67 +454,139 @@ class {class_name}(Migration):
 
     async def apply(self) -> None:
         """Apply the migration forward."""
-        connection = connections.get("default")
-
-        # Auto-generated migration operations would go here
-        # For example:
-        # await connection.execute_script(
-        #     """
-        #     ALTER TABLE my_table ADD COLUMN new_column VARCHAR(255) NOT NULL DEFAULT '';
-        #     """
-        # )
+        # No operations to apply
+        pass
 
     async def revert(self) -> None:
         """Revert the migration."""
-        connection = connections.get("default")
-
-        # Auto-generated rollback operations would go here
-        # For example:
-        # await connection.execute_script(
-        #     """
-        #     ALTER TABLE my_table DROP COLUMN new_column;
-        #     """
-        # )
+        # No operations to revert
+        pass
 '''
 
-    # Generate operations for each change
+    # Prepare imports for schema change classes and models
+    schema_changes_used = set()
+    model_imports = set()
+
+    for change in changes:
+        # Add the change class name to imports
+        schema_changes_used.add(change.__class__.__name__)
+
+        # Add model imports if available
+        if hasattr(change, "model") and change.model is not None:
+            model_name = change.model.__name__
+            model_module = change.model.__module__
+            model_imports.add(f"from {model_module} import {model_name}")
+
+    schema_imports = ", ".join(sorted(schema_changes_used))
+    model_imports_str = "\n".join(sorted(model_imports))
+
+    # Generate operations lists
     operations = []
     reverse_operations = []
 
-    for change in changes:
-        operations.append(f"# {change}")
-        reverse_operations.append(f"# Reverse for: {change}")
+    for i, change in enumerate(changes):
+        change_var = f"change_{i}"
 
-        if change.change_type == SchemaChangeType.CREATE_TABLE:
-            model = change.params.get("model")
-            if model:
-                sql = generate_table_creation_sql(model)
-                operations.append(f'await connection.execute_script("""')
-                operations.append(f"{sql}")
-                operations.append(f'""")')
-            else:
+        # Forward operation
+        operations.append(f"# {change}")
+
+        # Create the change instance based on its type
+        if isinstance(change, CreateTable):
+            operations.append(f"{change_var} = {change.__class__.__name__}(")
+            operations.append(f'    table_name="{change.table_name}",')
+            if change.model is not None:
+                operations.append(f"    model={change.model.__name__},")
+            operations.append(")")
+            operations.append(f"await {change_var}.apply()")
+
+            # Reverse operation
+            reverse_operations.append(f"# Reverse: {change}")
+            reverse_operations.append(f"reverse_{change_var} = DropTable(")
+            reverse_operations.append(f'    table_name="{change.table_name}",')
+            reverse_operations.append(")")
+            reverse_operations.append(f"await reverse_{change_var}.apply()")
+
+        elif isinstance(change, AddColumn):
+            operations.append(f"{change_var} = {change.__class__.__name__}(")
+            operations.append(f'    table_name="{change.table_name}",')
+            operations.append(f'    column_name="{change.column_name}",')
+
+            # Only reference model fields if model is not None
+            if change.model is not None:
+                field_name = change.params.get("field_name", change.column_name)
                 operations.append(
-                    f'await connection.execute_script("CREATE TABLE {change.table_name} (id INTEGER PRIMARY KEY)")'
+                    f"    field_object={change.model.__name__}._meta.fields_map['{field_name}'],"
+                )
+                operations.append(f"    model={change.model.__name__},")
+            else:
+                # Handle case where field_object is needed but model is None
+                operations.append(
+                    f"    # field_object not available - manual intervention required"
                 )
 
-            reverse_operations.append(
-                f'await connection.execute_script("DROP TABLE {change.table_name}")'
-            )
+            operations.append(")")
+            operations.append(f"await {change_var}.apply()")
 
-        elif change.change_type == SchemaChangeType.ADD_COLUMN:
-            sql = generate_sql_for_schema_change(change, "forward")
-            operations.append(f'await connection.execute_script("{sql}")')
+            # Reverse operation
+            reverse_operations.append(f"# Reverse: {change}")
+            reverse_operations.append(f"try:")
+            reverse_operations.append(f"    await {change_var}.revert()")
+            reverse_operations.append(f"except NotImplementedError as e:")
+            reverse_operations.append(f"    # SQLite may not support column dropping")
+            reverse_operations.append(f'    print(f"Warning: {{e}}")')
 
-            reverse_sql = generate_sql_for_schema_change(change, "backward")
-            reverse_operations.append(f'await connection.execute_script("{reverse_sql}")')
+        elif isinstance(change, DropTable):
+            operations.append(f"{change_var} = {change.__class__.__name__}(")
+            operations.append(f'    table_name="{change.table_name}",')
+            if change.model is not None:
+                operations.append(f"    model={change.model.__name__},")
+            operations.append(")")
+            operations.append(f"await {change_var}.apply()")
 
-        elif change.change_type == SchemaChangeType.DROP_TABLE:
-            operations.append(f'await connection.execute_script("DROP TABLE {change.table_name}")')
+            # Cannot automatically recreate the table in reverse
             reverse_operations.append(
                 f"# Cannot automatically recreate dropped table {change.table_name}"
             )
+            if change.model is not None:
+                reverse_operations.append(f"try:")
+                reverse_operations.append(f"    await {change_var}.revert()")
+                reverse_operations.append(f"except Exception as e:")
+                reverse_operations.append(
+                    f'    print(f"Warning: Cannot recreate table {change.table_name}: {{e}}")'
+                )
 
-        # Add other change types as needed
+        elif isinstance(change, AlterColumn):
+            operations.append(f"{change_var} = {change.__class__.__name__}(")
+            operations.append(f'    table_name="{change.table_name}",')
+            operations.append(f'    column_name="{change.column_name}",')
+
+            # Only reference model fields if model is not None
+            if change.model is not None:
+                new_params = change.params.get("new", {})
+                field_name = new_params.get("field_name", change.column_name)
+                operations.append(
+                    f"    field_object={change.model.__name__}._meta.fields_map['{field_name}'],"
+                )
+                operations.append(f"    model={change.model.__name__},")
+            else:
+                # Handle case where field_object is needed but model is None
+                operations.append(
+                    f"    # field_object not available - manual intervention required"
+                )
+
+            operations.append(")")
+            operations.append(f"try:")
+            operations.append(f"    await {change_var}.apply()")
+            operations.append(f"except NotImplementedError as e:")
+            operations.append(f"    # SQLite may not support column alteration")
+            operations.append(f'    print(f"Warning: {{e}}")')
+
+            # Reverse operation is complex - might need manual intervention
+            reverse_operations.append(f"# Reverse for AlterColumn requires manual intervention")
+            reverse_operations.append(f"try:")
+            reverse_operations.append(f"    await {change_var}.revert()")
+            reverse_operations.append(f"except (NotImplementedError, ValueError) as e:")
+            reverse_operations.append(f'    print(f"Warning: {{e}}")')
 
     # Filter out any None values
     operations = [op for op in operations if op is not None]
@@ -466,7 +602,8 @@ Auto-generated migration {migration_name}
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise import connections
+from tortoise_pathway.schema_diff import {schema_imports}
+{model_imports_str}
 
 
 class {class_name}(Migration):
@@ -478,13 +615,9 @@ class {class_name}(Migration):
 
     async def apply(self) -> None:
         """Apply the migration forward."""
-        connection = connections.get("default")
-
 {operations_str}
 
     async def revert(self) -> None:
         """Revert the migration."""
-        connection = connections.get("default")
-
 {reverse_operations_str}
 '''

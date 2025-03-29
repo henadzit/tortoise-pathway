@@ -6,84 +6,53 @@ and the actual database schema, generating migration operations.
 """
 
 import typing
-from typing import Dict, List, Any, Optional
-from enum import Enum
+from typing import Dict, List, Any, Optional, Type, Union
 
-from tortoise import Tortoise
+from tortoise import Tortoise, connections
 from tortoise.fields import Field
 from tortoise.models import Model
 
 
-class SchemaChangeType(Enum):
-    """Types of schema changes that can be detected."""
+def get_dialect(connection) -> str:
+    """
+    Determine the database dialect from a connection.
 
-    CREATE_TABLE = "create_table"
-    DROP_TABLE = "drop_table"
-    RENAME_TABLE = "rename_table"
-    ADD_COLUMN = "add_column"
-    DROP_COLUMN = "drop_column"
-    ALTER_COLUMN = "alter_column"
-    RENAME_COLUMN = "rename_column"
-    ADD_INDEX = "add_index"
-    DROP_INDEX = "drop_index"
-    ADD_CONSTRAINT = "add_constraint"
-    DROP_CONSTRAINT = "drop_constraint"
+    Args:
+        connection: The database connection.
+
+    Returns:
+        A string representing the dialect ('sqlite', 'postgres', etc.)
+    """
+    # Check connection attributes or class name to determine dialect
+    connection_class = connection.__class__.__name__
+
+    if "SQLite" in connection_class:
+        return "sqlite"
+    elif "Postgres" in connection_class:
+        return "postgres"
+    elif "MySQL" in connection_class:
+        return "mysql"
+
+    # Default to sqlite if unknown
+    return "sqlite"
 
 
 class SchemaChange:
-    """Represents a single schema change."""
+    """Base class for all schema changes."""
 
     def __init__(
         self,
-        change_type: SchemaChangeType,
         table_name: str,
-        column_name: Optional[str] = None,
-        new_name: Optional[str] = None,
-        field_object: Optional[Field] = None,
+        model: Optional[Type[Model]] = None,
         params: Optional[Dict[str, Any]] = None,
     ):
-        self.change_type = change_type
         self.table_name = table_name
-
-        # Ensure column_name is not None when a field_object is provided
-        if column_name is None and field_object is not None:
-            # Try to get the field name from source_field or from params
-            source_field = getattr(field_object, "source_field", None)
-            if source_field is not None:
-                column_name = source_field
-            elif params and "field_name" in params:
-                column_name = params["field_name"]
-
-        self.column_name = column_name
-        self.new_name = new_name
-        self.field_object = field_object
+        self.model = model
         self.params = params or {}
 
     def __str__(self) -> str:
         """String representation of the schema change."""
-        if self.change_type == SchemaChangeType.CREATE_TABLE:
-            return f"Create table {self.table_name}"
-        elif self.change_type == SchemaChangeType.DROP_TABLE:
-            return f"Drop table {self.table_name}"
-        elif self.change_type == SchemaChangeType.RENAME_TABLE:
-            return f"Rename table {self.table_name} to {self.new_name}"
-        elif self.change_type == SchemaChangeType.ADD_COLUMN:
-            return f"Add column {self.column_name} to table {self.table_name}"
-        elif self.change_type == SchemaChangeType.DROP_COLUMN:
-            return f"Drop column {self.column_name} from table {self.table_name}"
-        elif self.change_type == SchemaChangeType.ALTER_COLUMN:
-            return f"Alter column {self.column_name} on table {self.table_name}"
-        elif self.change_type == SchemaChangeType.RENAME_COLUMN:
-            return f"Rename column {self.column_name} to {self.new_name} on table {self.table_name}"
-        elif self.change_type == SchemaChangeType.ADD_INDEX:
-            return f"Add index on {self.column_name} in table {self.table_name}"
-        elif self.change_type == SchemaChangeType.DROP_INDEX:
-            return f"Drop index on {self.column_name} in table {self.table_name}"
-        elif self.change_type == SchemaChangeType.ADD_CONSTRAINT:
-            return f"Add constraint on {self.column_name} in table {self.table_name}"
-        elif self.change_type == SchemaChangeType.DROP_CONSTRAINT:
-            return f"Drop constraint on {self.column_name} in table {self.table_name}"
-        return f"Unknown change {self.change_type} on {self.table_name}"
+        return f"Schema change on {self.table_name}"
 
     def generate_sql_forward(self, dialect: str = "sqlite") -> str:
         """Generate SQL for applying this change forward."""
@@ -96,6 +65,436 @@ class SchemaChange:
         from tortoise_pathway.generators import generate_sql_for_schema_change
 
         return generate_sql_for_schema_change(self, "backward", dialect)
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Apply this schema change to the database."""
+        connection = connections.get(connection_name)
+        sql = self.generate_sql_forward()
+        await connection.execute_script(sql)
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Revert this schema change from the database."""
+        connection = connections.get(connection_name)
+        sql = self.generate_sql_backward()
+        await connection.execute_script(sql)
+
+
+class CreateTable(SchemaChange):
+    """Create a new table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        model: Type[Model],
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+
+    def __str__(self) -> str:
+        return f"Create table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Create the table in the database."""
+        connection = connections.get(connection_name)
+
+        if self.model:
+            sql = self.generate_sql_forward()
+            await connection.execute_script(sql)
+        else:
+            # Fallback if no model is available
+            await connection.execute_script(
+                f"CREATE TABLE {self.table_name} (id INTEGER PRIMARY KEY);"
+            )
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Drop the table from the database."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(f"DROP TABLE {self.table_name}")
+
+
+class DropTable(SchemaChange):
+    """Drop an existing table."""
+
+    def __str__(self) -> str:
+        return f"Drop table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Drop the table from the database."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(f"DROP TABLE {self.table_name}")
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Recreate the table if model information is available."""
+        if not self.model:
+            raise ValueError(
+                f"Cannot recreate table {self.table_name}: model information not available"
+            )
+
+        connection = connections.get(connection_name)
+        sql = self.generate_sql_backward()
+        await connection.execute_script(sql)
+
+
+class RenameTable(SchemaChange):
+    """Rename an existing table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        new_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.new_name = new_name
+
+    def __str__(self) -> str:
+        return f"Rename table {self.table_name} to {self.new_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Rename the table in the database."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(f"ALTER TABLE {self.table_name} RENAME TO {self.new_name}")
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Rename the table back to its original name."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(f"ALTER TABLE {self.new_name} RENAME TO {self.table_name}")
+
+
+class AddColumn(SchemaChange):
+    """Add a new column to an existing table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        field_object: Field,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+        self.field_object = field_object
+
+    def __str__(self) -> str:
+        return f"Add column {self.column_name} to table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Add the column to the database table."""
+        connection = connections.get(connection_name)
+        sql = self.generate_sql_forward()
+        await connection.execute_script(sql)
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Drop the column from the database table."""
+        connection = connections.get(connection_name)
+        dialect = get_dialect(connection)
+
+        if dialect == "sqlite":
+            # SQLite doesn't support DROP COLUMN directly
+            # This would require creating a new table, copying data, and replacing
+            raise NotImplementedError(
+                f"Cannot automatically drop column {self.column_name} from {self.table_name} in SQLite"
+            )
+        else:
+            # For PostgreSQL and other databases that support DROP COLUMN
+            await connection.execute_script(
+                f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
+            )
+
+
+class DropColumn(SchemaChange):
+    """Drop a column from an existing table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+
+    def __str__(self) -> str:
+        return f"Drop column {self.column_name} from table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Drop the column from the database table."""
+        connection = connections.get(connection_name)
+        dialect = get_dialect(connection)
+
+        if dialect == "sqlite":
+            # SQLite doesn't support DROP COLUMN directly
+            raise NotImplementedError(
+                f"Cannot automatically drop column {self.column_name} from {self.table_name} in SQLite"
+            )
+        else:
+            # For PostgreSQL and other databases that support DROP COLUMN
+            await connection.execute_script(
+                f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
+            )
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Recreate the column if model information is available."""
+        if not self.model:
+            raise ValueError(
+                f"Cannot recreate column {self.column_name} in {self.table_name}: model information not available"
+            )
+
+        # This would require getting field information from model
+        # Simplified implementation:
+        connection = connections.get(connection_name)
+        field_name = self.column_name
+
+        if self.model and field_name in self.model._meta.fields_map:
+            field = self.model._meta.fields_map[field_name]
+            field_type = field.__class__.__name__
+
+            # Simplified column re-creation
+            column_type = "TEXT"  # Default
+            if field_type == "IntField":
+                column_type = "INTEGER"
+            elif field_type == "CharField":
+                max_length = getattr(field, "max_length", 255)
+                column_type = f"VARCHAR({max_length})"
+
+            await connection.execute_script(
+                f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name} {column_type}"
+            )
+        else:
+            raise ValueError(f"Cannot recreate column {self.column_name}: field not found in model")
+
+
+class AlterColumn(SchemaChange):
+    """Alter the properties of an existing column."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        field_object: Field,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+        self.field_object = field_object
+
+    def __str__(self) -> str:
+        return f"Alter column {self.column_name} on table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Alter the column in the database table."""
+        connection = connections.get(connection_name)
+        dialect = get_dialect(connection)
+
+        if dialect == "sqlite":
+            # SQLite doesn't support ALTER COLUMN directly
+            # This would require complex table recreation
+            raise NotImplementedError(
+                f"Cannot automatically alter column {self.column_name} in {self.table_name} for SQLite"
+            )
+        else:
+            sql = self.generate_sql_forward()
+            await connection.execute_script(sql)
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Revert the column alteration if old values are available."""
+        # This operation needs detailed old column information
+        # If params contains old column info, we could use it here
+        old_info = self.params.get("old", {})
+        if not old_info:
+            raise ValueError(
+                f"Cannot revert column alteration for {self.column_name}: old column information not available"
+            )
+
+        # Complex implementation required; simplified version:
+        raise NotImplementedError(
+            f"Reverting column alteration for {self.column_name} requires manual intervention"
+        )
+
+
+class RenameColumn(SchemaChange):
+    """Rename an existing column."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        new_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+        self.new_name = new_name
+
+    def __str__(self) -> str:
+        return f"Rename column {self.column_name} to {self.new_name} on table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Rename the column in the database table."""
+        connection = connections.get(connection_name)
+        dialect = get_dialect(connection)
+
+        if dialect == "sqlite":
+            # SQLite support for RENAME COLUMN depends on version
+            # This would likely require table recreation
+            raise NotImplementedError(
+                f"Cannot automatically rename column {self.column_name} to {self.new_name} in SQLite"
+            )
+        else:
+            await connection.execute_script(
+                f"ALTER TABLE {self.table_name} RENAME COLUMN {self.column_name} TO {self.new_name}"
+            )
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Rename the column back to its original name."""
+        connection = connections.get(connection_name)
+        dialect = get_dialect(connection)
+
+        if dialect == "sqlite":
+            raise NotImplementedError(
+                f"Cannot automatically rename column {self.new_name} back to {self.column_name} in SQLite"
+            )
+        else:
+            await connection.execute_script(
+                f"ALTER TABLE {self.table_name} RENAME COLUMN {self.new_name} TO {self.column_name}"
+            )
+
+
+class AddIndex(SchemaChange):
+    """Add an index to a table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+
+    def __str__(self) -> str:
+        return f"Add index on {self.column_name} in table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Add the index to the database table."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(
+            f"CREATE INDEX idx_{self.table_name}_{self.column_name} ON {self.table_name} ({self.column_name})"
+        )
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Drop the index from the database table."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(f"DROP INDEX idx_{self.table_name}_{self.column_name}")
+
+
+class DropIndex(SchemaChange):
+    """Drop an index from a table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+
+    def __str__(self) -> str:
+        return f"Drop index on {self.column_name} in table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Drop the index from the database table."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(f"DROP INDEX idx_{self.table_name}_{self.column_name}")
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Recreate the index on the database table."""
+        connection = connections.get(connection_name)
+        await connection.execute_script(
+            f"CREATE INDEX idx_{self.table_name}_{self.column_name} ON {self.table_name} ({self.column_name})"
+        )
+
+
+class AddConstraint(SchemaChange):
+    """Add a constraint to a table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+
+    def __str__(self) -> str:
+        return f"Add constraint on {self.column_name} in table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Add the constraint to the database table."""
+        # This would need more specific information about the constraint type
+        # Placeholder implementation:
+        connection = connections.get(connection_name)
+        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
+
+        # This is a simplification - real constraints need more specific SQL
+        await connection.execute_script(
+            f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
+        )
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Remove the constraint from the database table."""
+        connection = connections.get(connection_name)
+        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
+        await connection.execute_script(
+            f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
+        )
+
+
+class DropConstraint(SchemaChange):
+    """Drop a constraint from a table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        column_name: str,
+        model: Optional[Type[Model]] = None,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
+        self.column_name = column_name
+
+    def __str__(self) -> str:
+        return f"Drop constraint on {self.column_name} in table {self.table_name}"
+
+    async def apply(self, connection_name: str = "default") -> None:
+        """Drop the constraint from the database table."""
+        connection = connections.get(connection_name)
+        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
+        await connection.execute_script(
+            f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
+        )
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Recreate the constraint on the database table."""
+        # This would need more specific information about the constraint type
+        # Placeholder implementation:
+        connection = connections.get(connection_name)
+        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
+
+        # This is a simplification - real constraints need more specific SQL
+        await connection.execute_script(
+            f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
+        )
 
 
 class SchemaDiffer:
@@ -274,21 +673,22 @@ class SchemaDiffer:
         # Tables to create (in models but not in DB)
         for table_name in model_tables - db_tables:
             changes.append(
-                SchemaChange(
-                    change_type=SchemaChangeType.CREATE_TABLE,
+                CreateTable(
                     table_name=table_name,
+                    model=model_schema[table_name]["model"],
                     params={"model": model_schema[table_name]["model"]},
                 )
             )
 
         # Tables to drop (in DB but not in models)
         for table_name in db_tables - model_tables:
-            changes.append(
-                SchemaChange(change_type=SchemaChangeType.DROP_TABLE, table_name=table_name)
-            )
+            changes.append(DropTable(table_name=table_name))
 
         # Check changes in existing tables
         for table_name in db_tables & model_tables:
+            # Store model reference
+            model = model_schema[table_name]["model"]
+
             # Columns in DB and model
             db_columns = set(db_schema[table_name]["columns"].keys())
             model_columns = set(model_schema[table_name]["columns"].keys())
@@ -297,18 +697,12 @@ class SchemaDiffer:
             for column_name in model_columns - db_columns:
                 field_info = model_schema[table_name]["columns"][column_name]
 
-                # Make sure column_name is correct (not None)
-                if column_name is None and "field_name" in field_info:
-                    actual_column_name = field_info["field_name"]
-                else:
-                    actual_column_name = column_name
-
                 changes.append(
-                    SchemaChange(
-                        change_type=SchemaChangeType.ADD_COLUMN,
+                    AddColumn(
                         table_name=table_name,
-                        column_name=actual_column_name,
+                        column_name=column_name,
                         field_object=field_info["field_object"],
+                        model=model,
                         params=field_info,
                     )
                 )
@@ -316,10 +710,10 @@ class SchemaDiffer:
             # Columns to drop (in DB but not in model)
             for column_name in db_columns - model_columns:
                 changes.append(
-                    SchemaChange(
-                        change_type=SchemaChangeType.DROP_COLUMN,
+                    DropColumn(
                         table_name=table_name,
                         column_name=column_name,
+                        model=model,
                     )
                 )
 
@@ -341,11 +735,11 @@ class SchemaDiffer:
 
                 if column_changed:
                     changes.append(
-                        SchemaChange(
-                            change_type=SchemaChangeType.ALTER_COLUMN,
+                        AlterColumn(
                             table_name=table_name,
                             column_name=column_name,
                             field_object=model_column["field_object"],
+                            model=model,
                             params={"old": db_column, "new": model_column},
                         )
                     )

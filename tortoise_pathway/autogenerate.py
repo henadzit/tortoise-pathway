@@ -12,7 +12,7 @@ from typing import List, Optional, Type
 from tortoise import Tortoise, Model
 
 from tortoise_pathway.migration import MigrationManager
-from tortoise_pathway.schema_diff import SchemaChange, SchemaChangeType
+from tortoise_pathway.schema_diff import SchemaChange, CreateTable
 
 
 async def generate_initial_migration(
@@ -80,9 +80,9 @@ async def generate_model_creation_operations(models: List[Type[Model]]) -> List[
         table_name = model._meta.db_table
 
         changes.append(
-            SchemaChange(
-                change_type=SchemaChangeType.CREATE_TABLE,
+            CreateTable(
                 table_name=table_name,
+                model=model,
                 params={"model": model},
             )
         )
