@@ -438,30 +438,7 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
 
     # If no changes detected, return placeholder template
     if not changes:
-        return f'''"""
-Auto-generated migration {migration_name}
-"""
-
-from tortoise_pathway.migration import Migration
-
-
-class {class_name}(Migration):
-    """
-    Auto-generated migration based on model changes.
-    """
-
-    dependencies = []
-
-    async def apply(self) -> None:
-        """Apply the migration forward."""
-        # No operations to apply
-        pass
-
-    async def revert(self) -> None:
-        """Revert the migration."""
-        # No operations to revert
-        pass
-'''
+        raise ValueError("No changes")
 
     # Prepare imports for schema change classes and models
     schema_changes_used = set()
@@ -470,6 +447,10 @@ class {class_name}(Migration):
     for change in changes:
         # Add the change class name to imports
         schema_changes_used.add(change.__class__.__name__)
+
+        # If we're generating a reverse operation as a different class type, add that too
+        if isinstance(change, CreateTable):
+            schema_changes_used.add("DropTable")
 
         # Add model imports if available
         if hasattr(change, "model") and change.model is not None:
@@ -484,118 +465,22 @@ class {class_name}(Migration):
     operations = []
     reverse_operations = []
 
+    # Generate code for each change
     for i, change in enumerate(changes):
         change_var = f"change_{i}"
 
-        # Forward operation
-        operations.append(f"# {change}")
+        # Add the forward operation code
+        operations.append(change.to_migration(change_var))
 
-        # Create the change instance based on its type
-        if isinstance(change, CreateTable):
-            operations.append(f"{change_var} = {change.__class__.__name__}(")
-            operations.append(f'    table_name="{change.table_name}",')
-            if change.model is not None:
-                operations.append(f"    model={change.model.__name__},")
-            operations.append(")")
-            operations.append(f"await {change_var}.apply()")
-
-            # Reverse operation
-            reverse_operations.append(f"# Reverse: {change}")
-            reverse_operations.append(f"reverse_{change_var} = DropTable(")
-            reverse_operations.append(f'    table_name="{change.table_name}",')
-            reverse_operations.append(")")
-            reverse_operations.append(f"await reverse_{change_var}.apply()")
-
-        elif isinstance(change, AddColumn):
-            operations.append(f"{change_var} = {change.__class__.__name__}(")
-            operations.append(f'    table_name="{change.table_name}",')
-            operations.append(f'    column_name="{change.column_name}",')
-
-            # Only reference model fields if model is not None
-            if change.model is not None:
-                field_name = change.params.get("field_name", change.column_name)
-                operations.append(
-                    f"    field_object={change.model.__name__}._meta.fields_map['{field_name}'],"
-                )
-                operations.append(f"    model={change.model.__name__},")
-            else:
-                # Handle case where field_object is needed but model is None
-                operations.append(
-                    f"    # field_object not available - manual intervention required"
-                )
-
-            operations.append(")")
-            operations.append(f"await {change_var}.apply()")
-
-            # Reverse operation
-            reverse_operations.append(f"# Reverse: {change}")
-            reverse_operations.append(f"try:")
-            reverse_operations.append(f"    await {change_var}.revert()")
-            reverse_operations.append(f"except NotImplementedError as e:")
-            reverse_operations.append(f"    # SQLite may not support column dropping")
-            reverse_operations.append(f'    print(f"Warning: {{e}}")')
-
-        elif isinstance(change, DropTable):
-            operations.append(f"{change_var} = {change.__class__.__name__}(")
-            operations.append(f'    table_name="{change.table_name}",')
-            if change.model is not None:
-                operations.append(f"    model={change.model.__name__},")
-            operations.append(")")
-            operations.append(f"await {change_var}.apply()")
-
-            # Cannot automatically recreate the table in reverse
-            reverse_operations.append(
-                f"# Cannot automatically recreate dropped table {change.table_name}"
-            )
-            if change.model is not None:
-                reverse_operations.append(f"try:")
-                reverse_operations.append(f"    await {change_var}.revert()")
-                reverse_operations.append(f"except Exception as e:")
-                reverse_operations.append(
-                    f'    print(f"Warning: Cannot recreate table {change.table_name}: {{e}}")'
-                )
-
-        elif isinstance(change, AlterColumn):
-            operations.append(f"{change_var} = {change.__class__.__name__}(")
-            operations.append(f'    table_name="{change.table_name}",')
-            operations.append(f'    column_name="{change.column_name}",')
-
-            # Only reference model fields if model is not None
-            if change.model is not None:
-                new_params = change.params.get("new", {})
-                field_name = new_params.get("field_name", change.column_name)
-                operations.append(
-                    f"    field_object={change.model.__name__}._meta.fields_map['{field_name}'],"
-                )
-                operations.append(f"    model={change.model.__name__},")
-            else:
-                # Handle case where field_object is needed but model is None
-                operations.append(
-                    f"    # field_object not available - manual intervention required"
-                )
-
-            operations.append(")")
-            operations.append(f"try:")
-            operations.append(f"    await {change_var}.apply()")
-            operations.append(f"except NotImplementedError as e:")
-            operations.append(f"    # SQLite may not support column alteration")
-            operations.append(f'    print(f"Warning: {{e}}")')
-
-            # Reverse operation is complex - might need manual intervention
-            reverse_operations.append(f"# Reverse for AlterColumn requires manual intervention")
-            reverse_operations.append(f"try:")
-            reverse_operations.append(f"    await {change_var}.revert()")
-            reverse_operations.append(f"except (NotImplementedError, ValueError) as e:")
-            reverse_operations.append(f'    print(f"Warning: {{e}}")')
-
-    # Filter out any None values
-    operations = [op for op in operations if op is not None]
-    reverse_operations = [op for op in reverse_operations if op is not None]
+        # Add the reverse operation code
+        reverse_operations.append(change.to_migration_reverse(change_var))
 
     # Generate the final migration code
     indent = "        "
-    operations_str = "\n".join(indent + op for op in operations)
-    reverse_operations_str = "\n".join(indent + op for op in reverse_operations)
+    operations_str = "\n".join(indent + line for line in "\n".join(operations).split("\n"))
+    reverse_operations_str = "\n".join(
+        indent + line for line in "\n".join(reverse_operations).split("\n")
+    )
 
     return f'''"""
 Auto-generated migration {migration_name}
