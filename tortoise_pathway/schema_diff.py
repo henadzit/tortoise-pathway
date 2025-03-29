@@ -109,10 +109,11 @@ class CreateTable(SchemaChange):
     def __init__(
         self,
         table_name: str,
-        model: Type[Model],
+        fields: Dict[str, Field],
         params: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(table_name, model, params)
+        super().__init__(table_name, None, params)
+        self.fields = fields
 
     def __str__(self) -> str:
         return f"Create table {self.table_name}"
@@ -121,27 +122,168 @@ class CreateTable(SchemaChange):
         """Create the table in the database."""
         connection = connections.get(connection_name)
 
-        if self.model:
-            sql = self.generate_sql_forward()
-            await connection.execute_script(sql)
-        else:
-            # Fallback if no model is available
-            await connection.execute_script(
-                f"CREATE TABLE {self.table_name} (id INTEGER PRIMARY KEY);"
-            )
+        # Generate SQL from fields dictionary
+        sql = self._generate_sql_from_fields()
+        await connection.execute_script(sql)
 
     async def revert(self, connection_name: str = "default") -> None:
         """Drop the table from the database."""
         connection = connections.get(connection_name)
         await connection.execute_script(f"DROP TABLE {self.table_name}")
 
+    def _generate_sql_from_fields(self, dialect: str = "sqlite") -> str:
+        """
+        Generate SQL to create a table from the fields dictionary.
+
+        Args:
+            dialect: SQL dialect to use (default: "sqlite").
+
+        Returns:
+            SQL string for table creation.
+        """
+        columns = []
+        constraints = []
+
+        # Process each field
+        for field_name, field in self.fields.items():
+            field_type = field.__class__.__name__
+
+            # Skip if this is a reverse relation
+            if field_type == "BackwardFKRelation":
+                continue
+
+            # Handle ForeignKey fields
+            if field_type == "ForeignKeyField":
+                # For ForeignKeyField, use the actual db column name (typically field_name + "_id")
+                db_field_name = getattr(field, "model_field_name", field_name)
+                source_field = getattr(field, "source_field", None)
+                if source_field:
+                    db_column = source_field
+                else:
+                    # Default to tortoise convention: field_name + "_id"
+                    db_column = f"{db_field_name}_id"
+
+                # Add foreign key constraint if related table is known
+                related_model_name = getattr(field, "model_name", None)
+                related_table = getattr(field, "related_table", None)
+
+                if related_table:
+                    constraints.append(f"FOREIGN KEY ({db_column}) REFERENCES {related_table} (id)")
+            else:
+                # Use source_field if provided, otherwise use the field name
+                source_field = getattr(field, "source_field", None)
+                db_column = source_field if source_field is not None else field_name
+
+            nullable = getattr(field, "null", False)
+            unique = getattr(field, "unique", False)
+            pk = getattr(field, "pk", False)
+            default = getattr(field, "default", None)
+
+            # Determine SQL type from field type
+            if field_type == "IntField":
+                sql_type = "INTEGER"
+            elif field_type == "CharField":
+                max_length = getattr(field, "max_length", 255)
+                sql_type = f"VARCHAR({max_length})"
+            elif field_type == "TextField":
+                sql_type = "TEXT"
+            elif field_type == "BooleanField":
+                sql_type = "BOOLEAN"
+            elif field_type == "FloatField":
+                sql_type = "REAL"
+            elif field_type == "DecimalField":
+                sql_type = "DECIMAL"
+            elif field_type == "DatetimeField":
+                sql_type = "TIMESTAMP"
+            elif field_type == "DateField":
+                sql_type = "DATE"
+            elif field_type == "ForeignKeyField":
+                sql_type = "INTEGER"  # Assuming integer foreign keys
+            else:
+                sql_type = "TEXT"  # Default to TEXT for unknown types
+
+            # Build column definition
+            column_def = f"{db_column} {sql_type}"
+
+            if pk:
+                if dialect == "sqlite":
+                    column_def += " PRIMARY KEY"
+                    if field_type == "IntField":
+                        column_def += " AUTOINCREMENT"
+                else:
+                    column_def += " PRIMARY KEY"
+                    if field_type == "IntField" and dialect == "postgres":
+                        # For PostgreSQL, we'd use SERIAL instead
+                        sql_type = "SERIAL"
+                        column_def = f"{db_column} {sql_type} PRIMARY KEY"
+
+            if not nullable and not pk:
+                column_def += " NOT NULL"
+
+            if unique and not pk:
+                column_def += " UNIQUE"
+
+            if default is not None and not callable(default):
+                if isinstance(default, bool):
+                    default_val = "1" if default else "0"
+                elif isinstance(default, (int, float)):
+                    default_val = str(default)
+                elif isinstance(default, str):
+                    default_val = f"'{default}'"
+                else:
+                    default_val = f"'{default}'"
+
+                column_def += f" DEFAULT {default_val}"
+
+            columns.append(column_def)
+
+        # Build the CREATE TABLE statement
+        sql = f"CREATE TABLE {self.table_name} (\n"
+        sql += ",\n".join(["    " + col for col in columns])
+
+        if constraints:
+            sql += ",\n" + ",\n".join(["    " + constraint for constraint in constraints])
+
+        sql += "\n);"
+
+        return sql
+
+    def generate_sql_forward(self, dialect: str = "sqlite") -> str:
+        """Generate SQL for applying this change forward."""
+        return self._generate_sql_from_fields(dialect)
+
+    def generate_sql_backward(self, dialect: str = "sqlite") -> str:
+        """Generate SQL for reverting this change."""
+        return f"DROP TABLE {self.table_name}"
+
     def to_migration(self, var_name: str = "change") -> str:
         """Generate Python code to create a table in a migration."""
         lines = [f"# {self}"]
         lines.append(f"{var_name} = CreateTable(")
         lines.append(f'    table_name="{self.table_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+
+        # Include fields
+        lines.append("    fields={")
+        for field_name, field_obj in self.fields.items():
+            # We need to reference these fields in a way that can be imported
+            # This is a simplified approach - for real implementation,
+            # you might need more sophisticated handling
+            field_type = field_obj.__class__.__name__
+            field_module = field_obj.__class__.__module__
+            field_repr = f"{field_type}()"  # Default simplistic representation
+
+            # For common field types, try to capture key parameters
+            if field_type == "CharField":
+                max_length = getattr(field_obj, "max_length")
+                field_repr = f"{field_type}(max_length={max_length})"
+            elif field_type == "IntField" and getattr(field_obj, "pk", False):
+                field_repr = f"{field_type}(pk=True)"
+            elif hasattr(field_obj, "null") and field_obj.null:
+                field_repr = f"{field_type}(null=True)"
+
+            lines.append(f'        "{field_name}": {field_repr},')
+        lines.append("    },")
+
         lines.append(")")
         lines.append(f"await {var_name}.apply()")
         return "\n".join(lines)
@@ -956,10 +1098,17 @@ class SchemaDiffer:
 
         # Tables to create (in models but not in DB)
         for table_name in model_tables - db_tables:
+            # Extract all field objects from the model for CreateTable
+            field_objects = {}
+            for column_name, column_info in model_schema[table_name]["columns"].items():
+                if "field_object" in column_info:
+                    field_name = column_info["field_name"]
+                    field_objects[field_name] = column_info["field_object"]
+
             changes.append(
                 CreateTable(
                     table_name=table_name,
-                    model=model_schema[table_name]["model"],
+                    fields=field_objects,
                     params={"model": model_schema[table_name]["model"]},
                 )
             )

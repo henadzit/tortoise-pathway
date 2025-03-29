@@ -1,6 +1,101 @@
 # Tortoise Pathway
 
-A schema migration tool for Tortoise ORM, inspired by Django's migration system.
+Tortoise Pathway is a migration system for Tortoise ORM, inspired by Django's migration approach.
+
+## Features
+
+- Generate schema migrations automatically
+- Apply and revert migrations
+- Class-based migration operations
+- Direct database interaction without SQL generation
+- Field dictionary-based table creation
+
+## Key Concepts
+
+### Schema Change Classes
+
+Schema changes are represented by subclasses of the `SchemaChange` base class. Common operations include:
+
+- `CreateTable`: Create new database tables
+- `DropTable`: Remove existing tables
+- `RenameTable`: Rename tables
+- `AddColumn`: Add new columns
+- `DropColumn`: Remove columns
+- `AlterColumn`: Modify column properties
+- `RenameColumn`: Rename columns
+- `AddIndex`: Add indexes
+- `DropIndex`: Remove indexes
+- `AddConstraint`: Add constraints
+- `DropConstraint`: Remove constraints
+
+Each of these classes has methods to:
+- Generate SQL for the operation
+- Apply changes directly to the database
+- Revert changes
+- Generate migration code
+
+### Creating Tables with Field Dictionaries
+
+Tables are created using a dictionary of field definitions. This provides flexibility and explicit control over field definitions.
+
+Example:
+
+```python
+from tortoise.fields import CharField, IntField, BooleanField
+from tortoise_pathway.schema_diff import CreateTable
+
+# Create a fields dictionary for a table
+fields = {
+    "id": IntField(pk=True),
+    "name": CharField(max_length=100, null=False),
+    "is_active": BooleanField(default=True),
+}
+
+# Create the table using the fields dictionary (required parameter)
+change = CreateTable(
+    table_name="my_table",
+    fields=fields,
+)
+
+# Apply the change to create the table
+await change.apply()
+```
+
+This approach provides:
+- Explicit field definitions for better control
+- More dynamic schema management
+- No dependency on model classes
+
+## Migration System
+
+The migration system manages:
+
+1. Detecting schema changes between models and database
+2. Generating migration files with operations
+3. Applying and reverting migrations
+4. Tracking migration history
+
+### Working with Migrations
+
+Generate a migration:
+```
+python -m tortoise_pathway makemigrations --app myapp
+```
+
+Apply migrations:
+```
+python -m tortoise_pathway migrate --app myapp
+```
+
+Revert a migration:
+```
+python -m tortoise_pathway migrate --app myapp --reverse 20230101000000_migration_name
+```
+
+## Usage Examples
+
+See the `examples/` directory for usage examples:
+- `use_fields_dict.py`: Demonstrates creating tables with field dictionaries
 
 ## Installation
 
@@ -37,14 +132,6 @@ pip install -e ".[dev,test]"
 # Or using uv
 uv pip install -e ".[dev,test]"
 ```
-
-## Features
-
-- Automatic migration generation based on model changes
-- Forward and backward migrations
-- Migration history tracking
-- Command-line interface for managing migrations
-- Integration with existing Tortoise ORM applications
 
 ## Project Structure
 

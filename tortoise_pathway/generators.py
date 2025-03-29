@@ -233,9 +233,8 @@ def generate_sql_for_schema_change(
     """
     if direction == "forward":
         if isinstance(change, CreateTable):
-            if change.model:
-                return generate_table_creation_sql(change.model, dialect)
-            return f"CREATE TABLE {change.table_name} (id INTEGER PRIMARY KEY);"
+            # Now CreateTable can only use fields, so call the specific method
+            return change._generate_sql_from_fields(dialect)
 
         elif isinstance(change, AddColumn):
             field_type = change.field_object.__class__.__name__
@@ -443,6 +442,7 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
     # Prepare imports for schema change classes and models
     schema_changes_used = set()
     model_imports = set()
+    field_imports = set()  # For field types when using fields dict
 
     for change in changes:
         # Add the change class name to imports
@@ -452,6 +452,13 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
         if isinstance(change, CreateTable):
             schema_changes_used.add("DropTable")
 
+            # Add field type imports if using fields dictionary
+            if hasattr(change, "fields") and change.fields:
+                for field_name, field_obj in change.fields.items():
+                    field_class = field_obj.__class__.__name__
+                    field_module = field_obj.__class__.__module__
+                    field_imports.add(f"from {field_module} import {field_class}")
+
         # Add model imports if available
         if hasattr(change, "model") and change.model is not None:
             model_name = change.model.__name__
@@ -460,6 +467,20 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
 
     schema_imports = ", ".join(sorted(schema_changes_used))
     model_imports_str = "\n".join(sorted(model_imports))
+    field_imports_str = "\n".join(sorted(field_imports))
+
+    # Complete import section
+    imports = []
+    imports.append(f"from tortoise_pathway.migration import Migration")
+    imports.append(f"from tortoise_pathway.schema_diff import {schema_imports}")
+
+    if model_imports_str:
+        imports.append(model_imports_str)
+
+    if field_imports_str:
+        imports.append(field_imports_str)
+
+    all_imports = "\n".join(imports)
 
     # Generate operations lists
     operations = []
@@ -486,9 +507,7 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
 Auto-generated migration {migration_name}
 """
 
-from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_diff import {schema_imports}
-{model_imports_str}
+{all_imports}
 
 
 class {class_name}(Migration):
