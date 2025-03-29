@@ -141,7 +141,6 @@ tortoise_pathway/
 ├── __main__.py                # Entry point for CLI
 ├── migration.py               # Core migration classes and manager
 ├── schema_diff.py             # Schema difference detection
-├── autogenerate.py            # Auto-migration generation
 ├── cli.py                     # Command-line interface
 └── integrator.py              # Integration with Tortoise apps
 ```
