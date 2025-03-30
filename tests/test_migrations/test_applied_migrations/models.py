@@ -8,7 +8,7 @@ from tortoise import fields, models
 class Product(models.Model):
     """Product model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=255)
     description = fields.TextField()
     price = fields.DecimalField(max_digits=10, decimal_places=2)
@@ -25,7 +25,7 @@ class Product(models.Model):
 class Category(models.Model):
     """Category model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=100)
     description = fields.TextField(null=True)
 

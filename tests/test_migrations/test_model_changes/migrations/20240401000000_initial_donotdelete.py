@@ -20,7 +20,7 @@ class InitialMigration(Migration):
         CreateTable(
             table_name="blogs",
             fields={
-                "id": IntField(pk=True),
+                "id": IntField(primary_key=True),
                 "title": CharField(max_length=255),
                 "content": TextField(),
                 "created_at": DatetimeField(auto_now_add=True),
@@ -30,7 +30,7 @@ class InitialMigration(Migration):
         CreateTable(
             table_name="tags",
             fields={
-                "id": IntField(pk=True),
+                "id": IntField(primary_key=True),
                 "name": CharField(max_length=50, unique=True),
                 # Note: description field is missing in the initial migration
             },

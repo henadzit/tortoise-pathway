@@ -145,7 +145,7 @@ Define your Tortoise ORM models as usual:
 from tortoise import fields, models
 
 class User(models.Model):
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=255)
     email = fields.CharField(max_length=255, unique=True)
     created_at = fields.DatetimeField(auto_now_add=True)

@@ -17,7 +17,9 @@ from tortoise_pathway.schema_change import (
 class TestModel(models.Model):
     """Test model for schema operations."""
 
-    id = fields.IntField(pk=True)
+    __test__ = False
+
+    id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=100)
 
     class Meta:
@@ -51,7 +53,7 @@ async def test_create_table(setup_test_db):
     """Test CreateTable operation."""
     # Create fields dictionary
     fields_dict = {
-        "id": fields.IntField(pk=True),
+        "id": fields.IntField(primary_key=True),
         "name": fields.CharField(max_length=100),
         "description": fields.TextField(null=True),
     }
@@ -87,7 +89,7 @@ async def test_drop_table(setup_test_db):
     """Test DropTable operation."""
     # First create a table
     fields_dict = {
-        "id": fields.IntField(pk=True),
+        "id": fields.IntField(primary_key=True),
         "name": fields.CharField(max_length=100),
     }
 
@@ -120,7 +122,7 @@ async def test_add_column(setup_test_db):
     """Test AddColumn operation."""
     # First create a table
     fields_dict = {
-        "id": fields.IntField(pk=True),
+        "id": fields.IntField(primary_key=True),
         "name": fields.CharField(max_length=100),
     }
 
@@ -151,7 +153,7 @@ async def test_add_index(setup_test_db):
     """Test AddIndex operation."""
     # First create a table
     fields_dict = {
-        "id": fields.IntField(pk=True),
+        "id": fields.IntField(primary_key=True),
         "name": fields.CharField(max_length=100),
     }
 
@@ -187,7 +189,7 @@ async def test_drop_index(setup_test_db):
     """Test DropIndex operation."""
     # First create a table
     fields_dict = {
-        "id": fields.IntField(pk=True),
+        "id": fields.IntField(primary_key=True),
         "name": fields.CharField(max_length=100),
     }
 

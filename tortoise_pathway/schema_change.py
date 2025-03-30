@@ -295,7 +295,7 @@ class CreateTable(SchemaChange):
                 max_length = getattr(field_obj, "max_length")
                 field_repr = f"{field_type}(max_length={max_length})"
             elif field_type == "IntField" and getattr(field_obj, "pk", False):
-                field_repr = f"{field_type}(pk=True)"
+                field_repr = f"{field_type}(primary_key=True)"
             elif hasattr(field_obj, "null") and field_obj.null:
                 field_repr = f"{field_type}(null=True)"
 

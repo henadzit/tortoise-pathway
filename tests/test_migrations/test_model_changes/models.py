@@ -8,7 +8,7 @@ from tortoise import fields, models
 class Blog(models.Model):
     """Blog model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     title = fields.CharField(max_length=255)
     content = fields.TextField()
     # Changed from original: Added a new field
@@ -27,7 +27,7 @@ class Blog(models.Model):
 class Tag(models.Model):
     """Tag model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=50, unique=True)
     # Changed from original: Added a new field
     description = fields.TextField(null=True)
@@ -43,7 +43,7 @@ class Tag(models.Model):
 class Comment(models.Model):
     """Comment model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     blog = fields.ForeignKeyField("test_model_changes.Blog", related_name="comments")
     content = fields.TextField()
     author_name = fields.CharField(max_length=100)

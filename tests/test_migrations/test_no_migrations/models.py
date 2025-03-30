@@ -8,7 +8,7 @@ from tortoise import fields, models
 class User(models.Model):
     """User model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=255)
     email = fields.CharField(max_length=255, unique=True)
     created_at = fields.DatetimeField(auto_now_add=True)
@@ -23,7 +23,7 @@ class User(models.Model):
 class Note(models.Model):
     """Note model for testing."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     title = fields.CharField(max_length=100)
     content = fields.TextField()
     is_active = fields.BooleanField(default=True)

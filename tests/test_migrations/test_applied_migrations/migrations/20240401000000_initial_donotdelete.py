@@ -22,7 +22,7 @@ class InitialMigration(Migration):
         CreateTable(
             table_name="products",
             fields={
-                "id": IntField(pk=True),
+                "id": IntField(primary_key=True),
                 "name": CharField(max_length=255),
                 "description": TextField(),
                 "price": DecimalField(max_digits=10, decimal_places=2),
@@ -33,7 +33,7 @@ class InitialMigration(Migration):
         CreateTable(
             table_name="categories",
             fields={
-                "id": IntField(pk=True),
+                "id": IntField(primary_key=True),
                 "name": CharField(max_length=100),
                 "description": TextField(null=True),
             },
