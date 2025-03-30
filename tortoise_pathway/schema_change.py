@@ -95,12 +95,9 @@ class SchemaChange:
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """
         Generate Python code for this schema change to be included in a migration file.
-
-        Args:
-            var_name: Variable name to use in the generated code.
 
         Returns:
             String with Python code that represents this schema change operation,
@@ -237,10 +234,10 @@ class CreateTable(SchemaChange):
 
         return sql
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to create a table in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = CreateTable(")
+        lines.append(f"CreateTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    model="{self.model}",')
 
@@ -285,10 +282,10 @@ class DropTable(SchemaChange):
         # we need to provide guidance for handling this in migrations
         return f"-- To recreate table {self.table_name}, import the model class from '{self.model}' first"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to drop a table in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = DropTable(")
+        lines.append(f"DropTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    model="{self.model}",')
         lines.append(")")
@@ -325,10 +322,10 @@ class RenameTable(SchemaChange):
         else:
             return f"-- Rename table not implemented for dialect: {dialect}"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to rename a table in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = RenameTable(")
+        lines.append(f"RenameTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    new_name="{self.new_name}",')
         lines.append(f'    model="{self.model}",')
@@ -399,10 +396,10 @@ class AddColumn(SchemaChange):
         else:
             return f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to add a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = AddColumn(")
+        lines.append(f"AddColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
 
@@ -445,10 +442,10 @@ class DropColumn(SchemaChange):
         # An implementation would need to import the model dynamically
         return f"-- Recreating column {self.column_name} with string model reference requires implementation"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to drop a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = DropColumn(")
+        lines.append(f"DropColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -510,10 +507,10 @@ class AlterColumn(SchemaChange):
         # This is a simplified version, would need more detailed logic for a real implementation
         return f"-- Reverting column alteration for {self.column_name} requires manual intervention"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to alter a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = AlterColumn(")
+        lines.append(f"AlterColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
 
@@ -567,10 +564,10 @@ class RenameColumn(SchemaChange):
         else:
             return f"-- Rename column not implemented for dialect: {dialect}"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to rename a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = RenameColumn(")
+        lines.append(f"RenameColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    new_name="{self.new_name}",')
@@ -603,10 +600,10 @@ class AddIndex(SchemaChange):
         """Generate SQL for dropping an index."""
         return f"DROP INDEX idx_{self.table_name}_{self.column_name}"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to add an index in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = AddIndex(")
+        lines.append(f"AddIndex(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -638,10 +635,10 @@ class DropIndex(SchemaChange):
         """Generate SQL for adding an index."""
         return f"CREATE INDEX idx_{self.table_name}_{self.column_name} ON {self.table_name} ({self.column_name})"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to drop an index in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = DropIndex(")
+        lines.append(f"DropIndex(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -686,10 +683,10 @@ class AddConstraint(SchemaChange):
         else:
             return f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to add a constraint in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = AddConstraint(")
+        lines.append(f"AddConstraint(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -734,10 +731,10 @@ class DropConstraint(SchemaChange):
         else:
             return f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
 
-    def to_migration(self, var_name: str = "change") -> str:
+    def to_migration(self) -> str:
         """Generate Python code to drop a constraint in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"{var_name} = DropConstraint(")
+        lines.append(f"DropConstraint(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')

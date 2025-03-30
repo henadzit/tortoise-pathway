@@ -329,17 +329,13 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
         operations.append(f"    # {change}")
 
         # Get the to_migration code which represents the operation
-        migration_code = change.to_migration(f"op_{i}")
+        migration_code = change.to_migration()
 
         # Split by lines and remove comment lines
         lines = migration_code.split("\n")
         operation_lines = [line for line in lines if not line.startswith("#")]
 
         if operation_lines:
-            # Extract operation code without variable assignment
-            if f"op_{i} = " in operation_lines[0]:
-                operation_lines[0] = operation_lines[0].split(f"op_{i} = ")[1]
-
             # Join back and ensure trailing comma
             operation_def = "\n    ".join(operation_lines)
             if not operation_def.endswith(","):
