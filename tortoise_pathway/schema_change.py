@@ -59,6 +59,18 @@ class SchemaChange:
         """String representation of the schema change."""
         return f"Schema change on {self.table_name}"
 
+    async def apply(self, connection_name: str = "default") -> None:
+        """Apply this schema change to the database."""
+        connection = connections.get(connection_name)
+        sql = self.forward_sql()
+        await connection.execute_script(sql)
+
+    async def revert(self, connection_name: str = "default") -> None:
+        """Revert this schema change from the database."""
+        connection = connections.get(connection_name)
+        sql = self.backward_sql()
+        await connection.execute_script(sql)
+
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """
         Generate SQL for applying this change forward.
@@ -82,40 +94,6 @@ class SchemaChange:
             SQL string for reverting the change.
         """
         raise NotImplementedError("Subclasses must implement this method")
-
-    def generate_sql_forward(self, dialect: str = "sqlite") -> str:
-        """Generate SQL for applying this change forward."""
-        # For backward compatibility, we first try the new method
-        try:
-            return self.forward_sql(dialect)
-        except NotImplementedError:
-            # Fall back to the old way
-            from tortoise_pathway.generators import generate_sql_for_schema_change
-
-            return generate_sql_for_schema_change(self, "forward", dialect)
-
-    def generate_sql_backward(self, dialect: str = "sqlite") -> str:
-        """Generate SQL for reverting this change."""
-        # For backward compatibility, we first try the new method
-        try:
-            return self.backward_sql(dialect)
-        except NotImplementedError:
-            # Fall back to the old way
-            from tortoise_pathway.generators import generate_sql_for_schema_change
-
-            return generate_sql_for_schema_change(self, "backward", dialect)
-
-    async def apply(self, connection_name: str = "default") -> None:
-        """Apply this schema change to the database."""
-        connection = connections.get(connection_name)
-        sql = self.generate_sql_forward()
-        await connection.execute_script(sql)
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Revert this schema change from the database."""
-        connection = connections.get(connection_name)
-        sql = self.generate_sql_backward()
-        await connection.execute_script(sql)
 
     def to_migration(self, var_name: str = "change") -> str:
         """
@@ -147,19 +125,6 @@ class CreateTable(SchemaChange):
     def __str__(self) -> str:
         return f"Create table {self.table_name}"
 
-    async def apply(self, connection_name: str = "default") -> None:
-        """Create the table in the database."""
-        connection = connections.get(connection_name)
-
-        # Generate SQL from fields dictionary
-        sql = self._generate_sql_from_fields()
-        await connection.execute_script(sql)
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Drop the table from the database."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(f"DROP TABLE {self.table_name}")
-
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for creating the table."""
         return self._generate_sql_from_fields(dialect)
@@ -167,15 +132,6 @@ class CreateTable(SchemaChange):
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping the table."""
         return f"DROP TABLE {self.table_name}"
-
-    # Preserve existing methods to not break the API
-    def generate_sql_forward(self, dialect: str = "sqlite") -> str:
-        """Generate SQL for applying this change forward."""
-        return self.forward_sql(dialect)
-
-    def generate_sql_backward(self, dialect: str = "sqlite") -> str:
-        """Generate SQL for reverting this change."""
-        return self.backward_sql(dialect)
 
     def _generate_sql_from_fields(self, dialect: str = "sqlite") -> str:
         """
@@ -317,17 +273,6 @@ class DropTable(SchemaChange):
     def __str__(self) -> str:
         return f"Drop table {self.table_name}"
 
-    async def apply(self, connection_name: str = "default") -> None:
-        """Drop the table from the database."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(f"DROP TABLE {self.table_name}")
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Recreate the table if model information is available."""
-        connection = connections.get(connection_name)
-        sql = self.generate_sql_backward()
-        await connection.execute_script(sql)
-
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping the table."""
         return f"DROP TABLE {self.table_name}"
@@ -365,16 +310,6 @@ class RenameTable(SchemaChange):
 
     def __str__(self) -> str:
         return f"Rename table {self.table_name} to {self.new_name}"
-
-    async def apply(self, connection_name: str = "default") -> None:
-        """Rename the table in the database."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(f"ALTER TABLE {self.table_name} RENAME TO {self.new_name}")
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Rename the table back to its original name."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(f"ALTER TABLE {self.new_name} RENAME TO {self.table_name}")
 
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for renaming the table."""
@@ -418,29 +353,6 @@ class AddColumn(SchemaChange):
 
     def __str__(self) -> str:
         return f"Add column {self.column_name} to table {self.table_name}"
-
-    async def apply(self, connection_name: str = "default") -> None:
-        """Add the column to the database table."""
-        connection = connections.get(connection_name)
-        sql = self.generate_sql_forward()
-        await connection.execute_script(sql)
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Drop the column from the database table."""
-        connection = connections.get(connection_name)
-        dialect = get_dialect(connection)
-
-        if dialect == "sqlite":
-            # SQLite doesn't support DROP COLUMN directly
-            # This would require creating a new table, copying data, and replacing
-            raise NotImplementedError(
-                f"Cannot automatically drop column {self.column_name} from {self.table_name} in SQLite"
-            )
-        else:
-            # For PostgreSQL and other databases that support DROP COLUMN
-            await connection.execute_script(
-                f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
-            )
 
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for adding a column."""
@@ -520,30 +432,6 @@ class DropColumn(SchemaChange):
     def __str__(self) -> str:
         return f"Drop column {self.column_name} from table {self.table_name}"
 
-    async def apply(self, connection_name: str = "default") -> None:
-        """Drop the column from the database table."""
-        connection = connections.get(connection_name)
-        dialect = get_dialect(connection)
-
-        if dialect == "sqlite":
-            # SQLite doesn't support DROP COLUMN directly
-            raise NotImplementedError(
-                f"Cannot automatically drop column {self.column_name} from {self.table_name} in SQLite"
-            )
-        else:
-            # For PostgreSQL and other databases that support DROP COLUMN
-            await connection.execute_script(
-                f"ALTER TABLE {self.table_name} DROP COLUMN {self.column_name}"
-            )
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Recreate the column if model information is available."""
-        # To recreate the column, you would need to import the model dynamically
-        # This would require significant changes to the implementation
-        raise NotImplementedError(
-            f"Recreating column {self.column_name} with string model reference requires implementation"
-        )
-
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
         if dialect == "sqlite":
@@ -585,36 +473,6 @@ class AlterColumn(SchemaChange):
 
     def __str__(self) -> str:
         return f"Alter column {self.column_name} on table {self.table_name}"
-
-    async def apply(self, connection_name: str = "default") -> None:
-        """Alter the column in the database table."""
-        connection = connections.get(connection_name)
-        dialect = get_dialect(connection)
-
-        if dialect == "sqlite":
-            # SQLite doesn't support ALTER COLUMN directly
-            # This would require complex table recreation
-            raise NotImplementedError(
-                f"Cannot automatically alter column {self.column_name} in {self.table_name} for SQLite"
-            )
-        else:
-            sql = self.generate_sql_forward()
-            await connection.execute_script(sql)
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Revert the column alteration if old values are available."""
-        # This operation needs detailed old column information
-        # If params contains old column info, we could use it here
-        old_info = self.params.get("old", {})
-        if not old_info:
-            raise ValueError(
-                f"Cannot revert column alteration for {self.column_name}: old column information not available"
-            )
-
-        # Complex implementation required; simplified version:
-        raise NotImplementedError(
-            f"Reverting column alteration for {self.column_name} requires manual intervention"
-        )
 
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for altering a column."""
@@ -687,36 +545,6 @@ class RenameColumn(SchemaChange):
     def __str__(self) -> str:
         return f"Rename column {self.column_name} to {self.new_name} on table {self.table_name}"
 
-    async def apply(self, connection_name: str = "default") -> None:
-        """Rename the column in the database table."""
-        connection = connections.get(connection_name)
-        dialect = get_dialect(connection)
-
-        if dialect == "sqlite":
-            # SQLite support for RENAME COLUMN depends on version
-            # This would likely require table recreation
-            raise NotImplementedError(
-                f"Cannot automatically rename column {self.column_name} to {self.new_name} in SQLite"
-            )
-        else:
-            await connection.execute_script(
-                f"ALTER TABLE {self.table_name} RENAME COLUMN {self.column_name} TO {self.new_name}"
-            )
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Rename the column back to its original name."""
-        connection = connections.get(connection_name)
-        dialect = get_dialect(connection)
-
-        if dialect == "sqlite":
-            raise NotImplementedError(
-                f"Cannot automatically rename column {self.new_name} back to {self.column_name} in SQLite"
-            )
-        else:
-            await connection.execute_script(
-                f"ALTER TABLE {self.table_name} RENAME COLUMN {self.new_name} TO {self.column_name}"
-            )
-
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for renaming a column."""
         if dialect == "sqlite":
@@ -767,18 +595,6 @@ class AddIndex(SchemaChange):
     def __str__(self) -> str:
         return f"Add index on {self.column_name} in table {self.table_name}"
 
-    async def apply(self, connection_name: str = "default") -> None:
-        """Add the index to the database table."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(
-            f"CREATE INDEX idx_{self.table_name}_{self.column_name} ON {self.table_name} ({self.column_name})"
-        )
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Drop the index from the database table."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(f"DROP INDEX idx_{self.table_name}_{self.column_name}")
-
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for adding an index."""
         return f"CREATE INDEX idx_{self.table_name}_{self.column_name} ON {self.table_name} ({self.column_name})"
@@ -814,18 +630,6 @@ class DropIndex(SchemaChange):
     def __str__(self) -> str:
         return f"Drop index on {self.column_name} in table {self.table_name}"
 
-    async def apply(self, connection_name: str = "default") -> None:
-        """Drop the index from the database table."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(f"DROP INDEX idx_{self.table_name}_{self.column_name}")
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Recreate the index on the database table."""
-        connection = connections.get(connection_name)
-        await connection.execute_script(
-            f"CREATE INDEX idx_{self.table_name}_{self.column_name} ON {self.table_name} ({self.column_name})"
-        )
-
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping an index."""
         return f"DROP INDEX idx_{self.table_name}_{self.column_name}"
@@ -860,26 +664,6 @@ class AddConstraint(SchemaChange):
 
     def __str__(self) -> str:
         return f"Add constraint on {self.column_name} in table {self.table_name}"
-
-    async def apply(self, connection_name: str = "default") -> None:
-        """Add the constraint to the database table."""
-        # This would need more specific information about the constraint type
-        # Placeholder implementation:
-        connection = connections.get(connection_name)
-        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
-
-        # This is a simplification - real constraints need more specific SQL
-        await connection.execute_script(
-            f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
-        )
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Remove the constraint from the database table."""
-        connection = connections.get(connection_name)
-        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
-        await connection.execute_script(
-            f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
-        )
 
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for adding a constraint."""
@@ -928,26 +712,6 @@ class DropConstraint(SchemaChange):
 
     def __str__(self) -> str:
         return f"Drop constraint on {self.column_name} in table {self.table_name}"
-
-    async def apply(self, connection_name: str = "default") -> None:
-        """Drop the constraint from the database table."""
-        connection = connections.get(connection_name)
-        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
-        await connection.execute_script(
-            f"ALTER TABLE {self.table_name} DROP CONSTRAINT {constraint_name}"
-        )
-
-    async def revert(self, connection_name: str = "default") -> None:
-        """Recreate the constraint on the database table."""
-        # This would need more specific information about the constraint type
-        # Placeholder implementation:
-        connection = connections.get(connection_name)
-        constraint_name = f"constraint_{self.table_name}_{self.column_name}"
-
-        # This is a simplification - real constraints need more specific SQL
-        await connection.execute_script(
-            f"ALTER TABLE {self.table_name} ADD CONSTRAINT {constraint_name} CHECK ({self.column_name} IS NOT NULL)"
-        )
 
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a constraint."""
