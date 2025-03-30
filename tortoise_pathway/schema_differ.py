@@ -5,11 +5,12 @@ This module provides the SchemaDiffer class that detects differences between
 Tortoise models and the actual database schema.
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from tortoise import Tortoise
 from tortoise.models import Model
 
+from tortoise_pathway.state import State
 from tortoise_pathway.schema_change import (
     SchemaChange,
     CreateTable,
@@ -25,6 +26,7 @@ class SchemaDiffer:
 
     def __init__(self, connection=None):
         self.connection = connection
+        self.state = State()
 
     async def get_db_schema(self) -> Dict[str, Any]:
         """Get the current database schema."""
@@ -182,19 +184,37 @@ class SchemaDiffer:
 
         return model_schema
 
-    async def detect_changes(self) -> List[SchemaChange]:
-        """Detect schema changes between models and database."""
-        db_schema = await self.get_db_schema()
+    async def detect_changes(self, migrations=None) -> List[SchemaChange]:
+        """
+        Detect schema changes between models and state derived from migrations.
+
+        If migrations are provided, the state will be built from those migrations.
+        Otherwise, the actual database schema will be used.
+
+        Args:
+            migrations: Optional list of Migration objects to build the state from.
+
+        Returns:
+            List of SchemaChange objects representing the detected changes.
+        """
+        if migrations:
+            # Build state from migrations
+            await self.state.build_from_migrations(migrations)
+            current_schema = self.state.get_schema()
+        else:
+            # Fall back to direct database inspection
+            current_schema = await self.get_db_schema()
+
         model_schema = self.get_model_schema()
 
         changes = []
 
         # Detect table changes
-        db_tables = set(db_schema.keys())
+        current_tables = set(current_schema.keys())
         model_tables = set(model_schema.keys())
 
-        # Tables to create (in models but not in DB)
-        for table_name in model_tables - db_tables:
+        # Tables to create (in models but not in current schema)
+        for table_name in model_tables - current_tables:
             # Extract all field objects from the model for CreateTable
             field_objects = {}
             for column_name, column_info in model_schema[table_name]["columns"].items():
@@ -211,28 +231,28 @@ class SchemaDiffer:
                 )
             )
 
-        # Tables to drop (in DB but not in models)
-        for table_name in sorted(db_tables - model_tables):
+        # Tables to drop (in current schema but not in models)
+        for table_name in sorted(current_tables - model_tables):
             # For tables that don't exist in models, we need to pass a default model reference
-            # Since model is now required, we'll use a placeholder value
+            model_ref = current_schema[table_name].get("model", f"unknown.{table_name}")
             changes.append(
                 DropTable(
                     table_name=table_name,
-                    model=f"unknown.{table_name}",  # Use a placeholder for tables that don't exist in models
+                    model=model_ref,  # Use provided model ref or a placeholder
                 )
             )
 
         # Check changes in existing tables
-        for table_name in sorted(db_tables & model_tables):
+        for table_name in sorted(current_tables & model_tables):
             # Store model reference
             model = model_schema[table_name]["model"]
 
-            # Columns in DB and model
-            db_columns = set(db_schema[table_name]["columns"].keys())
+            # Columns in current schema and model
+            current_columns = set(current_schema[table_name]["columns"].keys())
             model_columns = set(model_schema[table_name]["columns"].keys())
 
-            # Columns to add (in model but not in DB)
-            for column_name in sorted(model_columns - db_columns):
+            # Columns to add (in model but not in current schema)
+            for column_name in sorted(model_columns - current_columns):
                 field_info = model_schema[table_name]["columns"][column_name]
 
                 changes.append(
@@ -245,8 +265,8 @@ class SchemaDiffer:
                     )
                 )
 
-            # Columns to drop (in DB but not in model)
-            for column_name in db_columns - model_columns:
+            # Columns to drop (in current schema but not in model)
+            for column_name in sorted(current_columns - model_columns):
                 changes.append(
                     DropColumn(
                         table_name=table_name,
@@ -255,33 +275,29 @@ class SchemaDiffer:
                     )
                 )
 
-            # Check for column changes
-            for column_name in sorted(db_columns & model_columns):
-                db_column = db_schema[table_name]["columns"][column_name]
+            # Columns to alter (in both, but different)
+            for column_name in sorted(current_columns & model_columns):
+                current_column = current_schema[table_name]["columns"][column_name]
                 model_column = model_schema[table_name]["columns"][column_name]
 
-                # This is simplified - a real implementation would compare types more carefully
-                # Checking nullable changes, type changes, default value changes
-                column_changed = False
-
-                # For simplicity: if any property is different, mark as changed
-                if db_column["nullable"] != model_column["nullable"]:
-                    column_changed = True
-
-                # Comparing types is tricky as DB types may not exactly match Python types
-                # This would need more sophisticated comparison
-
-                if column_changed:
+                # Simple check for differences (this would be more complex in practice)
+                if (
+                    "type" in current_column
+                    and "type" in model_column
+                    and current_column["type"] != model_column["type"]
+                ) or (
+                    "nullable" in current_column
+                    and "nullable" in model_column
+                    and current_column["nullable"] != model_column["nullable"]
+                ):
                     changes.append(
                         AlterColumn(
                             table_name=table_name,
                             column_name=column_name,
                             field_object=model_column["field_object"],
                             model=model._meta.full_name,
-                            params={"old": db_column, "new": model_column},
+                            params=model_column,
                         )
                     )
-
-            # Index changes would be implemented similarly
 
         return changes

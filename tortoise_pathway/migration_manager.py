@@ -9,6 +9,7 @@ from tortoise.exceptions import OperationalError
 
 from tortoise_pathway.migration import Migration
 from tortoise_pathway.schema_differ import SchemaDiffer
+from tortoise_pathway.state import State
 from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
 
 
@@ -23,6 +24,7 @@ class MigrationManager:
             self.migrations_dir = Path(migrations_dir)
         self.migrations: Dict[str, Type[Migration]] = {}
         self.applied_migrations: Set[str] = set()
+        self.state = State()
 
     async def initialize(self, connection=None) -> None:
         """Initialize the migration system."""
@@ -119,9 +121,12 @@ class MigrationManager:
         migration_file = self.migrations_dir / f"{migration_name}.py"
 
         if auto:
-            # Generate migration content based on model changes
+            # Get applied migrations to build the state from
+            applied_migrations = self.get_applied_migrations()
+
+            # Generate migration content based on model changes compared to existing migrations state
             differ = SchemaDiffer()
-            changes = await differ.detect_changes()
+            changes = await differ.detect_changes(migrations=applied_migrations)
             content = generate_auto_migration(migration_name, changes)
         else:
             # Create an empty migration template
@@ -167,6 +172,9 @@ class MigrationManager:
             try:
                 # Apply migration
                 await migration.apply()
+
+                # Update the state with this migration
+                await self.state.build_from_migrations([migration])
 
                 # Record that migration was applied
                 now = datetime.datetime.now().isoformat()
@@ -235,6 +243,10 @@ class MigrationManager:
             )
 
             self.applied_migrations.remove(migration_name)
+
+            # Rebuild state from remaining applied migrations
+            await self.state.build_from_migrations(self.get_applied_migrations())
+
             print(f"Reverted migration: {migration_name}")
             return migration
 
@@ -248,7 +260,7 @@ class MigrationManager:
         Get list of pending migrations.
 
         Returns:
-            List of Migration instances that have not been applied
+            List of Migration instances
         """
         # Get pending migration names
         pending_names = [name for name in self.migrations if name not in self.applied_migrations]
@@ -264,7 +276,7 @@ class MigrationManager:
         Get list of applied migrations.
 
         Returns:
-            List of Migration instances that have been applied
+            List of Migration instances
         """
         # Get applied migration names that we have loaded
         applied_names = [name for name in self.applied_migrations if name in self.migrations]
