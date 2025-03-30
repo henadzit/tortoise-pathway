@@ -51,6 +51,41 @@ async def test_model_changes(setup_db_file, tortoise_config):
     migration = await manager.create_migration("model_changes", auto=True)
     assert migration.path().exists()
 
+    # Verify operations in the migration
+    # There should be operations for:
+    # 1. Add 'summary' and 'updated_at' fields to 'blogs' table
+    # 2. Add 'description' field to 'tags' table
+    # 3. Create 'comments' table
+
+    # Import schema change types for proper type checking
+    from tortoise_pathway.schema_change import CreateTable, AddColumn
+
+    # Verify the exact operations and their order
+    operations = migration.operations
+
+    assert len(operations) == 4
+
+    comments_table_op = operations[0]
+    assert isinstance(comments_table_op, CreateTable)
+    assert comments_table_op.table_name == "comments"
+    assert "id" in comments_table_op.fields
+    assert "content" in comments_table_op.fields
+    assert "author_name" in comments_table_op.fields
+    assert "created_at" in comments_table_op.fields
+    assert "blog_id" in comments_table_op.fields
+
+    assert isinstance(operations[1], AddColumn)
+    assert operations[1].table_name == "blogs"
+    assert operations[1].column_name == "summary"
+
+    assert isinstance(operations[2], AddColumn)
+    assert operations[2].table_name == "blogs"
+    assert operations[2].column_name == "updated_at"
+
+    assert isinstance(operations[3], AddColumn)
+    assert operations[3].table_name == "tags"
+    assert operations[3].column_name == "description"
+
     # Re-discover migrations
     manager._discover_migrations()
     assert len(manager.migrations) == 2

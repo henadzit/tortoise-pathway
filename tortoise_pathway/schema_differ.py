@@ -211,11 +211,11 @@ class SchemaDiffer:
             )
 
         # Tables to drop (in DB but not in models)
-        for table_name in db_tables - model_tables:
+        for table_name in sorted(db_tables - model_tables):
             changes.append(DropTable(table_name=table_name))
 
         # Check changes in existing tables
-        for table_name in db_tables & model_tables:
+        for table_name in sorted(db_tables & model_tables):
             # Store model reference
             model = model_schema[table_name]["model"]
 
@@ -224,7 +224,7 @@ class SchemaDiffer:
             model_columns = set(model_schema[table_name]["columns"].keys())
 
             # Columns to add (in model but not in DB)
-            for column_name in model_columns - db_columns:
+            for column_name in sorted(model_columns - db_columns):
                 field_info = model_schema[table_name]["columns"][column_name]
 
                 changes.append(
@@ -248,7 +248,7 @@ class SchemaDiffer:
                 )
 
             # Check for column changes
-            for column_name in db_columns & model_columns:
+            for column_name in sorted(db_columns & model_columns):
                 db_column = db_schema[table_name]["columns"][column_name]
                 model_column = model_schema[table_name]["columns"][column_name]
 
