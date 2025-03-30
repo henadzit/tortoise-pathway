@@ -31,8 +31,8 @@ async def test_create_initial_migration(setup_db_file, tortoise_config):
     assert len(manager.get_pending_migrations()) == 0
 
     # Create an initial migration
-    migration_file = await manager.create_migration("initial", auto=True)
-    assert migration_file.exists()
+    migration = await manager.create_migration("initial", auto=True)
+    assert migration.path().exists()
 
     # Re-discover migrations and verify the new migration is found
     # but not applied yet
@@ -41,7 +41,7 @@ async def test_create_initial_migration(setup_db_file, tortoise_config):
     assert len(manager.get_pending_migrations()) == 1
 
     # Check migration file content
-    with open(migration_file, "r") as f:
+    with open(migration.path(), "r") as f:
         content = f.read()
         # Verify it includes table creation operations
         assert "CreateTable" in content

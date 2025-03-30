@@ -74,12 +74,12 @@ async def makemigrations(args: argparse.Namespace) -> None:
         for change in changes:
             print(f"  - {change}")
 
-        migration_file = await manager.create_migration(name, auto=True)
+        migration = await manager.create_migration(name, auto=True)
     else:
         # Create an empty migration
-        migration_file = await manager.create_migration(name, auto=False)
+        migration = await manager.create_migration(name, auto=False)
 
-    print(f"Created migration {migration_file}")
+    print(f"Created migration {migration.name()} at {migration.path()}")
 
 
 async def migrate(args: argparse.Namespace) -> None:
@@ -103,7 +103,7 @@ async def migrate(args: argparse.Namespace) -> None:
 
     print(f"Applying {len(pending)} migration(s):")
     for migration in pending:
-        print(f"  - {migration}")
+        print(f"  - {migration.name()}")
 
     applied = await manager.apply_migrations()
 
@@ -132,7 +132,7 @@ async def rollback(args: argparse.Namespace) -> None:
         reverted = await manager.revert_migration()
 
     if reverted:
-        print(f"Successfully reverted migration: {reverted}")
+        print(f"Successfully reverted migration: {reverted.name()}")
     else:
         print("No migration was reverted.")
 
@@ -157,14 +157,14 @@ async def showmigrations(args: argparse.Namespace) -> None:
     print("\nApplied migrations:")
     if applied:
         for migration in applied:
-            print(f"  [X] {migration}")
+            print(f"  [X] {migration.name()}")
     else:
         print("  (none)")
 
     print("\nPending migrations:")
     if pending:
         for migration in pending:
-            print(f"  [ ] {migration}")
+            print(f"  [ ] {migration.name()}")
     else:
         print("  (none)")
 

@@ -24,6 +24,26 @@ class Migration:
     dependencies: List[str] = []
     operations: List[SchemaChange] = []
 
+    def name(self) -> str:
+        """
+        Return the name of the migration based on its module location.
+
+        The name is extracted from the module name where this migration class is defined.
+        """
+        module = self.__class__.__module__
+        # Get the filename which is the last part of the module path
+        return module.split(".")[-1]
+
+    def path(self) -> Path:
+        """
+        Return the path to the migration file relative to the current working directory.
+
+        Uses the module information to determine the file location.
+        """
+        module = self.__class__.__module__
+        module_path = module.replace(".", "/")
+        return Path(f"{module_path}.py")
+
     async def apply(self) -> None:
         """Apply the migration forward."""
         if self.operations:
@@ -47,8 +67,10 @@ class MigrationManager:
 
     def __init__(self, app_name: str, migrations_dir: str = "migrations"):
         self.app_name = app_name
-        self.migrations_dir = migrations_dir
-        self.migration_dir_path = Path(migrations_dir)
+        if Path(migrations_dir).is_absolute():
+            self.migrations_dir = Path(migrations_dir).relative_to(Path.cwd())
+        else:
+            self.migrations_dir = Path(migrations_dir)
         self.migrations: Dict[str, Type[Migration]] = {}
         self.applied_migrations: Set[str] = set()
 
@@ -99,31 +121,19 @@ class MigrationManager:
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory."""
-        if not self.migration_dir_path.exists():
-            self.migration_dir_path.mkdir(parents=True, exist_ok=True)
+        if not self.migrations_dir.exists():
+            self.migrations_dir.mkdir(parents=True, exist_ok=True)
             return
 
-        for file_path in self.migration_dir_path.glob("*.py"):
+        for file_path in self.migrations_dir.glob("*.py"):
             if file_path.name.startswith("__"):
                 continue
 
             migration_name = file_path.stem
 
-            # Determine if migrations_dir is absolute or relative
-            migrations_path = Path(self.migrations_dir)
-
-            if migrations_path.is_absolute():
-                # For absolute paths, we need to determine the module path
-                # based on the Python package structure
-                # Try to find the relative path from the current working directory
-                rel_path = migrations_path.relative_to(Path.cwd())
-                module_path = str(rel_path).replace("/", ".").replace("\\", ".")
-                module_path = f"{module_path}.{migration_name}"
-            else:
-                # For relative paths, use the existing logic
-                module_path = (
-                    f"{self.migrations_dir.replace('/', '.').replace('\\', '.')}.{migration_name}"
-                )
+            module_path = (
+                f"{str(self.migrations_dir).replace('/', '.').replace('\\', '.')}.{migration_name}"
+            )
 
             try:
                 module = importlib.import_module(module_path)
@@ -135,16 +145,28 @@ class MigrationManager:
             except (ImportError, AttributeError) as e:
                 print(f"Error loading migration {migration_name}: {e}")
 
-    async def create_migration(self, name: str, auto: bool = True) -> Path:
-        """Create a new migration file."""
+    async def create_migration(self, name: str, auto: bool = True) -> Migration:
+        """
+        Create a new migration file and return the Migration instance.
+
+        Args:
+            name: The descriptive name for the migration
+            auto: Whether to auto-generate migration operations based on model changes
+
+        Returns:
+            A Migration instance representing the newly created migration
+
+        Raises:
+            ImportError: If the migration file couldn't be loaded or no Migration class was found
+        """
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         migration_name = f"{timestamp}_{name}"
 
         # Make sure migrations directory exists
-        self.migration_dir_path.mkdir(parents=True, exist_ok=True)
+        self.migrations_dir.mkdir(parents=True, exist_ok=True)
 
         # Create migration file path
-        migration_file = self.migration_dir_path / f"{migration_name}.py"
+        migration_file = self.migrations_dir / f"{migration_name}.py"
 
         if auto:
             # Generate migration content based on model changes
@@ -158,20 +180,39 @@ class MigrationManager:
         with open(migration_file, "w") as f:
             f.write(content)
 
-        return migration_file
+        # Load the migration module and instantiate the migration
+        module_path = (
+            f"{str(self.migrations_dir).replace('/', '.').replace('\\', '.')}.{migration_name}"
+        )
+        try:
+            module = importlib.import_module(module_path)
+            for name, obj in inspect.getmembers(module):
+                if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
+                    self.migrations[migration_name] = obj
+                    return obj()
 
-    async def apply_migrations(self, connection=None) -> List[str]:
-        """Apply pending migrations."""
+            # If we reach here, no Migration class was found in the module
+            raise ImportError(f"No Migration class found in the generated module {module_path}")
+        except (ImportError, AttributeError) as e:
+            print(f"Error loading migration {migration_name}: {e}")
+            raise ImportError(f"Failed to load newly created migration: {e}")
+
+    async def apply_migrations(self, connection=None) -> List[Migration]:
+        """
+        Apply pending migrations.
+
+        Returns:
+            List of Migration instances that were applied
+        """
         conn = connection or Tortoise.get_connection("default")
-        applied = []
+        applied_migrations = []
 
         # Get pending migrations
-        pending = self.get_pending_migrations()
+        pending_migrations = self.get_pending_migrations()
 
         # Apply each migration
-        for name in pending:
-            migration_class = self.migrations[name]
-            migration = migration_class()
+        for migration in pending_migrations:
+            migration_name = migration.name()
 
             try:
                 # Apply migration
@@ -181,24 +222,33 @@ class MigrationManager:
                 now = datetime.datetime.now().isoformat()
                 await conn.execute_query(
                     "INSERT INTO tortoise_migrations (app, name, applied_at) VALUES (?, ?, ?)",
-                    [self.app_name, name, now],
+                    [self.app_name, migration_name, now],
                 )
 
-                self.applied_migrations.add(name)
-                applied.append(name)
-                print(f"Applied migration: {name}")
+                self.applied_migrations.add(migration_name)
+                applied_migrations.append(migration)
+                print(f"Applied migration: {migration_name}")
 
             except Exception as e:
-                print(f"Error applying migration {name}: {e}")
+                print(f"Error applying migration {migration_name}: {e}")
                 # Rollback transaction if supported
                 raise
 
-        return applied
+        return applied_migrations
 
     async def revert_migration(
         self, migration_name: Optional[str] = None, connection=None
-    ) -> Optional[str]:
-        """Revert the last applied migration or a specific migration."""
+    ) -> Optional[Migration]:
+        """
+        Revert the last applied migration or a specific migration.
+
+        Args:
+            migration_name: Name of specific migration to revert, or None for the last applied
+            connection: Database connection to use
+
+        Returns:
+            Migration instance that was reverted, or None if no migration was reverted
+        """
         conn = connection or Tortoise.get_connection("default")
 
         if not migration_name:
@@ -236,20 +286,41 @@ class MigrationManager:
 
             self.applied_migrations.remove(migration_name)
             print(f"Reverted migration: {migration_name}")
-            return migration_name
+            return migration
 
         except Exception as e:
             print(f"Error reverting migration {migration_name}: {e}")
             # Rollback transaction if supported
             raise
 
-    def get_pending_migrations(self) -> List[str]:
-        """Get list of pending migrations."""
-        pending = [name for name in self.migrations if name not in self.applied_migrations]
+    def get_pending_migrations(self) -> List[Migration]:
+        """
+        Get list of pending migrations.
+
+        Returns:
+            List of Migration instances that have not been applied
+        """
+        # Get pending migration names
+        pending_names = [name for name in self.migrations if name not in self.applied_migrations]
 
         # Sort by timestamp (assuming migration names start with timestamp)
-        return sorted(pending)
+        pending_names = sorted(pending_names)
 
-    def get_applied_migrations(self) -> List[str]:
-        """Get list of applied migrations."""
-        return sorted(self.applied_migrations)
+        # Convert to Migration objects
+        return [self.migrations[name]() for name in pending_names]
+
+    def get_applied_migrations(self) -> List[Migration]:
+        """
+        Get list of applied migrations.
+
+        Returns:
+            List of Migration instances that have been applied
+        """
+        # Get applied migration names that we have loaded
+        applied_names = [name for name in self.applied_migrations if name in self.migrations]
+
+        # Sort them
+        applied_names = sorted(applied_names)
+
+        # Convert to Migration objects
+        return [self.migrations[name]() for name in applied_names]

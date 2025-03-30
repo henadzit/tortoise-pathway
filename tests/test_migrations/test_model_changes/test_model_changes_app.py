@@ -48,8 +48,8 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert "comments" not in table_names
 
     # Detect changes and create a new migration
-    migration_file = await manager.create_migration("model_changes", auto=True)
-    assert migration_file.exists()
+    migration = await manager.create_migration("model_changes", auto=True)
+    assert migration.path().exists()
 
     # Re-discover migrations
     manager._discover_migrations()
@@ -58,7 +58,7 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert len(manager.get_pending_migrations()) == 1
 
     # Verify the migration file contains all expected changes
-    with open(migration_file, "r") as f:
+    with open(migration.path(), "r") as f:
         content = f.read()
         # Check for new fields
         assert "summary" in content
