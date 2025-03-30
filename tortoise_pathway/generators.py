@@ -268,7 +268,6 @@ def generate_empty_migration(migration_name: str) -> str:
     return f'''"""
 Migration {migration_name}
 """
-
 from tortoise_pathway.migration import Migration
 
 
@@ -278,16 +277,7 @@ class {class_name}(Migration):
     """
 
     dependencies = []
-
-    async def apply(self) -> None:
-        """Apply the migration forward."""
-        # Write your forward migration logic here
-        pass
-
-    async def revert(self) -> None:
-        """Revert the migration."""
-        # Write your backward migration logic here
-        pass
+    operations = []  # Add your SchemaChange operations here
 '''
 
 
@@ -351,26 +341,31 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
 
     all_imports = "\n".join(imports)
 
-    # Generate operations lists
+    # Generate operations code by utilizing the to_migration method
     operations = []
-    reverse_operations = []
-
-    # Generate code for each change
     for i, change in enumerate(changes):
-        change_var = f"change_{i}"
+        operations.append(f"    # {change}")
 
-        # Add the forward operation code
-        operations.append(change.to_migration(change_var))
+        # Get the to_migration code which represents the operation
+        migration_code = change.to_migration(f"op_{i}")
 
-        # Add the reverse operation code
-        reverse_operations.append(change.to_migration_reverse(change_var))
+        # Split by lines and remove comment lines
+        lines = migration_code.split("\n")
+        operation_lines = [line for line in lines if not line.startswith("#")]
 
-    # Generate the final migration code
-    indent = "        "
-    operations_str = "\n".join(indent + line for line in "\n".join(operations).split("\n"))
-    reverse_operations_str = "\n".join(
-        indent + line for line in "\n".join(reverse_operations).split("\n")
-    )
+        if operation_lines:
+            # Extract operation code without variable assignment
+            if f"op_{i} = " in operation_lines[0]:
+                operation_lines[0] = operation_lines[0].split(f"op_{i} = ")[1]
+
+            # Join back and ensure trailing comma
+            operation_def = "\n    ".join(operation_lines)
+            if not operation_def.endswith(","):
+                operation_def += ","
+
+            operations.append(f"    {operation_def}")
+
+    operations_str = "\n".join(operations)
 
     return f'''"""
 Auto-generated migration {migration_name}
@@ -385,12 +380,7 @@ class {class_name}(Migration):
     """
 
     dependencies = []
-
-    async def apply(self) -> None:
-        """Apply the migration forward."""
+    operations = [
 {operations_str}
-
-    async def revert(self) -> None:
-        """Revert the migration."""
-{reverse_operations_str}
+    ]
 '''

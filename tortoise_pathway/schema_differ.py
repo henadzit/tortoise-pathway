@@ -53,9 +53,9 @@ class SchemaDiffer:
             for column in columns_info[1]:
                 column_name = column["name"]
                 column_type = column["type"]
-                notnull = column["notnull"]
                 default_value = column["dflt_value"]
                 is_pk = column["pk"] == 1
+                notnull = column["notnull"] or is_pk
 
                 columns[column_name] = {
                     "type": column_type,

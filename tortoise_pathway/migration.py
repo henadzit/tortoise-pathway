@@ -15,20 +15,31 @@ from tortoise.exceptions import OperationalError
 
 from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
+from tortoise_pathway.schema_change import SchemaChange
 
 
 class Migration:
     """Base class for all migrations."""
 
     dependencies: List[str] = []
+    operations: List[SchemaChange] = []
 
     async def apply(self) -> None:
         """Apply the migration forward."""
-        raise NotImplementedError("Subclasses must implement this method")
+        if self.operations:
+            for operation in self.operations:
+                await operation.apply()
+        else:
+            raise NotImplementedError("Subclasses must implement this method or define operations")
 
     async def revert(self) -> None:
         """Revert the migration."""
-        raise NotImplementedError("Subclasses must implement this method")
+        if self.operations:
+            # Revert operations in reverse order
+            for operation in reversed(self.operations):
+                await operation.revert()
+        else:
+            raise NotImplementedError("Subclasses must implement this method or define operations")
 
 
 class MigrationManager:

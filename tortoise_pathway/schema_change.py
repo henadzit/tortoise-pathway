@@ -119,19 +119,8 @@ class SchemaChange:
             var_name: Variable name to use in the generated code.
 
         Returns:
-            String with Python code that creates and applies this schema change.
-        """
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """
-        Generate Python code to reverse this schema change in a migration file.
-
-        Args:
-            var_name: Variable name to use in the generated code.
-
-        Returns:
-            String with Python code that reverses this schema change.
+            String with Python code that represents this schema change operation,
+            suitable for inclusion in Migration.operations list.
         """
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -327,16 +316,6 @@ class CreateTable(SchemaChange):
         lines.append("    },")
 
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "reverse_change") -> str:
-        """Generate Python code to reverse table creation in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append(f"{var_name} = DropTable(")
-        lines.append(f'    table_name="{self.table_name}",')
-        lines.append(")")
-        lines.append(f"await {var_name}.apply()")
         return "\n".join(lines)
 
 
@@ -382,17 +361,6 @@ class DropTable(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "reverse_change") -> str:
-        """Generate Python code to reverse table drop in a migration."""
-        lines = [f"# Cannot automatically recreate dropped table {self.table_name}"]
-        if self.model is not None:
-            lines.append("try:")
-            lines.append(f"    await {var_name}.revert()")
-            lines.append("except Exception as e:")
-            lines.append(f'    print(f"Warning: Cannot recreate table {self.table_name}: {{e}}")')
         return "\n".join(lines)
 
 
@@ -445,19 +413,6 @@ class RenameTable(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse table rename in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append(f"{var_name} = RenameTable(")
-        lines.append(f'    table_name="{self.new_name}",')
-        lines.append(f'    new_name="{self.table_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
-        lines.append(")")
-        lines.append(f"await {var_name}.apply()")
         return "\n".join(lines)
 
 
@@ -575,17 +530,6 @@ class AddColumn(SchemaChange):
             lines.append("    # field_object not available - manual intervention required")
 
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse column addition in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append("try:")
-        lines.append(f"    await {var_name}.revert()")
-        lines.append("except NotImplementedError as e:")
-        lines.append("    # SQLite may not support column dropping")
-        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
 
@@ -692,23 +636,6 @@ class DropColumn(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append("try:")
-        lines.append(f"    await {var_name}.apply()")
-        lines.append("except NotImplementedError as e:")
-        lines.append("    # SQLite may not support dropping columns")
-        lines.append('    print(f"Warning: {e}")')
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse column drop in a migration."""
-        lines = [f"# Reverse: {self}"]
-        if self.model is not None:
-            lines.append("try:")
-            lines.append(f"    await {var_name}.revert()")
-            lines.append("except (NotImplementedError, ValueError) as e:")
-            lines.append('    print(f"Warning: {e}")')
-        else:
-            lines.append("# Cannot recreate column without model information")
         return "\n".join(lines)
 
 
@@ -829,20 +756,6 @@ class AlterColumn(SchemaChange):
             lines.append("    # field_object not available - manual intervention required")
 
         lines.append(")")
-        lines.append("try:")
-        lines.append(f"    await {var_name}.apply()")
-        lines.append("except NotImplementedError as e:")
-        lines.append("    # SQLite may not support column alteration")
-        lines.append('    print(f"Warning: {e}")')
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse column alteration in a migration."""
-        lines = ["# Reverse for AlterColumn requires manual intervention"]
-        lines.append("try:")
-        lines.append(f"    await {var_name}.revert()")
-        lines.append("except (NotImplementedError, ValueError) as e:")
-        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
 
@@ -926,21 +839,6 @@ class RenameColumn(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append("try:")
-        lines.append(f"    await {var_name}.apply()")
-        lines.append("except NotImplementedError as e:")
-        lines.append("    # SQLite may not support column renaming")
-        lines.append('    print(f"Warning: {e}")')
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse column rename in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append("try:")
-        lines.append(f"    await {var_name}.revert()")
-        lines.append("except NotImplementedError as e:")
-        lines.append("    # SQLite may not support column renaming")
-        lines.append('    print(f"Warning: {e}")')
         return "\n".join(lines)
 
 
@@ -989,13 +887,6 @@ class AddIndex(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse index addition in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append(f"await {var_name}.revert()")
         return "\n".join(lines)
 
 
@@ -1044,13 +935,6 @@ class DropIndex(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse index drop in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append(f"await {var_name}.revert()")
         return "\n".join(lines)
 
 
@@ -1120,13 +1004,6 @@ class AddConstraint(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse constraint addition in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append(f"await {var_name}.revert()")
         return "\n".join(lines)
 
 
@@ -1196,11 +1073,4 @@ class DropConstraint(SchemaChange):
         if self.model is not None:
             lines.append(f"    model={self.model.__name__},")
         lines.append(")")
-        lines.append(f"await {var_name}.apply()")
-        return "\n".join(lines)
-
-    def to_migration_reverse(self, var_name: str = "change") -> str:
-        """Generate Python code to reverse constraint drop in a migration."""
-        lines = [f"# Reverse: {self}"]
-        lines.append(f"await {var_name}.revert()")
         return "\n".join(lines)
