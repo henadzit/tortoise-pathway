@@ -206,13 +206,21 @@ class SchemaDiffer:
                 CreateTable(
                     table_name=table_name,
                     fields=field_objects,
-                    params={"model": model_schema[table_name]["model"]},
+                    model=model_schema[table_name]["model"]._meta.full_name,
+                    params={},
                 )
             )
 
         # Tables to drop (in DB but not in models)
         for table_name in sorted(db_tables - model_tables):
-            changes.append(DropTable(table_name=table_name))
+            # For tables that don't exist in models, we need to pass a default model reference
+            # Since model is now required, we'll use a placeholder value
+            changes.append(
+                DropTable(
+                    table_name=table_name,
+                    model=f"unknown.{table_name}",  # Use a placeholder for tables that don't exist in models
+                )
+            )
 
         # Check changes in existing tables
         for table_name in sorted(db_tables & model_tables):
@@ -232,7 +240,7 @@ class SchemaDiffer:
                         table_name=table_name,
                         column_name=column_name,
                         field_object=field_info["field_object"],
-                        model=model,
+                        model=model._meta.full_name,
                         params=field_info,
                     )
                 )
@@ -243,7 +251,7 @@ class SchemaDiffer:
                     DropColumn(
                         table_name=table_name,
                         column_name=column_name,
-                        model=model,
+                        model=model._meta.full_name,
                     )
                 )
 
@@ -269,7 +277,7 @@ class SchemaDiffer:
                             table_name=table_name,
                             column_name=column_name,
                             field_object=model_column["field_object"],
-                            model=model,
+                            model=model._meta.full_name,
                             params={"old": db_column, "new": model_column},
                         )
                     )

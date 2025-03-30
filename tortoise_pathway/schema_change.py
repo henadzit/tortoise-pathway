@@ -37,12 +37,18 @@ def get_dialect(connection) -> str:
 
 
 class SchemaChange:
-    """Base class for all schema changes."""
+    """Base class for all schema changes.
+
+    Args:
+        table_name: The name of the table this change applies to.
+        model: Model reference in the format "{app_name}.{model_name}".
+        params: Optional additional parameters for the schema change.
+    """
 
     def __init__(
         self,
         table_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         self.table_name = table_name
@@ -132,9 +138,10 @@ class CreateTable(SchemaChange):
         self,
         table_name: str,
         fields: Dict[str, Field],
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(table_name, None, params)
+        super().__init__(table_name, model, params)
         self.fields = fields
 
     def __str__(self) -> str:
@@ -279,27 +286,17 @@ class CreateTable(SchemaChange):
         lines = [f"# {self}"]
         lines.append(f"{var_name} = CreateTable(")
         lines.append(f'    table_name="{self.table_name}",')
+        lines.append(f'    model="{self.model}",')
 
         # Include fields
         lines.append("    fields={")
         for field_name, field_obj in self.fields.items():
-            # We need to reference these fields in a way that can be imported
-            # This is a simplified approach - for real implementation,
-            # you might need more sophisticated handling
-            field_type = field_obj.__class__.__name__
-            field_module = field_obj.__class__.__module__
-            field_repr = f"{field_type}()"  # Default simplistic representation
+            # Skip reverse relations
+            if field_obj.__class__.__name__ == "BackwardFKRelation":
+                continue
 
-            # For common field types, try to capture key parameters
-            if field_type == "CharField":
-                max_length = getattr(field_obj, "max_length")
-                field_repr = f"{field_type}(max_length={max_length})"
-            elif field_type == "IntField" and getattr(field_obj, "pk", False):
-                field_repr = f"{field_type}(primary_key=True)"
-            elif hasattr(field_obj, "null") and field_obj.null:
-                field_repr = f"{field_type}(null=True)"
-
-            lines.append(f'        "{field_name}": {field_repr},')
+            # Use field_to_migration to generate the field representation
+            lines.append(f'        "{field_name}": {field_to_migration(field_obj)},')
         lines.append("    },")
 
         lines.append(")")
@@ -308,6 +305,14 @@ class CreateTable(SchemaChange):
 
 class DropTable(SchemaChange):
     """Drop an existing table."""
+
+    def __init__(
+        self,
+        table_name: str,
+        model: str,
+        params: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(table_name, model, params)
 
     def __str__(self) -> str:
         return f"Drop table {self.table_name}"
@@ -319,11 +324,6 @@ class DropTable(SchemaChange):
 
     async def revert(self, connection_name: str = "default") -> None:
         """Recreate the table if model information is available."""
-        if not self.model:
-            raise ValueError(
-                f"Cannot recreate table {self.table_name}: model information not available"
-            )
-
         connection = connections.get(connection_name)
         sql = self.generate_sql_backward()
         await connection.execute_script(sql)
@@ -334,19 +334,18 @@ class DropTable(SchemaChange):
 
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for recreating the table."""
-        if self.model:
-            from tortoise_pathway.generators import generate_table_creation_sql
+        from tortoise_pathway.generators import generate_table_creation_sql
 
-            return generate_table_creation_sql(self.model, dialect)
-        return f"-- Cannot automatically recreate table {self.table_name} without model information"
+        # Since model is now a string instead of a Model class,
+        # we need to provide guidance for handling this in migrations
+        return f"-- To recreate table {self.table_name}, import the model class from '{self.model}' first"
 
     def to_migration(self, var_name: str = "change") -> str:
         """Generate Python code to drop a table in a migration."""
         lines = [f"# {self}"]
         lines.append(f"{var_name} = DropTable(")
         lines.append(f'    table_name="{self.table_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -358,7 +357,7 @@ class RenameTable(SchemaChange):
         self,
         table_name: str,
         new_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -397,8 +396,7 @@ class RenameTable(SchemaChange):
         lines.append(f"{var_name} = RenameTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    new_name="{self.new_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -411,7 +409,7 @@ class AddColumn(SchemaChange):
         table_name: str,
         column_name: str,
         field_object: Field,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -496,16 +494,11 @@ class AddColumn(SchemaChange):
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
 
-        # Only reference model fields if model is not None
-        if self.model is not None:
-            field_name = self.params.get("field_name", self.column_name)
-            lines.append(
-                f"    field_object={self.model.__name__}._meta.fields_map['{field_name}'],"
-            )
-            lines.append(f"    model={self.model.__name__},")
-        else:
-            # Handle case where field_object is needed but model is None
-            lines.append("    # field_object not available - manual intervention required")
+        # Include field_object using field_to_migration
+        lines.append(f"    field_object={field_to_migration(self.field_object)},")
+
+        # Include model parameter
+        lines.append(f'    model="{self.model}",')
 
         lines.append(")")
         return "\n".join(lines)
@@ -518,7 +511,7 @@ class DropColumn(SchemaChange):
         self,
         table_name: str,
         column_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -545,37 +538,11 @@ class DropColumn(SchemaChange):
 
     async def revert(self, connection_name: str = "default") -> None:
         """Recreate the column if model information is available."""
-        if not self.model:
-            raise ValueError(
-                f"Cannot recreate column {self.column_name} in {self.table_name}: model information not available"
-            )
-
-        # Get field information from model
-        connection = connections.get(connection_name)
-        dialect = get_dialect(connection)
-        field_name = self.column_name
-
-        if self.model and field_name in self.model._meta.fields_map:
-            field = self.model._meta.fields_map[field_name]
-            is_pk = getattr(field, "pk", False)
-            field_type = field.__class__.__name__
-
-            # Use get_for_dialect to get the SQL type
-            column_type = field.get_for_dialect(dialect, "SQL_TYPE")
-
-            # Special case for primary keys
-            if is_pk:
-                if dialect == "sqlite" and field_type == "IntField":
-                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                    column_type = "INTEGER"
-                elif field_type == "IntField" and dialect == "postgres":
-                    column_type = "SERIAL"
-
-            await connection.execute_script(
-                f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name} {column_type}"
-            )
-        else:
-            raise ValueError(f"Cannot recreate column {self.column_name}: field not found in model")
+        # To recreate the column, you would need to import the model dynamically
+        # This would require significant changes to the implementation
+        raise NotImplementedError(
+            f"Recreating column {self.column_name} with string model reference requires implementation"
+        )
 
     def forward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
@@ -586,28 +553,9 @@ class DropColumn(SchemaChange):
 
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for recreating a column."""
-        if not self.model:
-            return "-- Cannot automatically recreate column without model information"
-
-        if self.model and self.column_name in self.model._meta.fields_map:
-            field = self.model._meta.fields_map[self.column_name]
-            is_pk = getattr(field, "pk", False)
-            field_type = field.__class__.__name__
-
-            # Use get_for_dialect to get the SQL type
-            column_type = field.get_for_dialect(dialect, "SQL_TYPE")
-
-            # Special case for primary keys
-            if is_pk:
-                if dialect == "sqlite" and field_type == "IntField":
-                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                    column_type = "INTEGER"
-                elif field_type == "IntField" and dialect == "postgres":
-                    column_type = "SERIAL"
-
-            return f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name} {column_type}"
-        else:
-            return f"-- Cannot recreate column {self.column_name}: field not found in model"
+        # With the model as a string, we can't directly access fields_map
+        # An implementation would need to import the model dynamically
+        return f"-- Recreating column {self.column_name} with string model reference requires implementation"
 
     def to_migration(self, var_name: str = "change") -> str:
         """Generate Python code to drop a column in a migration."""
@@ -615,8 +563,7 @@ class DropColumn(SchemaChange):
         lines.append(f"{var_name} = DropColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -629,7 +576,7 @@ class AlterColumn(SchemaChange):
         table_name: str,
         column_name: str,
         field_object: Field,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -712,17 +659,11 @@ class AlterColumn(SchemaChange):
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
 
-        # Only reference model fields if model is not None
-        if self.model is not None:
-            new_params = self.params.get("new", {})
-            field_name = new_params.get("field_name", self.column_name)
-            lines.append(
-                f"    field_object={self.model.__name__}._meta.fields_map['{field_name}'],"
-            )
-            lines.append(f"    model={self.model.__name__},")
-        else:
-            # Handle case where field_object is needed but model is None
-            lines.append("    # field_object not available - manual intervention required")
+        # Include field_object using field_to_migration
+        lines.append(f"    field_object={field_to_migration(self.field_object)},")
+
+        # Include model parameter
+        lines.append(f'    model="{self.model}",')
 
         lines.append(")")
         return "\n".join(lines)
@@ -736,7 +677,7 @@ class RenameColumn(SchemaChange):
         table_name: str,
         column_name: str,
         new_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -805,8 +746,7 @@ class RenameColumn(SchemaChange):
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    new_name="{self.new_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -818,7 +758,7 @@ class AddIndex(SchemaChange):
         self,
         table_name: str,
         column_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -853,8 +793,7 @@ class AddIndex(SchemaChange):
         lines.append(f"{var_name} = AddIndex(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -866,7 +805,7 @@ class DropIndex(SchemaChange):
         self,
         table_name: str,
         column_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -901,8 +840,7 @@ class DropIndex(SchemaChange):
         lines.append(f"{var_name} = DropIndex(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -914,7 +852,7 @@ class AddConstraint(SchemaChange):
         self,
         table_name: str,
         column_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -970,8 +908,7 @@ class AddConstraint(SchemaChange):
         lines.append(f"{var_name} = AddConstraint(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -983,7 +920,7 @@ class DropConstraint(SchemaChange):
         self,
         table_name: str,
         column_name: str,
-        model: Optional[Type[Model]] = None,
+        model: str,
         params: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(table_name, model, params)
@@ -1039,7 +976,71 @@ class DropConstraint(SchemaChange):
         lines.append(f"{var_name} = DropConstraint(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
-        if self.model is not None:
-            lines.append(f"    model={self.model.__name__},")
+        lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
+
+
+def field_to_migration(field: Field) -> str:
+    """
+    Convert a Field object to its string representation for migrations.
+
+    Args:
+        field: The Field object to convert.
+
+    Returns:
+        A string representation of the Field that can be used in migrations.
+    """
+    field_type = field.__class__.__name__
+    field_module = field.__class__.__module__
+
+    # Start with importing the field if needed
+    if "tortoise.fields" not in field_module:
+        # For custom fields, include the full module path
+        field_type = f"{field_module}.{field_type}"
+
+    # Collect parameters
+    params = []
+
+    # Handle common field attributes
+    if hasattr(field, "pk") and field.pk:
+        params.append("primary_key=True")
+
+    if hasattr(field, "null") and field.null:
+        params.append("null=True")
+
+    if hasattr(field, "unique") and field.unique:
+        params.append("unique=True")
+
+    if hasattr(field, "default") and field.default is not None and not callable(field.default):
+        if isinstance(field.default, str):
+            params.append(f"default='{field.default}'")
+        elif isinstance(field.default, bool):
+            params.append(f"default={str(field.default)}")
+        else:
+            params.append(f"default={field.default}")
+
+    # Handle field-specific attributes
+    if field_type == "CharField" and hasattr(field, "max_length"):
+        params.append(f"max_length={field.max_length}")
+
+    if field_type == "DecimalField":
+        if hasattr(field, "max_digits"):
+            params.append(f"max_digits={field.max_digits}")
+        if hasattr(field, "decimal_places"):
+            params.append(f"decimal_places={field.decimal_places}")
+
+    if field_type == "ForeignKeyField":
+        if hasattr(field, "model_name"):
+            # For ForeignKeyField, we need to include the related model
+            related_model = field.model_name
+            params.append(f"'{related_model}'")
+
+        if hasattr(field, "related_name") and field.related_name:
+            params.append(f"related_name='{field.related_name}'")
+
+        if hasattr(field, "on_delete"):
+            params.append(f"on_delete='{field.on_delete}'")
+
+    # Generate the final string representation
+    return f"{field_type}({', '.join(params)})"

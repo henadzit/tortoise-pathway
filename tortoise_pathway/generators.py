@@ -306,12 +306,6 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
                     field_module = field_obj.__class__.__module__
                     field_imports.add(f"from {field_module} import {field_class}")
 
-        # Add model imports if available
-        if hasattr(change, "model") and change.model is not None:
-            model_name = change.model.__name__
-            model_module = change.model.__module__
-            model_imports.add(f"from {model_module} import {model_name}")
-
     schema_imports = ", ".join(sorted(schema_changes_used))
     model_imports_str = "\n".join(sorted(model_imports))
     field_imports_str = "\n".join(sorted(field_imports))

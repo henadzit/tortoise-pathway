@@ -59,7 +59,11 @@ async def test_create_table(setup_test_db):
     }
 
     # Create and apply operation
-    operation = CreateTable(table_name="test_create", fields=fields_dict)
+    operation = CreateTable(
+        table_name="test_create",
+        fields=fields_dict,
+        model="tests.test_operations.test_schema_diff.TestModel",
+    )
     await operation.apply()
 
     # Verify table was created
@@ -93,7 +97,11 @@ async def test_drop_table(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(table_name="test_drop", fields=fields_dict)
+    create_op = CreateTable(
+        table_name="test_drop",
+        fields=fields_dict,
+        model="tests.test_operations.test_schema_diff.TestModel",
+    )
     await create_op.apply()
 
     # Verify table exists
@@ -104,7 +112,9 @@ async def test_drop_table(setup_test_db):
     assert len(result[1]) == 1
 
     # Drop the table
-    operation = DropTable(table_name="test_drop")
+    operation = DropTable(
+        table_name="test_drop", model="tests.test_operations.test_schema_diff.TestModel"
+    )
     await operation.apply()
 
     # Verify table was dropped
@@ -126,7 +136,11 @@ async def test_add_column(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(table_name="test_add_column", fields=fields_dict)
+    create_op = CreateTable(
+        table_name="test_add_column",
+        fields=fields_dict,
+        model="tests.test_operations.test_schema_diff.TestModel",
+    )
     await create_op.apply()
 
     # Add a column
@@ -135,6 +149,7 @@ async def test_add_column(setup_test_db):
         table_name="test_add_column",
         column_name="count",
         field_object=field,
+        model="tests.test_operations.test_schema_diff.TestModel",
     )
     await operation.apply()
 
@@ -157,13 +172,18 @@ async def test_add_index(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(table_name="test_add_index", fields=fields_dict)
+    create_op = CreateTable(
+        table_name="test_add_index",
+        fields=fields_dict,
+        model="tests.test_operations.test_schema_diff.TestModel",
+    )
     await create_op.apply()
 
     # Add an index
     operation = AddIndex(
         table_name="test_add_index",
         column_name="name",
+        model="tests.test_operations.test_schema_diff.TestModel",
     )
     await operation.apply()
 
@@ -193,13 +213,18 @@ async def test_drop_index(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(table_name="test_drop_index", fields=fields_dict)
+    create_op = CreateTable(
+        table_name="test_drop_index",
+        fields=fields_dict,
+        model="tests.test_operations.test_schema_diff.TestModel",
+    )
     await create_op.apply()
 
     # Add an index
     add_index_op = AddIndex(
         table_name="test_drop_index",
         column_name="name",
+        model="tests.test_operations.test_schema_diff.TestModel",
     )
     await add_index_op.apply()
 
@@ -215,6 +240,7 @@ async def test_drop_index(setup_test_db):
     operation = DropIndex(
         table_name="test_drop_index",
         column_name="name",
+        model="tests.test_operations.test_schema_diff.TestModel",
     )
     await operation.apply()
 
