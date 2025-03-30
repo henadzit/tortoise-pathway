@@ -76,10 +76,8 @@ unfixable = []
 known-first-party = ["tortoise_pathway"]
 
 [dependency-groups]
-test = [
-    "pytest>=8.3.5",
-    "pytest-asyncio>=0.26.0",
-]
 dev = [
     "ruff>=0.11.2",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
 ]

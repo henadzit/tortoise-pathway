@@ -14,7 +14,7 @@ from typing import Dict, Any
 from tortoise import Tortoise
 
 from tortoise_pathway.migration import MigrationManager
-from tortoise_pathway.schema_diff import SchemaDiffer
+from tortoise_pathway.schema_differ import SchemaDiffer
 
 
 async def init_tortoise(config_module: str) -> Dict[str, Any]:
@@ -84,7 +84,7 @@ async def makemigrations(args: argparse.Namespace) -> None:
 
 async def migrate(args: argparse.Namespace) -> None:
     """Apply migrations to the database."""
-    config = await init_tortoise(args.config)
+    await init_tortoise(args.config)
 
     if not args.app:
         print("Error: You must specify an app name with --app")
@@ -115,7 +115,7 @@ async def migrate(args: argparse.Namespace) -> None:
 
 async def rollback(args: argparse.Namespace) -> None:
     """Revert the most recent migration."""
-    config = await init_tortoise(args.config)
+    await init_tortoise(args.config)
 
     if not args.app:
         print("Error: You must specify an app name with --app")
@@ -139,7 +139,7 @@ async def rollback(args: argparse.Namespace) -> None:
 
 async def showmigrations(args: argparse.Namespace) -> None:
     """Show migration status."""
-    config = await init_tortoise(args.config)
+    await init_tortoise(args.config)
 
     if not args.app:
         print("Error: You must specify an app name with --app")

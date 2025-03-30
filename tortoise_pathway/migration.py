@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Set, Type, cast
 from tortoise import Tortoise
 from tortoise.exceptions import OperationalError
 
-from tortoise_pathway.schema_diff import SchemaDiffer
+from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
 
 

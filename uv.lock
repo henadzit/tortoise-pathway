@@ -153,21 +153,19 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "ruff" },
-]
-test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [{ name = "tortoise-orm", specifier = ">=0.24.2" }]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.11.2" }]
-test = [
+dev = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-asyncio", specifier = ">=0.26.0" },
+    { name = "ruff", specifier = ">=0.11.2" },
 ]
 
 [[package]]

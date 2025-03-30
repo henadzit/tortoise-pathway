@@ -4,11 +4,9 @@ Tortoise Pathway is a migration system for Tortoise ORM, inspired by Django's mi
 
 ## Features
 
-- Generate schema migrations automatically
+- Generate schema migrations from Tortoise models
 - Apply and revert migrations
 - Class-based migration operations
-- Direct database interaction without SQL generation
-- Field dictionary-based table creation
 
 ## Key Concepts
 
@@ -33,38 +31,6 @@ Each of these classes has methods to:
 - Apply changes directly to the database
 - Revert changes
 - Generate migration code
-
-### Creating Tables with Field Dictionaries
-
-Tables are created using a dictionary of field definitions. This provides flexibility and explicit control over field definitions.
-
-Example:
-
-```python
-from tortoise.fields import CharField, IntField, BooleanField
-from tortoise_pathway.schema_diff import CreateTable
-
-# Create a fields dictionary for a table
-fields = {
-    "id": IntField(pk=True),
-    "name": CharField(max_length=100, null=False),
-    "is_active": BooleanField(default=True),
-}
-
-# Create the table using the fields dictionary (required parameter)
-change = CreateTable(
-    table_name="my_table",
-    fields=fields,
-)
-
-# Apply the change to create the table
-await change.apply()
-```
-
-This approach provides:
-- Explicit field definitions for better control
-- More dynamic schema management
-- No dependency on model classes
 
 ## Migration System
 
@@ -108,7 +74,7 @@ pip install tortoise-pathway
 Or if you prefer using uv:
 
 ```bash
-uv pip install tortoise-pathway
+uv add tortoise-pathway
 ```
 
 ### Development Installation
@@ -140,7 +106,7 @@ tortoise_pathway/
 ├── __init__.py                # Package initialization
 ├── __main__.py                # Entry point for CLI
 ├── migration.py               # Core migration classes and manager
-├── schema_diff.py             # Schema difference detection
+├── schema_differ.py             # Schema difference detection
 └── cli.py                     # Command-line interface
 ```
 
@@ -343,7 +309,3 @@ class CreateUserTableMigration(Migration):
 - Limited support for SQLite schema alterations (due to SQLite's constraints)
 - No support for data migrations yet
 - Field type mapping may need adjustments for complex field types
-
-## License
-
-MIT

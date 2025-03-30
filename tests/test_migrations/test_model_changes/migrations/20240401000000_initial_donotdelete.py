@@ -3,7 +3,7 @@ Initial migration for test_model_changes app
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_diff import CreateTable
+from tortoise_pathway.schema_change import CreateTable
 from tortoise.fields.data import CharField
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.data import IntField
@@ -47,7 +47,7 @@ class InitialMigration(Migration):
 
     async def revert(self) -> None:
         """Revert the migration."""
-        from tortoise_pathway.schema_diff import DropTable
+        from tortoise_pathway.schema_change import DropTable
 
         # Drop table blogs
         change_0 = DropTable(

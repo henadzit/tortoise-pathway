@@ -10,7 +10,7 @@ from typing import List, Type
 
 from tortoise import Tortoise, Model
 
-from tortoise_pathway.schema_diff import (
+from tortoise_pathway.schema_change import (
     SchemaChange,
     CreateTable,
 )
@@ -341,7 +341,7 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
     # Complete import section
     imports = []
     imports.append("from tortoise_pathway.migration import Migration")
-    imports.append(f"from tortoise_pathway.schema_diff import {schema_imports}")
+    imports.append(f"from tortoise_pathway.schema_change import {schema_imports}")
 
     if model_imports_str:
         imports.append(model_imports_str)
