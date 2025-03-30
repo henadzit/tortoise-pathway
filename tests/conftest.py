@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, Generator, AsyncGenerator
 
 from tortoise import Tortoise
-from tortoise_pathway.migration import MigrationManager
+from tortoise_pathway.migration_manager import MigrationManager
 
 
 @pytest.fixture(scope="session")

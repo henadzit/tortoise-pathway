@@ -13,7 +13,7 @@ from typing import Dict, Any
 
 from tortoise import Tortoise
 
-from tortoise_pathway.migration import MigrationManager
+from tortoise_pathway.migration_manager import MigrationManager
 from tortoise_pathway.schema_differ import SchemaDiffer
 
 

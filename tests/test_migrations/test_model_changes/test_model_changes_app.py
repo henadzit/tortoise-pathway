@@ -6,7 +6,7 @@ import pytest
 from pathlib import Path
 
 from tortoise import Tortoise
-from tortoise_pathway.migration import MigrationManager
+from tortoise_pathway.migration_manager import MigrationManager
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_model_changes"], indirect=True)
