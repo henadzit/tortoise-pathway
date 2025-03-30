@@ -218,28 +218,16 @@ class CreateTable(SchemaChange):
             pk = getattr(field, "pk", False)
             default = getattr(field, "default", None)
 
-            # Determine SQL type from field type
-            if field_type == "IntField":
-                sql_type = "INTEGER"
-            elif field_type == "CharField":
-                max_length = getattr(field, "max_length", 255)
-                sql_type = f"VARCHAR({max_length})"
-            elif field_type == "TextField":
-                sql_type = "TEXT"
-            elif field_type == "BooleanField":
-                sql_type = "BOOLEAN"
-            elif field_type == "FloatField":
-                sql_type = "REAL"
-            elif field_type == "DecimalField":
-                sql_type = "DECIMAL"
-            elif field_type == "DatetimeField":
-                sql_type = "TIMESTAMP"
-            elif field_type == "DateField":
-                sql_type = "DATE"
-            elif field_type == "ForeignKeyField":
-                sql_type = "INTEGER"  # Assuming integer foreign keys
-            else:
-                sql_type = "TEXT"  # Default to TEXT for unknown types
+            # Get SQL type using the get_for_dialect method
+            sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
+
+            # Handle special cases for primary keys
+            if pk:
+                if dialect == "sqlite" and field_type == "IntField":
+                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
+                    sql_type = "INTEGER"
+                elif pk and field_type == "IntField" and dialect == "postgres":
+                    sql_type = "SERIAL"
 
             # Build column definition
             column_def = f"{db_column} {sql_type}"
@@ -253,7 +241,6 @@ class CreateTable(SchemaChange):
                     column_def += " PRIMARY KEY"
                     if field_type == "IntField" and dialect == "postgres":
                         # For PostgreSQL, we'd use SERIAL instead
-                        sql_type = "SERIAL"
                         column_def = f"{db_column} {sql_type} PRIMARY KEY"
 
             if not nullable and not pk:
@@ -462,31 +449,22 @@ class AddColumn(SchemaChange):
         field_type = self.field_object.__class__.__name__
         nullable = getattr(self.field_object, "null", False)
         default = getattr(self.field_object, "default", None)
+        is_pk = getattr(self.field_object, "pk", False)
 
         sql = f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name}"
 
-        # Map Tortoise field types to SQL types
-        if field_type == "CharField":
-            max_length = getattr(self.field_object, "max_length", 255)
-            sql += f" VARCHAR({max_length})"
-        elif field_type == "IntField":
-            sql += " INTEGER"
-        elif field_type == "BooleanField":
-            sql += " BOOLEAN"
-        elif field_type == "DatetimeField":
-            sql += " TIMESTAMP"
-        elif field_type == "TextField":
-            sql += " TEXT"
-        elif field_type == "FloatField":
-            sql += " REAL"
-        elif field_type == "DecimalField":
-            sql += " DECIMAL"
-        elif field_type == "DateField":
-            sql += " DATE"
-        elif field_type == "ForeignKeyField":
-            sql += " INTEGER"  # Assuming integer foreign keys
-        else:
-            sql += " TEXT"  # Default to TEXT for unknown types
+        # Get SQL type using the get_for_dialect method
+        sql_type = self.field_object.get_for_dialect(dialect, "SQL_TYPE")
+
+        # Special case for primary keys
+        if is_pk:
+            if dialect == "sqlite" and field_type == "IntField":
+                # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
+                sql_type = "INTEGER"
+            elif field_type == "IntField" and dialect == "postgres":
+                sql_type = "SERIAL"
+
+        sql += f" {sql_type}"
 
         if not nullable:
             sql += " NOT NULL"
@@ -572,22 +550,26 @@ class DropColumn(SchemaChange):
                 f"Cannot recreate column {self.column_name} in {self.table_name}: model information not available"
             )
 
-        # This would require getting field information from model
-        # Simplified implementation:
+        # Get field information from model
         connection = connections.get(connection_name)
+        dialect = get_dialect(connection)
         field_name = self.column_name
 
         if self.model and field_name in self.model._meta.fields_map:
             field = self.model._meta.fields_map[field_name]
+            is_pk = getattr(field, "pk", False)
             field_type = field.__class__.__name__
 
-            # Simplified column re-creation
-            column_type = "TEXT"  # Default
-            if field_type == "IntField":
-                column_type = "INTEGER"
-            elif field_type == "CharField":
-                max_length = getattr(field, "max_length", 255)
-                column_type = f"VARCHAR({max_length})"
+            # Use get_for_dialect to get the SQL type
+            column_type = field.get_for_dialect(dialect, "SQL_TYPE")
+
+            # Special case for primary keys
+            if is_pk:
+                if dialect == "sqlite" and field_type == "IntField":
+                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
+                    column_type = "INTEGER"
+                elif field_type == "IntField" and dialect == "postgres":
+                    column_type = "SERIAL"
 
             await connection.execute_script(
                 f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name} {column_type}"
@@ -609,19 +591,19 @@ class DropColumn(SchemaChange):
 
         if self.model and self.column_name in self.model._meta.fields_map:
             field = self.model._meta.fields_map[self.column_name]
+            is_pk = getattr(field, "pk", False)
             field_type = field.__class__.__name__
 
-            # Simplified column re-creation
-            column_type = "TEXT"  # Default
-            if field_type == "IntField":
-                column_type = "INTEGER"
-            elif field_type == "CharField":
-                max_length = getattr(field, "max_length", 255)
-                column_type = f"VARCHAR({max_length})"
-            elif field_type == "BooleanField":
-                column_type = "BOOLEAN"
-            elif field_type == "DatetimeField":
-                column_type = "TIMESTAMP"
+            # Use get_for_dialect to get the SQL type
+            column_type = field.get_for_dialect(dialect, "SQL_TYPE")
+
+            # Special case for primary keys
+            if is_pk:
+                if dialect == "sqlite" and field_type == "IntField":
+                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
+                    column_type = "INTEGER"
+                elif field_type == "IntField" and dialect == "postgres":
+                    column_type = "SERIAL"
 
             return f"ALTER TABLE {self.table_name} ADD COLUMN {self.column_name} {column_type}"
         else:
@@ -692,28 +674,15 @@ class AlterColumn(SchemaChange):
         if dialect == "sqlite":
             return "-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the new schema."
         elif dialect == "postgres":
-            column_type = "TEXT"  # Default type
-            field_type = self.field_object.__class__.__name__
+            # Get SQL type using the get_for_dialect method
+            column_type = self.field_object.get_for_dialect(dialect, "SQL_TYPE")
 
-            if field_type == "CharField":
-                max_length = getattr(self.field_object, "max_length", 255)
-                column_type = f"VARCHAR({max_length})"
-            elif field_type == "IntField":
-                column_type = "INTEGER"
-            elif field_type == "BooleanField":
-                column_type = "BOOLEAN"
-            elif field_type == "DatetimeField":
-                column_type = "TIMESTAMP"
-            elif field_type == "TextField":
-                column_type = "TEXT"
-            elif field_type == "FloatField":
-                column_type = "REAL"
-            elif field_type == "DecimalField":
-                column_type = "DECIMAL"
-            elif field_type == "DateField":
-                column_type = "DATE"
-            elif field_type == "ForeignKeyField":
-                column_type = "INTEGER"
+            # Special case for primary keys
+            field_type = self.field_object.__class__.__name__
+            is_pk = getattr(self.field_object, "pk", False)
+
+            if is_pk and field_type == "IntField" and dialect == "postgres":
+                column_type = "SERIAL"
 
             return (
                 f"ALTER TABLE {self.table_name} ALTER COLUMN {self.column_name} TYPE {column_type}"

@@ -69,25 +69,19 @@ def generate_table_creation_sql(model: Type[Model], dialect: str = "sqlite") -> 
         pk = getattr(field, "pk", False)
         default = getattr(field, "default", None)
 
-        # Determine SQL type from field type
-        if field_type == "IntField":
-            sql_type = "INTEGER"
-        elif field_type == "CharField":
-            max_length = getattr(field, "max_length", 255)
-            sql_type = f"VARCHAR({max_length})"
-        elif field_type == "TextField":
-            sql_type = "TEXT"
-        elif field_type == "BooleanField":
-            sql_type = "BOOLEAN"
-        elif field_type == "FloatField":
-            sql_type = "REAL"
-        elif field_type == "DecimalField":
-            sql_type = "DECIMAL"
-        elif field_type == "DatetimeField":
-            sql_type = "TIMESTAMP"
-        elif field_type == "DateField":
-            sql_type = "DATE"
-        elif field_type == "ForeignKeyField":
+        # Get SQL type using the get_for_dialect method
+        sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
+
+        # Handle special cases for primary keys
+        if pk:
+            if dialect == "sqlite" and field_type == "IntField":
+                # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
+                sql_type = "INTEGER"
+            elif field_type == "IntField" and dialect == "postgres":
+                sql_type = "SERIAL"
+
+        # Add foreign key constraints separately if needed
+        if field_type == "ForeignKeyField":
             # Using getattr to handle potential missing attributes safely
             related_model_name = getattr(field, "model_name", None)
             related_table = None
@@ -99,16 +93,10 @@ def generate_table_creation_sql(model: Type[Model], dialect: str = "sqlite") -> 
 
             if related_table:
                 related_table_name = related_table._meta.db_table
-                sql_type = "INTEGER"  # Assuming integer foreign keys
-
                 # Add foreign key constraint
                 constraints.append(
                     f"FOREIGN KEY ({db_column}) REFERENCES {related_table_name} (id)"
                 )
-            else:
-                sql_type = "INTEGER"  # Fallback if related table not found
-        else:
-            sql_type = "TEXT"  # Default to TEXT for unknown types
 
         # Build column definition
         column_def = f"{db_column} {sql_type}"
