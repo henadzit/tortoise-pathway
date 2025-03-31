@@ -161,7 +161,12 @@ class State:
     def _apply_rename_table(self, app_name: str, operation: RenameTable) -> None:
         """Apply a RenameTable operation to the state."""
         table_name = operation.table_name
-        new_name = operation.params.get("new_name")
+
+        # Get new_name from operation directly or from params
+        if hasattr(operation, "new_name"):
+            new_name = operation.new_name
+        else:
+            new_name = operation.params.get("new_name") if operation.params else None
 
         if not new_name or table_name not in self.schemas[app_name]["tables"]:
             return
@@ -244,7 +249,12 @@ class State:
         """Apply a RenameColumn operation to the state."""
         table_name = operation.table_name
         column_name = operation.column_name
-        new_name = operation.params.get("new_name")
+
+        # Get new_name from operation directly or from params
+        if hasattr(operation, "new_name"):
+            new_name = operation.new_name
+        else:
+            new_name = operation.params.get("new_name") if operation.params else None
 
         if (
             not new_name

@@ -24,9 +24,9 @@ from tortoise_pathway.schema_change import (
 class SchemaDiffer:
     """Detects differences between Tortoise models and database schema."""
 
-    def __init__(self, connection=None):
+    def __init__(self, state: Optional[State] = None, connection=None):
         self.connection = connection
-        self.state = State()
+        self.state = state or State()
 
     async def get_db_schema(self) -> Dict[str, Any]:
         """Get the current database schema."""
