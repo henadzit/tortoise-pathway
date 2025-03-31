@@ -5,11 +5,11 @@ This module provides functionality to detect differences between Tortoise models
 and the actual database schema, generating migration operations.
 """
 
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Optional
 
 from tortoise import connections
 from tortoise.fields import Field
-from tortoise.models import Model
+from tortoise.fields.relational import RelationalField
 
 
 def get_dialect(connection) -> str:
@@ -237,7 +237,7 @@ class CreateTable(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to create a table in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"CreateTable(")
+        lines.append("CreateTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    model="{self.model}",')
 
@@ -276,7 +276,6 @@ class DropTable(SchemaChange):
 
     def backward_sql(self, dialect: str = "sqlite") -> str:
         """Generate SQL for recreating the table."""
-        from tortoise_pathway.generators import generate_table_creation_sql
 
         # Since model is now a string instead of a Model class,
         # we need to provide guidance for handling this in migrations
@@ -285,7 +284,7 @@ class DropTable(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to drop a table in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"DropTable(")
+        lines.append("DropTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    model="{self.model}",')
         lines.append(")")
@@ -325,7 +324,7 @@ class RenameTable(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to rename a table in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"RenameTable(")
+        lines.append("RenameTable(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    new_name="{self.new_name}",')
         lines.append(f'    model="{self.model}",')
@@ -399,7 +398,7 @@ class AddColumn(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to add a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"AddColumn(")
+        lines.append("AddColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
 
@@ -445,7 +444,7 @@ class DropColumn(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to drop a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"DropColumn(")
+        lines.append("DropColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -510,7 +509,7 @@ class AlterColumn(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to alter a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"AlterColumn(")
+        lines.append("AlterColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
 
@@ -567,7 +566,7 @@ class RenameColumn(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to rename a column in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"RenameColumn(")
+        lines.append("RenameColumn(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    new_name="{self.new_name}",')
@@ -603,7 +602,7 @@ class AddIndex(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to add an index in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"AddIndex(")
+        lines.append("AddIndex(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -638,7 +637,7 @@ class DropIndex(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to drop an index in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"DropIndex(")
+        lines.append("DropIndex(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -686,7 +685,7 @@ class AddConstraint(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to add a constraint in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"AddConstraint(")
+        lines.append("AddConstraint(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -734,7 +733,7 @@ class DropConstraint(SchemaChange):
     def to_migration(self) -> str:
         """Generate Python code to drop a constraint in a migration."""
         lines = [f"# {self}"]
-        lines.append(f"DropConstraint(")
+        lines.append("DropConstraint(")
         lines.append(f'    table_name="{self.table_name}",')
         lines.append(f'    column_name="{self.column_name}",')
         lines.append(f'    model="{self.model}",')
@@ -791,7 +790,7 @@ def field_to_migration(field: Field) -> str:
         if hasattr(field, "decimal_places"):
             params.append(f"decimal_places={field.decimal_places}")
 
-    if field_type == "ForeignKeyField":
+    if isinstance(field, RelationalField):
         if hasattr(field, "model_name"):
             # For ForeignKeyField, we need to include the related model
             related_model = field.model_name

@@ -82,14 +82,64 @@ class SchemaDiffer:
 
             db_schema[table_name] = {"columns": columns, "indexes": indexes}
 
-        return db_schema
+        # Convert to the new structure format
+        app_schema = self._convert_to_app_models_format(db_schema)
+        return app_schema
+
+    def _convert_to_app_models_format(self, db_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert database schema to the app-models format."""
+        app_schema = {}
+
+        # For DB schema without model information, use 'unknown' app as default
+        if "unknown" not in app_schema:
+            app_schema["unknown"] = {"models": {}}
+
+        for table_name, table_info in db_schema.items():
+            # Extract model name from table name, assuming it follows conventions
+            model_name = "".join(part.capitalize() for part in table_name.split("_"))
+
+            # If we can infer app name from table_info["model"], use it
+            app_name = "unknown"
+            if "model" in table_info and "." in table_info["model"]:
+                app_name = table_info["model"].split(".")[0]
+                model_name = table_info["model"].split(".")[1]
+
+            # Ensure app exists in the schema
+            if app_name not in app_schema:
+                app_schema[app_name] = {"models": {}}
+
+            # Create model entry
+            app_schema[app_name]["models"][model_name] = {
+                "table": table_name,
+                "fields": {},
+                "indexes": table_info["indexes"],
+            }
+
+            # Convert columns to fields
+            for column_name, column_info in table_info["columns"].items():
+                # Use column name as field name if no field_name is provided
+                field_name = column_info.get("field_name", column_name)
+
+                app_schema[app_name]["models"][model_name]["fields"][field_name] = {
+                    "column": column_name,
+                    "type": column_info["type"],
+                    "nullable": column_info["nullable"],
+                    "default": column_info["default"],
+                    "primary_key": column_info["primary_key"],
+                    "field_object": column_info.get("field_object"),
+                }
+
+        return app_schema
 
     def get_model_schema(self) -> Dict[str, Any]:
         """Get schema representation from Tortoise models."""
-        model_schema = {}
+        app_schema = {}
 
         # For each registered model
         for app_name, app_models in Tortoise.apps.items():
+            if app_name not in app_schema:
+                app_schema[app_name] = {"models": {}}
+
             for model_name, model in app_models.items():
                 if not issubclass(model, Model):
                     continue
@@ -97,8 +147,14 @@ class SchemaDiffer:
                 # Get model's DB table name
                 table_name = model._meta.db_table
 
+                # Initialize model entry
+                app_schema[app_name]["models"][model_name] = {
+                    "table": table_name,
+                    "fields": {},
+                    "indexes": [],
+                }
+
                 # Get fields
-                columns = {}
                 for field_name, field_object in model._meta.fields_map.items():
                     # Skip reverse relations
                     if field_object.__class__.__name__ == "BackwardFKRelation":
@@ -114,8 +170,8 @@ class SchemaDiffer:
                     source_field = getattr(field_object, "source_field", None)
                     db_column = source_field if source_field is not None else field_name
 
-                    columns[db_column] = {
-                        "field_name": field_name,
+                    app_schema[app_name]["models"][model_name]["fields"][field_name] = {
+                        "column": db_column,
                         "type": field_type,
                         "nullable": nullable,
                         "default": default,
@@ -124,7 +180,6 @@ class SchemaDiffer:
                     }
 
                 # Get indexes
-                indexes = []
                 if hasattr(model._meta, "indexes") and isinstance(
                     model._meta.indexes, (list, tuple)
                 ):
@@ -144,7 +199,7 @@ class SchemaDiffer:
                                 index_columns.append(column_name)
 
                         if index_columns:
-                            indexes.append(
+                            app_schema[app_name]["models"][model_name]["indexes"].append(
                                 {
                                     "name": f"idx_{'_'.join(index_columns)}",
                                     "unique": False,
@@ -172,7 +227,7 @@ class SchemaDiffer:
                                 unique_columns.append(column_name)
 
                         if unique_columns:
-                            indexes.append(
+                            app_schema[app_name]["models"][model_name]["indexes"].append(
                                 {
                                     "name": f"uniq_{'_'.join(unique_columns)}",
                                     "unique": True,
@@ -180,9 +235,7 @@ class SchemaDiffer:
                                 }
                             )
 
-                model_schema[table_name] = {"columns": columns, "indexes": indexes, "model": model}
-
-        return model_schema
+        return app_schema
 
     async def detect_changes(self, migrations=None) -> List[SchemaChange]:
         """
@@ -206,98 +259,129 @@ class SchemaDiffer:
             current_schema = await self.get_db_schema()
 
         model_schema = self.get_model_schema()
-
         changes = []
 
-        # Detect table changes
-        current_tables = set(current_schema.keys())
-        model_tables = set(model_schema.keys())
+        # Create a map of table names to their app/model for easy lookup
+        current_tables = {}
+        model_tables = {}
+
+        for app_name, app_info in current_schema.items():
+            for model_name, model_info in app_info.get("models", {}).items():
+                current_tables[model_info["table"]] = (app_name, model_name)
+
+        for app_name, app_info in model_schema.items():
+            for model_name, model_info in app_info.get("models", {}).items():
+                model_tables[model_info["table"]] = (app_name, model_name)
 
         # Tables to create (in models but not in current schema)
-        for table_name in model_tables - current_tables:
-            # Extract all field objects from the model for CreateTable
+        for table_name in sorted(set(model_tables.keys()) - set(current_tables.keys())):
+            app_name, model_name = model_tables[table_name]
+            # Get the model info and extract field objects
+            model_info = model_schema[app_name]["models"][model_name]
             field_objects = {}
-            for column_name, column_info in model_schema[table_name]["columns"].items():
-                if "field_object" in column_info:
-                    field_name = column_info["field_name"]
-                    field_objects[field_name] = column_info["field_object"]
 
+            for field_name, field_info in model_info["fields"].items():
+                field_obj = field_info.get("field_object")
+                if field_obj is not None:
+                    field_objects[field_name] = field_obj
+
+            model_ref = f"{app_name}.{model_name}"
             changes.append(
                 CreateTable(
                     table_name=table_name,
                     fields=field_objects,
-                    model=model_schema[table_name]["model"]._meta.full_name,
+                    model=model_ref,
                     params={},
                 )
             )
 
         # Tables to drop (in current schema but not in models)
-        for table_name in sorted(current_tables - model_tables):
-            # For tables that don't exist in models, we need to pass a default model reference
-            model_ref = current_schema[table_name].get("model", f"unknown.{table_name}")
+        for table_name in sorted(set(current_tables.keys()) - set(model_tables.keys())):
+            app_name, model_name = current_tables[table_name]
+            model_ref = f"{app_name}.{model_name}"
             changes.append(
                 DropTable(
                     table_name=table_name,
-                    model=model_ref,  # Use provided model ref or a placeholder
+                    model=model_ref,
                 )
             )
 
-        # Check changes in existing tables
-        for table_name in sorted(current_tables & model_tables):
-            # Store model reference
-            model = model_schema[table_name]["model"]
+        # Check changes in existing tables (both in model and current schema)
+        for table_name in sorted(set(current_tables.keys()) & set(model_tables.keys())):
+            current_app_name, current_model_name = current_tables[table_name]
+            model_app_name, model_model_name = model_tables[table_name]
 
-            # Columns in current schema and model
-            current_columns = set(current_schema[table_name]["columns"].keys())
-            model_columns = set(model_schema[table_name]["columns"].keys())
+            current_model = current_schema[current_app_name]["models"][current_model_name]
+            model_model = model_schema[model_app_name]["models"][model_model_name]
+
+            model_ref = f"{model_app_name}.{model_model_name}"
+
+            # Map of column names to field names for both schemas
+            current_columns = {
+                field_info["column"]: field_name
+                for field_name, field_info in current_model["fields"].items()
+            }
+            model_columns = {
+                field_info["column"]: field_name
+                for field_name, field_info in model_model["fields"].items()
+            }
 
             # Columns to add (in model but not in current schema)
-            for column_name in sorted(model_columns - current_columns):
-                field_info = model_schema[table_name]["columns"][column_name]
+            for column_name in sorted(set(model_columns.keys()) - set(current_columns.keys())):
+                field_name = model_columns[column_name]
+                field_info = model_model["fields"][field_name]
+                field_obj = field_info.get("field_object")
 
-                changes.append(
-                    AddColumn(
-                        table_name=table_name,
-                        column_name=column_name,
-                        field_object=field_info["field_object"],
-                        model=model._meta.full_name,
-                        params=field_info,
+                if field_obj is not None:
+                    changes.append(
+                        AddColumn(
+                            table_name=table_name,
+                            column_name=column_name,
+                            field_object=field_obj,
+                            model=model_ref,
+                            params={"field_name": field_name, **field_info},
+                        )
                     )
-                )
 
             # Columns to drop (in current schema but not in model)
-            for column_name in sorted(current_columns - model_columns):
+            for column_name in sorted(set(current_columns.keys()) - set(model_columns.keys())):
                 changes.append(
                     DropColumn(
                         table_name=table_name,
                         column_name=column_name,
-                        model=model._meta.full_name,
+                        model=model_ref,
                     )
                 )
 
             # Columns to alter (in both, but different)
-            for column_name in sorted(current_columns & model_columns):
-                current_column = current_schema[table_name]["columns"][column_name]
-                model_column = model_schema[table_name]["columns"][column_name]
+            for column_name in sorted(set(current_columns.keys()) & set(model_columns.keys())):
+                current_field_name = current_columns[column_name]
+                model_field_name = model_columns[column_name]
 
-                # Simple check for differences (this would be more complex in practice)
+                current_field = current_model["fields"][current_field_name]
+                model_field = model_model["fields"][model_field_name]
+
+                # Check if there are differences that require altering
                 if (
-                    "type" in current_column
-                    and "type" in model_column
-                    and current_column["type"] != model_column["type"]
-                ) or (
-                    "nullable" in current_column
-                    and "nullable" in model_column
-                    and current_column["nullable"] != model_column["nullable"]
+                    current_field["type"] != model_field["type"]
+                    or current_field["nullable"] != model_field["nullable"]
                 ):
-                    changes.append(
-                        AlterColumn(
-                            table_name=table_name,
-                            column_name=column_name,
-                            field_object=model_column["field_object"],
-                            model=model._meta.full_name,
-                            params=model_column,
+                    field_obj = model_field.get("field_object")
+                    if field_obj is not None:
+                        changes.append(
+                            AlterColumn(
+                                table_name=table_name,
+                                column_name=column_name,
+                                field_object=field_obj,
+                                model=model_ref,
+                                params={"field_name": model_field_name, **model_field},
+                            )
                         )
-                    )
 
         return changes
+
+    def _get_table_centric_schema(self, app_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert app-models schema to table-centric schema for comparison. DEPRECATED."""
+        # This method is kept for backward compatibility but should not be used
+        # in the new model-centric approach.
+        return app_schema

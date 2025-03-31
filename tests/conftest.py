@@ -3,10 +3,9 @@ Pytest configuration and fixtures for Tortoise Pathway tests.
 """
 
 import os
-import asyncio
 import pytest
 from pathlib import Path
-from typing import Dict, Any, Generator, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator
 
 from tortoise import Tortoise
 from tortoise_pathway.migration_manager import MigrationManager

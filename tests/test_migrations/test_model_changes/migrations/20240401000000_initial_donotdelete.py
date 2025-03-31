@@ -3,7 +3,7 @@ Initial migration for test_model_changes app
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_change import CreateTable, DropTable
+from tortoise_pathway.schema_change import CreateTable
 from tortoise.fields.data import CharField
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.data import IntField

@@ -2,10 +2,8 @@
 Tests for the State class.
 """
 
-import pytest
 
 from tortoise.fields import IntField, CharField, TextField, DatetimeField
-from tortoise.models import Model
 
 from tortoise_pathway.state import State
 from tortoise_pathway.migration import Migration
@@ -50,11 +48,12 @@ async def test_apply_create_table():
     # Define the expected state
     expected_state = {
         "test_app": {
-            "tables": {
-                "test_table": {
-                    "columns": {
+            "models": {
+                "TestModel": {
+                    "table": "test_table",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
@@ -62,7 +61,7 @@ async def test_apply_create_table():
                             "field_object": fields["id"],
                         },
                         "name": {
-                            "field_name": "name",
+                            "column": "name",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -70,7 +69,7 @@ async def test_apply_create_table():
                             "field_object": fields["name"],
                         },
                         "description": {
-                            "field_name": "description",
+                            "column": "description",
                             "type": "TextField",
                             "nullable": False,
                             "default": None,
@@ -79,7 +78,6 @@ async def test_apply_create_table():
                         },
                     },
                     "indexes": [],
-                    "model": "test_app.TestModel",
                 },
             }
         }
@@ -123,11 +121,12 @@ async def test_apply_add_column():
     # Define the expected state
     expected_state = {
         "test_app": {
-            "tables": {
-                "test_table": {
-                    "columns": {
+            "models": {
+                "TestModel": {
+                    "table": "test_table",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
@@ -135,7 +134,7 @@ async def test_apply_add_column():
                             "field_object": fields["id"],
                         },
                         "name": {
-                            "field_name": "name",
+                            "column": "name",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -143,7 +142,7 @@ async def test_apply_add_column():
                             "field_object": fields["name"],
                         },
                         "email": {
-                            "field_name": "email",
+                            "column": "email",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -152,7 +151,6 @@ async def test_apply_add_column():
                         },
                     },
                     "indexes": [],
-                    "model": "test_app.TestModel",
                 },
             }
         }
@@ -194,11 +192,12 @@ async def test_apply_drop_column():
     # Define the expected state
     expected_state = {
         "test_app": {
-            "tables": {
-                "test_table": {
-                    "columns": {
+            "models": {
+                "TestModel": {
+                    "table": "test_table",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
@@ -206,7 +205,7 @@ async def test_apply_drop_column():
                             "field_object": fields["id"],
                         },
                         "name": {
-                            "field_name": "name",
+                            "column": "name",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -215,7 +214,6 @@ async def test_apply_drop_column():
                         },
                     },
                     "indexes": [],
-                    "model": "test_app.TestModel",
                 },
             }
         }
@@ -259,11 +257,12 @@ async def test_apply_alter_column():
     # Define the expected state
     expected_state = {
         "test_app": {
-            "tables": {
-                "test_table": {
-                    "columns": {
+            "models": {
+                "TestModel": {
+                    "table": "test_table",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
@@ -271,7 +270,7 @@ async def test_apply_alter_column():
                             "field_object": fields["id"],
                         },
                         "name": {
-                            "field_name": "name",
+                            "column": "name",
                             "type": "CharField",
                             "nullable": True,
                             "default": None,
@@ -280,7 +279,6 @@ async def test_apply_alter_column():
                         },
                     },
                     "indexes": [],
-                    "model": "test_app.TestModel",
                 },
             }
         }
@@ -322,19 +320,20 @@ async def test_apply_rename_column():
     # Define the expected state
     expected_state = {
         "test_app": {
-            "tables": {
-                "test_table": {
-                    "columns": {
+            "models": {
+                "TestModel": {
+                    "table": "test_table",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
                             "primary_key": True,
                             "field_object": fields["id"],
                         },
-                        "title": {
-                            "field_name": "name",
+                        "name": {
+                            "column": "title",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -343,7 +342,6 @@ async def test_apply_rename_column():
                         },
                     },
                     "indexes": [],
-                    "model": "test_app.TestModel",
                 },
             }
         }
@@ -384,11 +382,12 @@ async def test_apply_rename_table():
     # Define the expected state
     expected_state = {
         "test_app": {
-            "tables": {
-                "new_table": {
-                    "columns": {
+            "models": {
+                "TestModel": {
+                    "table": "new_table",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
@@ -396,7 +395,7 @@ async def test_apply_rename_table():
                             "field_object": fields["id"],
                         },
                         "name": {
-                            "field_name": "name",
+                            "column": "name",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -405,7 +404,6 @@ async def test_apply_rename_table():
                         },
                     },
                     "indexes": [],
-                    "model": "test_app.TestModel",
                 },
             }
         }
@@ -480,11 +478,12 @@ async def test_build_state_from_migrations():
     # Define the expected state
     expected_state = {
         "blog": {
-            "tables": {
-                "blog_posts": {
-                    "columns": {
+            "models": {
+                "BlogPost": {
+                    "table": "blog_posts",
+                    "fields": {
                         "id": {
-                            "field_name": "id",
+                            "column": "id",
                             "type": "IntField",
                             "nullable": False,
                             "default": None,
@@ -492,7 +491,7 @@ async def test_build_state_from_migrations():
                             "field_object": id_field,
                         },
                         "name": {
-                            "field_name": "name",
+                            "column": "name",
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -500,7 +499,7 @@ async def test_build_state_from_migrations():
                             "field_object": name_field,
                         },
                         "created_at": {
-                            "field_name": "created_at",
+                            "column": "created_at",
                             "type": "DatetimeField",
                             "nullable": False,
                             "default": None,
@@ -509,7 +508,6 @@ async def test_build_state_from_migrations():
                         },
                     },
                     "indexes": [],
-                    "model": "blog.BlogPost",
                 },
             }
         }
@@ -520,7 +518,7 @@ async def test_build_state_from_migrations():
 
 
 async def test_get_schema():
-    """Test getting a flattened schema from the state."""
+    """Test getting the schema from the state."""
     state = State()
 
     # Add some tables in different apps
@@ -552,64 +550,72 @@ async def test_get_schema():
     state._apply_operation(create_table_op1)
     state._apply_operation(create_table_op2)
 
-    # Get the flattened schema
+    # Get the schema
     schema = state.get_schema()
 
     # Define the expected schema
     expected_schema = {
-        "users": {
-            "columns": {
-                "id": {
-                    "field_name": "id",
-                    "type": "IntField",
-                    "nullable": False,
-                    "default": None,
-                    "primary_key": True,
-                    "field_object": fields1["id"],
-                },
-                "name": {
-                    "field_name": "name",
-                    "type": "CharField",
-                    "nullable": False,
-                    "default": None,
-                    "primary_key": False,
-                    "field_object": fields1["name"],
-                },
-            },
-            "indexes": [],
-            "model": "auth.User",
+        "auth": {
+            "models": {
+                "User": {
+                    "table": "users",
+                    "fields": {
+                        "id": {
+                            "column": "id",
+                            "type": "IntField",
+                            "nullable": False,
+                            "default": None,
+                            "primary_key": True,
+                            "field_object": fields1["id"],
+                        },
+                        "name": {
+                            "column": "name",
+                            "type": "CharField",
+                            "nullable": False,
+                            "default": None,
+                            "primary_key": False,
+                            "field_object": fields1["name"],
+                        },
+                    },
+                    "indexes": [],
+                }
+            }
         },
-        "articles": {
-            "columns": {
-                "id": {
-                    "field_name": "id",
-                    "type": "IntField",
-                    "nullable": False,
-                    "default": None,
-                    "primary_key": True,
-                    "field_object": fields2["id"],
-                },
-                "title": {
-                    "field_name": "title",
-                    "type": "CharField",
-                    "nullable": False,
-                    "default": None,
-                    "primary_key": False,
-                    "field_object": fields2["title"],
-                },
-                "content": {
-                    "field_name": "content",
-                    "type": "TextField",
-                    "nullable": False,
-                    "default": None,
-                    "primary_key": False,
-                    "field_object": fields2["content"],
-                },
-            },
-            "indexes": [],
-            "model": "blog.Article",
+        "blog": {
+            "models": {
+                "Article": {
+                    "table": "articles",
+                    "fields": {
+                        "id": {
+                            "column": "id",
+                            "type": "IntField",
+                            "nullable": False,
+                            "default": None,
+                            "primary_key": True,
+                            "field_object": fields2["id"],
+                        },
+                        "title": {
+                            "column": "title",
+                            "type": "CharField",
+                            "nullable": False,
+                            "default": None,
+                            "primary_key": False,
+                            "field_object": fields2["title"],
+                        },
+                        "content": {
+                            "column": "content",
+                            "type": "TextField",
+                            "nullable": False,
+                            "default": None,
+                            "primary_key": False,
+                            "field_object": fields2["content"],
+                        },
+                    },
+                    "indexes": [],
+                }
+            }
         },
     }
 
-    # Compare the entire schema to the expected schema
+    # Compare the schema to the expected schema
     assert schema == expected_schema
