@@ -41,7 +41,7 @@ async def test_apply_create_table():
     )
 
     # Apply the operation to the state
-    state._apply_operation(create_table_op)
+    state.apply_operation(create_table_op)
 
     # Define the expected state
     expected_state = {
@@ -100,7 +100,7 @@ async def test_apply_add_column():
         fields=fields,
     )
 
-    state._apply_operation(create_table_op)
+    state.apply_operation(create_table_op)
 
     # Now add a column
     email_field = CharField(max_length=255)
@@ -110,7 +110,7 @@ async def test_apply_add_column():
         field_name="email",
     )
 
-    state._apply_operation(add_column_op)
+    state.apply_operation(add_column_op)
 
     # Define the expected state
     expected_state = {
@@ -170,7 +170,7 @@ async def test_apply_drop_column():
         fields=fields,
     )
 
-    state._apply_operation(create_table_op)
+    state.apply_operation(create_table_op)
 
     # Now drop a column
     drop_column_op = DropColumn(
@@ -178,7 +178,7 @@ async def test_apply_drop_column():
         column_name="email",
     )
 
-    state._apply_operation(drop_column_op)
+    state.apply_operation(drop_column_op)
 
     # Define the expected state
     expected_state = {
@@ -229,7 +229,7 @@ async def test_apply_alter_column():
         fields=fields,
     )
 
-    state._apply_operation(create_table_op)
+    state.apply_operation(create_table_op)
 
     # Now alter a column (make it nullable)
     altered_field = CharField(max_length=100, null=True)
@@ -240,7 +240,7 @@ async def test_apply_alter_column():
         field_name="name",
     )
 
-    state._apply_operation(alter_column_op)
+    state.apply_operation(alter_column_op)
 
     # Define the expected state
     expected_state = {
@@ -291,7 +291,7 @@ async def test_apply_rename_column():
         fields=fields,
     )
 
-    state._apply_operation(create_table_op)
+    state.apply_operation(create_table_op)
 
     # Now rename a column
     rename_column_op = RenameColumn(
@@ -300,7 +300,7 @@ async def test_apply_rename_column():
         new_name="title",
     )
 
-    state._apply_operation(rename_column_op)
+    state.apply_operation(rename_column_op)
 
     # Define the expected state
     expected_state = {
@@ -351,7 +351,7 @@ async def test_apply_rename_table():
         fields=fields,
     )
 
-    state._apply_operation(create_table_op)
+    state.apply_operation(create_table_op)
 
     # Now rename the table
     rename_table_op = RenameTable(
@@ -359,7 +359,7 @@ async def test_apply_rename_table():
         new_name="new_table",
     )
 
-    state._apply_operation(rename_table_op)
+    state.apply_operation(rename_table_op)
 
     # Define the expected state
     expected_state = {
@@ -383,106 +383,6 @@ async def test_apply_rename_table():
                             "default": None,
                             "primary_key": False,
                             "field_object": fields["name"],
-                        },
-                    },
-                    "indexes": [],
-                },
-            }
-        }
-    }
-
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
-
-
-async def test_build_state_from_migrations():
-    """Test building state from a list of migrations."""
-
-    # Create a test migration class
-    class TestMigration(Migration):
-        """Test migration with a CreateTable operation."""
-
-        dependencies = []
-
-        def __init__(self):
-            fields = {
-                "id": IntField(primary_key=True),
-                "name": CharField(max_length=100),
-            }
-
-            self.operations = [
-                CreateTable(
-                    model="blog.BlogPost",
-                    fields=fields,
-                )
-            ]
-
-    # Create another migration that adds a column
-    class AddColumnMigration(Migration):
-        """Test migration with an AddColumn operation."""
-
-        dependencies = ["test_migration"]
-
-        def __init__(self):
-            self.operations = [
-                AddColumn(
-                    model="blog.BlogPost",
-                    field_object=DatetimeField(auto_now_add=True),
-                    field_name="created_at",
-                )
-            ]
-
-    # Build state from both migrations
-    state = State()
-    migrations = [TestMigration(), AddColumnMigration()]
-    await state.build_from_migrations(migrations)
-
-    # Get the field objects from the migrations for the expected state
-    id_field = None
-    name_field = None
-    created_at_field = None
-
-    # Extract fields from the first migration (CreateTable)
-    for operation in migrations[0].operations:
-        if isinstance(operation, CreateTable):
-            id_field = operation.fields["id"]
-            name_field = operation.fields["name"]
-
-    # Extract field from the second migration (AddColumn)
-    for operation in migrations[1].operations:
-        if isinstance(operation, AddColumn):
-            created_at_field = operation.field_object
-
-    # Define the expected state
-    expected_state = {
-        "blog": {
-            "models": {
-                "BlogPost": {
-                    "table": "blog_post",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": id_field,
-                        },
-                        "name": {
-                            "column": "name",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": name_field,
-                        },
-                        "created_at": {
-                            "column": "created_at",
-                            "type": "DatetimeField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": created_at_field,
                         },
                     },
                     "indexes": [],
@@ -521,8 +421,8 @@ async def test_get_schema():
         fields=fields2,
     )
 
-    state._apply_operation(create_table_op1)
-    state._apply_operation(create_table_op2)
+    state.apply_operation(create_table_op1)
+    state.apply_operation(create_table_op2)
 
     # Get the schema
     schema = state.get_schema()

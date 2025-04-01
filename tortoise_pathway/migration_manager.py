@@ -37,6 +37,9 @@ class MigrationManager:
         # Discover available migrations
         self._discover_migrations()
 
+        # Rebuild state from applied migrations
+        self._rebuild_state()
+
     async def _ensure_migration_table_exists(self, connection=None) -> None:
         """Create migration history table if it doesn't exist."""
         conn = connection or Tortoise.get_connection("default")
@@ -121,12 +124,9 @@ class MigrationManager:
         migration_file = self.migrations_dir / f"{migration_name}.py"
 
         if auto:
-            # Get applied migrations to build the state from
-            applied_migrations = self.get_applied_migrations()
-
             # Generate migration content based on model changes compared to existing migrations state
-            differ = SchemaDiffer()
-            changes = await differ.detect_changes(migrations=applied_migrations)
+            differ = SchemaDiffer(self.state)
+            changes = await differ.detect_changes()
             content = generate_auto_migration(migration_name, changes)
         else:
             # Create an empty migration template
@@ -173,9 +173,6 @@ class MigrationManager:
                 # Apply migration
                 await migration.apply(state=self.state)
 
-                # Update the state with this migration
-                await self.state.build_from_migrations([migration])
-
                 # Record that migration was applied
                 now = datetime.datetime.now().isoformat()
                 await conn.execute_query(
@@ -185,6 +182,7 @@ class MigrationManager:
 
                 self.applied_migrations.add(migration_name)
                 applied_migrations.append(migration)
+                self._rebuild_state()
                 print(f"Applied migration: {migration_name}")
 
             except Exception as e:
@@ -245,7 +243,7 @@ class MigrationManager:
             self.applied_migrations.remove(migration_name)
 
             # Rebuild state from remaining applied migrations
-            await self.state.build_from_migrations(self.get_applied_migrations())
+            self._rebuild_state()
 
             print(f"Reverted migration: {migration_name}")
             return migration
@@ -286,3 +284,11 @@ class MigrationManager:
 
         # Convert to Migration objects
         return [self.migrations[name]() for name in applied_names]
+
+    def _rebuild_state(self) -> None:
+        """Build the state from applied migrations."""
+        self.state = State()
+
+        for migration in self.get_applied_migrations():
+            for operation in migration.operations:
+                self.state.apply_operation(operation)

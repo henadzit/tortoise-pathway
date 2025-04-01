@@ -5,10 +5,9 @@ This module provides the State class that manages the state of the models based
 on applied migrations, rather than the actual database state.
 """
 
-from typing import Dict, List, Any, cast
+from typing import Dict, Any, cast
 
 
-from tortoise_pathway.migration import Migration
 from tortoise_pathway.schema_change import (
     SchemaChange,
     CreateTable,
@@ -64,22 +63,7 @@ class State:
         # }
         self.schemas: Dict[str, Dict[str, Any]] = {}
 
-    async def build_from_migrations(self, migrations: List[Migration]) -> None:
-        """
-        Build the state based on a list of migrations.
-
-        Args:
-            migrations: List of Migration objects to apply to the state.
-        """
-        # Start with an empty state
-        self.schemas = {}
-
-        # Apply each migration's operations to the state
-        for migration in migrations:
-            for operation in migration.operations:
-                self._apply_operation(operation)
-
-    def _apply_operation(self, operation: SchemaChange) -> None:
+    def apply_operation(self, operation: SchemaChange) -> None:
         """
         Apply a single schema change operation to the state.
 

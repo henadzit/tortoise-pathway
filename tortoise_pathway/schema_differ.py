@@ -237,27 +237,14 @@ class SchemaDiffer:
 
         return app_schema
 
-    async def detect_changes(self, migrations=None) -> List[SchemaChange]:
+    async def detect_changes(self) -> List[SchemaChange]:
         """
         Detect schema changes between models and state derived from migrations.
-
-        If migrations are provided, the state will be built from those migrations.
-        Otherwise, the actual database schema will be used.
-
-        Args:
-            migrations: Optional list of Migration objects to build the state from.
 
         Returns:
             List of SchemaChange objects representing the detected changes.
         """
-        if migrations:
-            # Build state from migrations
-            await self.state.build_from_migrations(migrations)
-            current_schema = self.state.get_schema()
-        else:
-            # Fall back to direct database inspection
-            current_schema = await self.get_db_schema()
-
+        current_schema = self.state.get_schema()
         model_schema = self.get_model_schema()
         changes = []
 

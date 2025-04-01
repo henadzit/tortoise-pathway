@@ -5,15 +5,14 @@ This module provides functionality to detect differences between Tortoise models
 and the actual database schema, generating migration operations.
 """
 
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Optional, List, TYPE_CHECKING
 
 from tortoise import connections
 from tortoise.fields import Field
 from tortoise.fields.relational import RelationalField
 
-# Importing State here would create a circular import,
-# so we'll use a type annotation string instead
-
+if TYPE_CHECKING:
+    from tortoise_pathway.state import State
 
 def get_dialect(connection) -> str:
     """
