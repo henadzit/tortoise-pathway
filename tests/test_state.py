@@ -39,7 +39,6 @@ async def test_apply_create_table():
         table_name="test_table",
         fields=fields,
         model="test_app.TestModel",
-        params={},
     )
 
     # Apply the operation to the state
@@ -101,7 +100,6 @@ async def test_apply_add_column():
         table_name="test_table",
         fields=fields,
         model="test_app.TestModel",
-        params={},
     )
 
     state._apply_operation(create_table_op)
@@ -110,10 +108,9 @@ async def test_apply_add_column():
     email_field = CharField(max_length=255)
     add_column_op = AddColumn(
         table_name="test_table",
-        column_name="email",
         field_object=email_field,
+        field_name="email",
         model="test_app.TestModel",
-        params={"field_name": "email"},
     )
 
     state._apply_operation(add_column_op)
@@ -175,7 +172,6 @@ async def test_apply_drop_column():
         table_name="test_table",
         fields=fields,
         model="test_app.TestModel",
-        params={},
     )
 
     state._apply_operation(create_table_op)
@@ -237,7 +233,6 @@ async def test_apply_alter_column():
         table_name="test_table",
         fields=fields,
         model="test_app.TestModel",
-        params={},
     )
 
     state._apply_operation(create_table_op)
@@ -248,8 +243,8 @@ async def test_apply_alter_column():
         table_name="test_table",
         column_name="name",
         field_object=altered_field,
+        field_name="name",
         model="test_app.TestModel",
-        params={"field_name": "name"},
     )
 
     state._apply_operation(alter_column_op)
@@ -302,7 +297,6 @@ async def test_apply_rename_column():
         table_name="test_table",
         fields=fields,
         model="test_app.TestModel",
-        params={},
     )
 
     state._apply_operation(create_table_op)
@@ -365,7 +359,6 @@ async def test_apply_rename_table():
         table_name="old_table",
         fields=fields,
         model="test_app.TestModel",
-        params={},
     )
 
     state._apply_operation(create_table_op)
@@ -433,7 +426,6 @@ async def test_build_state_from_migrations():
                     table_name="blog_posts",
                     fields=fields,
                     model="blog.BlogPost",
-                    params={},
                 )
             ]
 
@@ -447,10 +439,9 @@ async def test_build_state_from_migrations():
             self.operations = [
                 AddColumn(
                     table_name="blog_posts",
-                    column_name="created_at",
                     field_object=DatetimeField(auto_now_add=True),
+                    field_name="created_at",
                     model="blog.BlogPost",
-                    params={"field_name": "created_at"},
                 )
             ]
 
@@ -531,7 +522,6 @@ async def test_get_schema():
         table_name="users",
         fields=fields1,
         model="auth.User",
-        params={},
     )
 
     fields2 = {
@@ -544,7 +534,6 @@ async def test_get_schema():
         table_name="articles",
         fields=fields2,
         model="blog.Article",
-        params={},
     )
 
     state._apply_operation(create_table_op1)

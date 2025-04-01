@@ -76,15 +76,15 @@ async def test_model_changes(setup_db_file, tortoise_config):
 
     assert isinstance(operations[1], AddColumn)
     assert operations[1].table_name == "blogs"
-    assert operations[1].column_name == "summary"
+    assert operations[1].field_name == "summary"
 
     assert isinstance(operations[2], AddColumn)
     assert operations[2].table_name == "blogs"
-    assert operations[2].column_name == "updated_at"
+    assert operations[2].field_name == "updated_at"
 
     assert isinstance(operations[3], AddColumn)
     assert operations[3].table_name == "tags"
-    assert operations[3].column_name == "description"
+    assert operations[3].field_name == "description"
 
     # Re-discover migrations
     manager._discover_migrations()

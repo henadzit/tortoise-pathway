@@ -286,14 +286,12 @@ class SchemaDiffer:
                     field_objects[field_name] = field_obj
 
             model_ref = f"{app_name}.{model_name}"
-            changes.append(
-                CreateTable(
-                    table_name=table_name,
-                    fields=field_objects,
-                    model=model_ref,
-                    params={},
-                )
+            operation = CreateTable(
+                table_name=table_name,
+                fields=field_objects,
+                model=model_ref,
             )
+            changes.append(operation)
 
         # Tables to drop (in current schema but not in models)
         for table_name in sorted(set(current_tables.keys()) - set(model_tables.keys())):
@@ -336,10 +334,9 @@ class SchemaDiffer:
                     changes.append(
                         AddColumn(
                             table_name=table_name,
-                            column_name=column_name,
                             field_object=field_obj,
+                            field_name=field_name,
                             model=model_ref,
-                            params={"field_name": field_name, **field_info},
                         )
                     )
 
@@ -373,8 +370,8 @@ class SchemaDiffer:
                                 table_name=table_name,
                                 column_name=column_name,
                                 field_object=field_obj,
+                                field_name=model_field_name,
                                 model=model_ref,
-                                params={"field_name": model_field_name, **model_field},
                             )
                         )
 

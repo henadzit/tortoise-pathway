@@ -160,11 +160,8 @@ class State:
 
     def _apply_rename_table(self, app_name: str, model_name: str, operation: RenameTable) -> None:
         """Apply a RenameTable operation to the state."""
-        # Get new_name from operation directly or from params
-        if hasattr(operation, "new_name"):
-            new_table_name = operation.new_name
-        else:
-            new_table_name = operation.params.get("new_name") if operation.params else None
+        # Get new_name from operation directly
+        new_table_name = operation.new_name
 
         if not new_table_name or model_name not in self.schemas[app_name]["models"]:
             return
@@ -176,12 +173,10 @@ class State:
         """Apply an AddColumn operation to the state."""
         column_name = operation.column_name
         field_obj = operation.field_object
+        field_name = operation.field_name
 
         if model_name not in self.schemas[app_name]["models"]:
             return
-
-        # Get the field name (use column name if not provided)
-        field_name = operation.params.get("field_name", column_name)
 
         # Extract field properties
         nullable = getattr(field_obj, "null", False)
@@ -248,14 +243,9 @@ class State:
     def _apply_rename_column(self, app_name: str, model_name: str, operation: RenameColumn) -> None:
         """Apply a RenameColumn operation to the state."""
         column_name = operation.column_name
+        new_column_name = operation.new_name
 
-        # Get new_name from operation directly or from params
-        if hasattr(operation, "new_name"):
-            new_column_name = operation.new_name
-        else:
-            new_column_name = operation.params.get("new_name") if operation.params else None
-
-        if not new_column_name or model_name not in self.schemas[app_name]["models"]:
+        if model_name not in self.schemas[app_name]["models"]:
             return
 
         # Find the field that maps to this column and update its column mapping
@@ -268,15 +258,13 @@ class State:
 
     def _apply_add_index(self, app_name: str, model_name: str, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
-        column_name = operation.column_name
-
         if model_name not in self.schemas[app_name]["models"]:
             return
 
-        # Extract index information
-        index_name = operation.params.get("name", f"idx_{column_name}")
-        unique = operation.params.get("unique", False)
-        columns = operation.params.get("columns", [column_name])
+        # Extract index information from the operation
+        index_name = operation.index_name
+        unique = operation.unique
+        columns = operation.columns
 
         # Add the index to the state
         self.schemas[app_name]["models"][model_name]["indexes"].append(
@@ -290,12 +278,10 @@ class State:
     def _apply_drop_index(self, app_name: str, model_name: str, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
         column_name = operation.column_name
+        index_name = operation.index_name
 
         if model_name not in self.schemas[app_name]["models"]:
             return
-
-        # Get index name if provided
-        index_name = operation.params.get("name")
 
         # Remove the index from the state
         if index_name:

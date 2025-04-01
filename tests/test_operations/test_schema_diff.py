@@ -147,8 +147,8 @@ async def test_add_column(setup_test_db):
     field = fields.IntField(default=0)
     operation = AddColumn(
         table_name="test_add_column",
-        column_name="count",
         field_object=field,
+        field_name="count",
         model="tests.test_operations.test_schema_diff.TestModel",
     )
     await operation.apply()
