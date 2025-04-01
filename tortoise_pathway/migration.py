@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, Any, Dict
 
 from tortoise_pathway.schema_change import SchemaChange
 
@@ -30,19 +30,29 @@ class Migration:
         module_path = module.replace(".", "/")
         return Path(f"{module_path}.py")
 
-    async def apply(self) -> None:
-        """Apply the migration forward."""
+    async def apply(self, state) -> None:
+        """
+        Apply the migration forward.
+
+        Args:
+            state: State object that contains schema information.
+        """
         if self.operations:
             for operation in self.operations:
-                await operation.apply()
+                await operation.apply(state=state)
         else:
             raise NotImplementedError("Subclasses must implement this method or define operations")
 
-    async def revert(self) -> None:
-        """Revert the migration."""
+    async def revert(self, state) -> None:
+        """
+        Revert the migration.
+
+        Args:
+            state: State object that contains schema information.
+        """
         if self.operations:
             # Revert operations in reverse order
             for operation in reversed(self.operations):
-                await operation.revert()
+                await operation.revert(state=state)
         else:
             raise NotImplementedError("Subclasses must implement this method or define operations")

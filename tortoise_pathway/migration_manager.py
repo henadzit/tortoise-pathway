@@ -171,7 +171,7 @@ class MigrationManager:
 
             try:
                 # Apply migration
-                await migration.apply()
+                await migration.apply(state=self.state)
 
                 # Update the state with this migration
                 await self.state.build_from_migrations([migration])
@@ -234,7 +234,7 @@ class MigrationManager:
 
         try:
             # Revert migration
-            await migration.revert()
+            await migration.revert(state=self.state)
 
             # Remove migration record
             await conn.execute_query(

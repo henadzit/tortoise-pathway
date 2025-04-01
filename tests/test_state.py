@@ -36,9 +36,8 @@ async def test_apply_create_table():
 
     # Create a migration operation
     create_table_op = CreateTable(
-        table_name="test_table",
-        fields=fields,
         model="test_app.TestModel",
+        fields=fields,
     )
 
     # Apply the operation to the state
@@ -49,7 +48,7 @@ async def test_apply_create_table():
         "test_app": {
             "models": {
                 "TestModel": {
-                    "table": "test_table",
+                    "table": "test_model",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -97,9 +96,8 @@ async def test_apply_add_column():
     }
 
     create_table_op = CreateTable(
-        table_name="test_table",
-        fields=fields,
         model="test_app.TestModel",
+        fields=fields,
     )
 
     state._apply_operation(create_table_op)
@@ -107,10 +105,9 @@ async def test_apply_add_column():
     # Now add a column
     email_field = CharField(max_length=255)
     add_column_op = AddColumn(
-        table_name="test_table",
+        model="test_app.TestModel",
         field_object=email_field,
         field_name="email",
-        model="test_app.TestModel",
     )
 
     state._apply_operation(add_column_op)
@@ -120,7 +117,7 @@ async def test_apply_add_column():
         "test_app": {
             "models": {
                 "TestModel": {
-                    "table": "test_table",
+                    "table": "test_model",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -169,18 +166,16 @@ async def test_apply_drop_column():
     }
 
     create_table_op = CreateTable(
-        table_name="test_table",
-        fields=fields,
         model="test_app.TestModel",
+        fields=fields,
     )
 
     state._apply_operation(create_table_op)
 
     # Now drop a column
     drop_column_op = DropColumn(
-        table_name="test_table",
-        column_name="email",
         model="test_app.TestModel",
+        column_name="email",
     )
 
     state._apply_operation(drop_column_op)
@@ -190,7 +185,7 @@ async def test_apply_drop_column():
         "test_app": {
             "models": {
                 "TestModel": {
-                    "table": "test_table",
+                    "table": "test_model",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -230,9 +225,8 @@ async def test_apply_alter_column():
     }
 
     create_table_op = CreateTable(
-        table_name="test_table",
-        fields=fields,
         model="test_app.TestModel",
+        fields=fields,
     )
 
     state._apply_operation(create_table_op)
@@ -240,11 +234,10 @@ async def test_apply_alter_column():
     # Now alter a column (make it nullable)
     altered_field = CharField(max_length=100, null=True)
     alter_column_op = AlterColumn(
-        table_name="test_table",
+        model="test_app.TestModel",
         column_name="name",
         field_object=altered_field,
         field_name="name",
-        model="test_app.TestModel",
     )
 
     state._apply_operation(alter_column_op)
@@ -254,7 +247,7 @@ async def test_apply_alter_column():
         "test_app": {
             "models": {
                 "TestModel": {
-                    "table": "test_table",
+                    "table": "test_model",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -294,19 +287,17 @@ async def test_apply_rename_column():
     }
 
     create_table_op = CreateTable(
-        table_name="test_table",
-        fields=fields,
         model="test_app.TestModel",
+        fields=fields,
     )
 
     state._apply_operation(create_table_op)
 
     # Now rename a column
     rename_column_op = RenameColumn(
-        table_name="test_table",
+        model="test_app.TestModel",
         column_name="name",
         new_name="title",
-        model="test_app.TestModel",
     )
 
     state._apply_operation(rename_column_op)
@@ -316,7 +307,7 @@ async def test_apply_rename_column():
         "test_app": {
             "models": {
                 "TestModel": {
-                    "table": "test_table",
+                    "table": "test_model",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -356,18 +347,16 @@ async def test_apply_rename_table():
     }
 
     create_table_op = CreateTable(
-        table_name="old_table",
-        fields=fields,
         model="test_app.TestModel",
+        fields=fields,
     )
 
     state._apply_operation(create_table_op)
 
     # Now rename the table
     rename_table_op = RenameTable(
-        table_name="old_table",
-        new_name="new_table",
         model="test_app.TestModel",
+        new_name="new_table",
     )
 
     state._apply_operation(rename_table_op)
@@ -423,9 +412,8 @@ async def test_build_state_from_migrations():
 
             self.operations = [
                 CreateTable(
-                    table_name="blog_posts",
-                    fields=fields,
                     model="blog.BlogPost",
+                    fields=fields,
                 )
             ]
 
@@ -438,10 +426,9 @@ async def test_build_state_from_migrations():
         def __init__(self):
             self.operations = [
                 AddColumn(
-                    table_name="blog_posts",
+                    model="blog.BlogPost",
                     field_object=DatetimeField(auto_now_add=True),
                     field_name="created_at",
-                    model="blog.BlogPost",
                 )
             ]
 
@@ -471,7 +458,7 @@ async def test_build_state_from_migrations():
         "blog": {
             "models": {
                 "BlogPost": {
-                    "table": "blog_posts",
+                    "table": "blog_post",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -519,9 +506,8 @@ async def test_get_schema():
     }
 
     create_table_op1 = CreateTable(
-        table_name="users",
-        fields=fields1,
         model="auth.User",
+        fields=fields1,
     )
 
     fields2 = {
@@ -531,9 +517,8 @@ async def test_get_schema():
     }
 
     create_table_op2 = CreateTable(
-        table_name="articles",
-        fields=fields2,
         model="blog.Article",
+        fields=fields2,
     )
 
     state._apply_operation(create_table_op1)
@@ -547,7 +532,7 @@ async def test_get_schema():
         "auth": {
             "models": {
                 "User": {
-                    "table": "users",
+                    "table": "user",
                     "fields": {
                         "id": {
                             "column": "id",
@@ -573,7 +558,7 @@ async def test_get_schema():
         "blog": {
             "models": {
                 "Article": {
-                    "table": "articles",
+                    "table": "article",
                     "fields": {
                         "id": {
                             "column": "id",

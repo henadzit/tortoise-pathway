@@ -121,7 +121,7 @@ class State:
 
     def _apply_create_table(self, app_name: str, model_name: str, operation: CreateTable) -> None:
         """Apply a CreateTable operation to the state."""
-        table_name = operation.table_name
+        table_name = operation.get_table_name(self)
 
         # Create a new model entry
         self.schemas[app_name]["models"][model_name] = {
@@ -160,7 +160,6 @@ class State:
 
     def _apply_rename_table(self, app_name: str, model_name: str, operation: RenameTable) -> None:
         """Apply a RenameTable operation to the state."""
-        # Get new_name from operation directly
         new_table_name = operation.new_name
 
         if not new_table_name or model_name not in self.schemas[app_name]["models"]:
@@ -322,3 +321,18 @@ class State:
         """
         # Simply return the model-centric schema
         return self.schemas
+
+    def get_models(self, app: str) -> Dict[str, Any]:
+        """
+        Get all models for a specific app.
+
+        Args:
+            app: Application name.
+
+        Returns:
+            Dictionary mapping model names to their definitions.
+        """
+        if app not in self.schemas:
+            return {}
+
+        return self.schemas[app].get("models", {})

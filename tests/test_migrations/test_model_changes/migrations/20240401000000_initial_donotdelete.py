@@ -18,7 +18,6 @@ class InitialMigration(Migration):
     dependencies = []
     operations = [
         CreateTable(
-            table_name="blogs",
             model="test_model_changes.Blog",
             fields={
                 "id": IntField(primary_key=True),
@@ -29,7 +28,6 @@ class InitialMigration(Migration):
             },
         ),
         CreateTable(
-            table_name="tags",
             model="test_model_changes.Tag",
             fields={
                 "id": IntField(primary_key=True),

@@ -12,6 +12,7 @@ from tortoise_pathway.schema_change import (
     AddIndex,
     DropIndex,
 )
+from tortoise_pathway.state import State
 
 
 class TestModel(models.Model):
@@ -51,6 +52,8 @@ async def setup_test_db(setup_db_file):
 
 async def test_create_table(setup_test_db):
     """Test CreateTable operation."""
+    state = State()
+
     # Create fields dictionary
     fields_dict = {
         "id": fields.IntField(primary_key=True),
@@ -60,11 +63,12 @@ async def test_create_table(setup_test_db):
 
     # Create and apply operation
     operation = CreateTable(
-        table_name="test_create",
-        fields=fields_dict,
         model="tests.test_operations.test_schema_diff.TestModel",
+        fields=fields_dict,
     )
-    await operation.apply()
+    # Set table name manually to override automatic name derivation
+    operation.set_table_name("test_create")
+    await operation.apply(state=state)
 
     # Verify table was created
     conn = Tortoise.get_connection("default")
@@ -81,16 +85,18 @@ async def test_create_table(setup_test_db):
     assert "description" in column_names
 
     # Test forward_sql and backward_sql methods
-    forward_sql = operation.forward_sql()
+    forward_sql = operation.forward_sql(state=state)
     assert "CREATE TABLE" in forward_sql
     assert "test_create" in forward_sql
 
-    backward_sql = operation.backward_sql()
+    backward_sql = operation.backward_sql(state=state)
     assert "DROP TABLE test_create" in backward_sql
 
 
 async def test_drop_table(setup_test_db):
     """Test DropTable operation."""
+    state = State()
+
     # First create a table
     fields_dict = {
         "id": fields.IntField(primary_key=True),
@@ -98,11 +104,12 @@ async def test_drop_table(setup_test_db):
     }
 
     create_op = CreateTable(
-        table_name="test_drop",
-        fields=fields_dict,
         model="tests.test_operations.test_schema_diff.TestModel",
+        fields=fields_dict,
     )
-    await create_op.apply()
+    # Set table name manually for test
+    create_op.set_table_name("test_drop")
+    await create_op.apply(state=state)
 
     # Verify table exists
     conn = Tortoise.get_connection("default")
@@ -112,10 +119,10 @@ async def test_drop_table(setup_test_db):
     assert len(result[1]) == 1
 
     # Drop the table
-    operation = DropTable(
-        table_name="test_drop", model="tests.test_operations.test_schema_diff.TestModel"
-    )
-    await operation.apply()
+    operation = DropTable(model="tests.test_operations.test_schema_diff.TestModel")
+    # Set table name manually for test
+    operation.set_table_name("test_drop")
+    await operation.apply(state=state)
 
     # Verify table was dropped
     result = await conn.execute_query(
@@ -124,12 +131,14 @@ async def test_drop_table(setup_test_db):
     assert len(result[1]) == 0
 
     # Test SQL generation
-    forward_sql = operation.forward_sql()
+    forward_sql = operation.forward_sql(state=state)
     assert "DROP TABLE test_drop" in forward_sql
 
 
 async def test_add_column(setup_test_db):
     """Test AddColumn operation."""
+    state = State()
+
     # First create a table
     fields_dict = {
         "id": fields.IntField(primary_key=True),
@@ -137,21 +146,23 @@ async def test_add_column(setup_test_db):
     }
 
     create_op = CreateTable(
-        table_name="test_add_column",
-        fields=fields_dict,
         model="tests.test_operations.test_schema_diff.TestModel",
+        fields=fields_dict,
     )
-    await create_op.apply()
+    # Set table name manually for test
+    create_op.set_table_name("test_add_column")
+    await create_op.apply(state=state)
 
     # Add a column
     field = fields.IntField(default=0)
     operation = AddColumn(
-        table_name="test_add_column",
+        model="tests.test_operations.test_schema_diff.TestModel",
         field_object=field,
         field_name="count",
-        model="tests.test_operations.test_schema_diff.TestModel",
     )
-    await operation.apply()
+    # Set table name manually for test
+    operation.set_table_name("test_add_column")
+    await operation.apply(state=state)
 
     # Verify column was added
     conn = Tortoise.get_connection("default")
@@ -160,12 +171,14 @@ async def test_add_column(setup_test_db):
     assert "count" in column_names
 
     # Test SQL generation
-    forward_sql = operation.forward_sql()
+    forward_sql = operation.forward_sql(state=state)
     assert "ALTER TABLE test_add_column ADD COLUMN count" in forward_sql
 
 
 async def test_add_index(setup_test_db):
     """Test AddIndex operation."""
+    state = State()
+
     # First create a table
     fields_dict = {
         "id": fields.IntField(primary_key=True),
@@ -173,19 +186,21 @@ async def test_add_index(setup_test_db):
     }
 
     create_op = CreateTable(
-        table_name="test_add_index",
-        fields=fields_dict,
         model="tests.test_operations.test_schema_diff.TestModel",
+        fields=fields_dict,
     )
-    await create_op.apply()
+    # Set table name manually for test
+    create_op.set_table_name("test_add_index")
+    await create_op.apply(state=state)
 
     # Add an index
     operation = AddIndex(
-        table_name="test_add_index",
-        column_name="name",
         model="tests.test_operations.test_schema_diff.TestModel",
+        column_name="name",
     )
-    await operation.apply()
+    # Set table name manually for test
+    operation.set_table_name("test_add_index")
+    await operation.apply(state=state)
 
     # Verify index was added (for SQLite)
     conn = Tortoise.get_connection("default")
@@ -193,20 +208,22 @@ async def test_add_index(setup_test_db):
         "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_add_index'"
     )
     index_names = [index["name"] for index in indices[1]]
-    assert "idx_test_add_index_name" in index_names
+    assert "idx_test_model_name" in index_names
 
     # Test SQL generation
-    forward_sql = operation.forward_sql()
+    forward_sql = operation.forward_sql(state=state)
     assert "CREATE INDEX" in forward_sql
     assert "test_add_index" in forward_sql
     assert "name" in forward_sql
 
-    backward_sql = operation.backward_sql()
+    backward_sql = operation.backward_sql(state=state)
     assert "DROP INDEX" in backward_sql
 
 
 async def test_drop_index(setup_test_db):
     """Test DropIndex operation."""
+    state = State()
+
     # First create a table
     fields_dict = {
         "id": fields.IntField(primary_key=True),
@@ -214,19 +231,21 @@ async def test_drop_index(setup_test_db):
     }
 
     create_op = CreateTable(
-        table_name="test_drop_index",
-        fields=fields_dict,
         model="tests.test_operations.test_schema_diff.TestModel",
+        fields=fields_dict,
     )
-    await create_op.apply()
+    # Set table name manually for test
+    create_op.set_table_name("test_drop_index")
+    await create_op.apply(state=state)
 
     # Add an index
     add_index_op = AddIndex(
-        table_name="test_drop_index",
-        column_name="name",
         model="tests.test_operations.test_schema_diff.TestModel",
+        column_name="name",
     )
-    await add_index_op.apply()
+    # Set table name manually for test
+    add_index_op.set_table_name("test_drop_index")
+    await add_index_op.apply(state=state)
 
     # Verify index exists
     conn = Tortoise.get_connection("default")
@@ -234,26 +253,27 @@ async def test_drop_index(setup_test_db):
         "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
     )
     index_names = [index["name"] for index in indices[1]]
-    assert "idx_test_drop_index_name" in index_names
+    assert "idx_test_model_name" in index_names
 
     # Drop the index
     operation = DropIndex(
-        table_name="test_drop_index",
-        column_name="name",
         model="tests.test_operations.test_schema_diff.TestModel",
+        column_name="name",
     )
-    await operation.apply()
+    # Set table name manually for test
+    operation.set_table_name("test_drop_index")
+    await operation.apply(state=state)
 
     # Verify index was dropped
     indices = await conn.execute_query(
         "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
     )
     index_names = [index["name"] for index in indices[1]]
-    assert "idx_test_drop_index_name" not in index_names
+    assert "idx_test_model_name" not in index_names
 
     # Test SQL generation
-    forward_sql = operation.forward_sql()
+    forward_sql = operation.forward_sql(state=state)
     assert "DROP INDEX" in forward_sql
 
-    backward_sql = operation.backward_sql()
+    backward_sql = operation.backward_sql(state=state)
     assert "CREATE INDEX" in backward_sql

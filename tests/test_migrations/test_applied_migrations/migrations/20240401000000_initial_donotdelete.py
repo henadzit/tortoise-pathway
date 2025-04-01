@@ -20,7 +20,6 @@ class InitialMigration(Migration):
     dependencies = []
     operations = [
         CreateTable(
-            table_name="products",
             model="test_applied_migrations.Product",
             fields={
                 "id": IntField(primary_key=True),
@@ -32,7 +31,6 @@ class InitialMigration(Migration):
             },
         ),
         CreateTable(
-            table_name="categories",
             model="test_applied_migrations.Category",
             fields={
                 "id": IntField(primary_key=True),

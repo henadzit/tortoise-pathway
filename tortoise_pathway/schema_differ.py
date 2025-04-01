@@ -287,9 +287,8 @@ class SchemaDiffer:
 
             model_ref = f"{app_name}.{model_name}"
             operation = CreateTable(
-                table_name=table_name,
-                fields=field_objects,
                 model=model_ref,
+                fields=field_objects,
             )
             changes.append(operation)
 
@@ -299,7 +298,6 @@ class SchemaDiffer:
             model_ref = f"{app_name}.{model_name}"
             changes.append(
                 DropTable(
-                    table_name=table_name,
                     model=model_ref,
                 )
             )
@@ -333,10 +331,9 @@ class SchemaDiffer:
                 if field_obj is not None:
                     changes.append(
                         AddColumn(
-                            table_name=table_name,
+                            model=model_ref,
                             field_object=field_obj,
                             field_name=field_name,
-                            model=model_ref,
                         )
                     )
 
@@ -344,9 +341,8 @@ class SchemaDiffer:
             for column_name in sorted(set(current_columns.keys()) - set(model_columns.keys())):
                 changes.append(
                     DropColumn(
-                        table_name=table_name,
-                        column_name=column_name,
                         model=model_ref,
+                        column_name=column_name,
                     )
                 )
 
@@ -367,11 +363,10 @@ class SchemaDiffer:
                     if field_obj is not None:
                         changes.append(
                             AlterColumn(
-                                table_name=table_name,
+                                model=model_ref,
                                 column_name=column_name,
                                 field_object=field_obj,
                                 field_name=model_field_name,
-                                model=model_ref,
                             )
                         )
 
