@@ -226,7 +226,7 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
         operations.append(f"    # {change}")
 
         # Get the to_migration code which represents the operation
-        migration_code = change.to_migration(state=state)
+        migration_code = change.to_migration()
 
         # Split by lines and remove comment lines
         lines = migration_code.split("\n")
