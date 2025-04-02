@@ -175,7 +175,7 @@ async def test_apply_drop_column():
     # Now drop a column
     drop_column_op = DropColumn(
         model="test_app.TestModel",
-        column_name="email",
+        field_name="email",
     )
 
     state.apply_operation(drop_column_op)

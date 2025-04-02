@@ -75,11 +75,10 @@ class SchemaChange:
         if self._override_table_name:
             return self._override_table_name
 
-        if state:
-            # Try to get table name from state
-            models = state.get_models(self.app_name)
-            if self.model_name in models:
-                return models[self.model_name]["table"]
+            # Use the state's get_table_name method
+        table_name = state.get_table_name(self.app_name, self.model_name)
+        if table_name:
+            return table_name
 
         # Fall back to Tortoise.apps if available
         try:
@@ -464,30 +463,34 @@ class DropColumn(SchemaChange):
     def __init__(
         self,
         model: str,
-        column_name: str,
+        field_name: str,
     ):
         super().__init__(model)
-        self.column_name = column_name
+        self.field_name = field_name
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
+        # Get actual column name from state
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+
         if dialect == "sqlite":
             return "-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
         else:
-            return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {self.column_name}"
+            return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {column_name}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for recreating a column."""
         # With the model as a string, we can't directly access fields_map
         # An implementation would need to import the model dynamically
-        return f"-- Recreating column {self.column_name} with string model reference requires implementation"
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        return f"-- Recreating column {column_name} with string model reference requires implementation"
 
     def to_migration(self) -> str:
         """Generate Python code to drop a column in a migration."""
         lines = []
         lines.append("DropColumn(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
+        lines.append(f'    field_name="{self.field_name}",')
         lines.append(")")
         return "\n".join(lines)
 
@@ -646,7 +649,7 @@ class AddIndex(SchemaChange):
             lines.append(f'    index_name="{self.index_name}",')
 
         if self.unique:
-            lines.append(f"    unique=True,")
+            lines.append("    unique=True,")
 
         if self.columns != [self.column_name]:
             columns_repr = "[" + ", ".join([f'"{col}"' for col in self.columns]) + "]"

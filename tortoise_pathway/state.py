@@ -5,7 +5,7 @@ This module provides the State class that manages the state of the models based
 on applied migrations, rather than the actual database state.
 """
 
-from typing import Dict, Any, cast
+from typing import Dict, Any, Optional, cast
 
 
 from tortoise_pathway.schema_change import (
@@ -179,18 +179,14 @@ class State:
 
     def _apply_drop_column(self, app_name: str, model_name: str, operation: DropColumn) -> None:
         """Apply a DropColumn operation to the state."""
-        column_name = operation.column_name
+        field_name = operation.field_name
 
         if model_name not in self.schemas[app_name]["models"]:
             return
 
-        # Find the field name that maps to this column
-        for field_name, field_info in list(
-            self.schemas[app_name]["models"][model_name]["fields"].items()
-        ):
-            if field_info.get("column") == column_name:
-                del self.schemas[app_name]["models"][model_name]["fields"][field_name]
-                break
+        # Remove the field from the state
+        if field_name in self.schemas[app_name]["models"][model_name]["fields"]:
+            del self.schemas[app_name]["models"][model_name]["fields"][field_name]
 
     def _apply_alter_column(self, app_name: str, model_name: str, operation: AlterColumn) -> None:
         """Apply an AlterColumn operation to the state."""
@@ -260,7 +256,7 @@ class State:
 
     def _apply_drop_index(self, app_name: str, model_name: str, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
-        column_name = operation.column_name
+        field_name = operation.column_name  # Keep for compatibility, but should be renamed
         index_name = operation.index_name
 
         if model_name not in self.schemas[app_name]["models"]:
@@ -275,7 +271,8 @@ class State:
                 if idx["name"] != index_name
             ]
         else:
-            # Remove by column
+            # Remove by column - Get real column name if needed
+            column_name = self.get_column_name(app_name, model_name, field_name)
             self.schemas[app_name]["models"][model_name]["indexes"] = [
                 idx
                 for idx in self.schemas[app_name]["models"][model_name]["indexes"]
@@ -287,14 +284,32 @@ class State:
     ) -> None:
         """Apply an AddConstraint operation to the state."""
         # For simplicity, we're treating constraints as special indexes
-        self._apply_add_index(app_name, model_name, cast(AddIndex, operation))
+        # Create a temporary AddIndex with the same properties
+        from tortoise_pathway.schema_change import AddIndex
+
+        temp_add_index = AddIndex(
+            model=operation.model,
+            column_name=operation.column_name,
+            index_name=operation.constraint_name,
+            unique=False,
+            columns=[operation.column_name],
+        )
+        self._apply_add_index(app_name, model_name, temp_add_index)
 
     def _apply_drop_constraint(
         self, app_name: str, model_name: str, operation: DropConstraint
     ) -> None:
         """Apply a DropConstraint operation to the state."""
         # For simplicity, we're treating constraints as special indexes
-        self._apply_drop_index(app_name, model_name, cast(DropIndex, operation))
+        # Create a temporary DropIndex with the same properties
+        from tortoise_pathway.schema_change import DropIndex
+
+        temp_drop_index = DropIndex(
+            model=operation.model,
+            column_name=operation.column_name,
+            index_name=operation.constraint_name,
+        )
+        self._apply_drop_index(app_name, model_name, temp_drop_index)
 
     def get_schema(self) -> Dict[str, Any]:
         """
@@ -320,3 +335,40 @@ class State:
             return {}
 
         return self.schemas[app].get("models", {})
+
+    def get_table_name(self, app: str, model: str) -> Optional[str]:
+        """
+        Get the table name for a specific model.
+
+        Args:
+            app: Application name.
+            model: Model name.
+
+        Returns:
+            The table name for the model, or a converted snake_case name if not found.
+        """
+        if app in self.schemas and model in self.schemas[app].get("models", {}):
+            return self.schemas[app]["models"][model]["table"]
+
+        return None
+
+    def get_column_name(self, app: str, model: str, field_name: str) -> Optional[str]:
+        """
+        Get the column name for a specific field in a model.
+
+        Args:
+            app: Application name.
+            model: Model name.
+            field_name: Field name.
+
+        Returns:
+            The column name for the field, or the field name itself if not found.
+        """
+        if (
+            app in self.schemas
+            and model in self.schemas[app].get("models", {})
+            and field_name in self.schemas[app]["models"][model].get("fields", {})
+        ):
+            return self.schemas[app]["models"][model]["fields"][field_name]["column"]
+
+        return None
