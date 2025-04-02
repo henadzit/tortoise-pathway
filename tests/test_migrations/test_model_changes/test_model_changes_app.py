@@ -12,6 +12,7 @@ from tortoise_pathway.state import State
 from tortoise_pathway.schema_change import (
     CreateModel,
     AddField,
+    DropField,
 )
 
 
@@ -62,11 +63,12 @@ async def test_model_changes(setup_db_file, tortoise_config):
     # 1. Add 'summary' and 'updated_at' fields to 'blogs' table
     # 2. Add 'description' field to 'tags' table
     # 3. Create 'comments' table
+    # 4. Drop 'content' field from 'blogs' table
 
     # Verify the exact operations and their order
     operations = migration.operations
 
-    assert len(operations) == 4
+    assert len(operations) == 5
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
@@ -85,9 +87,15 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert operations[2].get_table_name(manager.state) == "blogs"
     assert operations[2].field_name == "updated_at"
 
-    assert isinstance(operations[3], AddField)
-    assert operations[3].get_table_name(manager.state) == "tags"
-    assert operations[3].field_name == "description"
+    assert isinstance(operations[3], DropField)
+    assert operations[3].get_table_name(manager.state) == "blogs"
+    assert operations[3].field_name == "content"
+
+    assert isinstance(operations[4], AddField)
+    assert operations[4].get_table_name(manager.state) == "tags"
+    assert operations[4].field_name == "description"
+
+    # Verify field deletion operation
 
     # Re-discover migrations
     manager._discover_migrations()
@@ -105,6 +113,9 @@ async def test_model_changes(setup_db_file, tortoise_config):
         # Check for new model
         assert "comments" in content
         assert "author_name" in content
+        # Check for dropped field
+        assert "DropField" in content
+        assert "content" in content
 
     # Apply the new migration
     applied = await manager.apply_migrations()
@@ -126,6 +137,8 @@ async def test_model_changes(setup_db_file, tortoise_config):
     blog_column_names = [column["name"] for column in blog_columns[1]]
     assert "summary" in blog_column_names
     assert "updated_at" in blog_column_names
+    # Verify deleted column is no longer present
+    assert "content" not in blog_column_names
 
     tag_columns = await conn.execute_query("PRAGMA table_info(tags)")
     tag_column_names = [column["name"] for column in tag_columns[1]]

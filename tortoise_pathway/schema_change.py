@@ -473,10 +473,7 @@ class DropField(SchemaChange):
         # Get actual column name from state
         column_name = state.get_column_name(self.model_name, self.field_name)
 
-        if dialect == "sqlite":
-            return "-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
-        else:
-            return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {column_name}"
+        return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {column_name}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for recreating a column."""

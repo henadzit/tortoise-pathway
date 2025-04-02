@@ -10,7 +10,8 @@ class Blog(models.Model):
 
     id = fields.IntField(primary_key=True)
     title = fields.CharField(max_length=255)
-    content = fields.TextField()
+    # Changed from original: Removed the 'content' field to simulate field deletion
+    # content = fields.TextField()
     # Changed from original: Added a new field
     summary = fields.CharField(max_length=255, null=True)
     created_at = fields.DatetimeField(auto_now_add=True)
