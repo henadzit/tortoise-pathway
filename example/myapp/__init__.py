@@ -1,3 +1,0 @@
-"""
-Example Tortoise ORM application.
-"""
