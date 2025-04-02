@@ -14,13 +14,13 @@ Tortoise Pathway is a migration system for Tortoise ORM, inspired by Django's mi
 
 Schema changes are represented by subclasses of the `SchemaChange` base class. Common operations include:
 
-- `CreateTable`: Create new database tables
-- `DropTable`: Remove existing tables
-- `RenameTable`: Rename tables
-- `AddColumn`: Add new columns
-- `DropColumn`: Remove columns
-- `AlterColumn`: Modify column properties
-- `RenameColumn`: Rename columns
+- `CreateModel`: Create new database tables
+- `DropModel`: Remove existing tables
+- `RenameModel`: Rename tables
+- `AddField`: Add new columns
+- `DropField`: Remove columns
+- `AlterField`: Modify column properties
+- `RenameField`: Rename columns
 - `AddIndex`: Add indexes
 - `DropIndex`: Remove indexes
 - `AddConstraint`: Add constraints
@@ -211,7 +211,7 @@ Auto-generated migration 20230501143025_create_user_table
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_change import CreateTable
+from tortoise_pathway.schema_change import CreateModel
 from tortoise.fields.data import CharField
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.data import IntField
@@ -224,7 +224,7 @@ class CreateUserTableMigration(Migration):
 
     dependencies = []
     operations = [
-        CreateTable(
+        CreateModel(
             model="myapp.User",
             fields={
                 "id": IntField(primary_key=True),

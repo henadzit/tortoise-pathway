@@ -76,7 +76,7 @@ class SchemaChange:
             return self._override_table_name
 
             # Use the state's get_table_name method
-        table_name = state.get_table_name(self.app_name, self.model_name)
+        table_name = state.get_table_name(self.model_name)
         if table_name:
             return table_name
 
@@ -471,7 +471,7 @@ class DropField(SchemaChange):
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
         # Get actual column name from state
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
 
         if dialect == "sqlite":
             return "-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
@@ -482,7 +482,7 @@ class DropField(SchemaChange):
         """Generate SQL for recreating a column."""
         # With the model as a string, we can't directly access fields_map
         # An implementation would need to import the model dynamically
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
         return f"-- Recreating column {column_name} with string model reference requires implementation"
 
     def to_migration(self) -> str:
@@ -512,7 +512,7 @@ class AlterField(SchemaChange):
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for altering a column."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
 
         if dialect == "sqlite":
             return "-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the new schema."
@@ -533,7 +533,7 @@ class AlterField(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for reverting a column alteration."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
 
         # This requires old column information
         if not self.old_field_object:
@@ -577,7 +577,7 @@ class RenameField(SchemaChange):
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for renaming a column."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
         # For the new column name, we just use the new field name directly
         # In a real implementation, we might need to determine the actual column name based on model metadata
 
@@ -590,7 +590,7 @@ class RenameField(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for reverting a column rename."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
 
         if dialect == "sqlite":
             return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the original schema."
@@ -635,7 +635,7 @@ class AddIndex(SchemaChange):
         # Get actual column names from field names
         column_names = []
         for field_name in self.fields:
-            column_name = state.get_column_name(self.app_name, self.model_name, field_name)
+            column_name = state.get_column_name(self.model_name, field_name)
             column_names.append(column_name)
 
         unique_prefix = "UNIQUE " if self.unique else ""
@@ -694,7 +694,7 @@ class DropIndex(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding an index."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
         return f"CREATE INDEX {self.index_name} ON {self.get_table_name(state)} ({column_name})"
 
     def to_migration(self) -> str:
@@ -740,7 +740,7 @@ class AddConstraint(SchemaChange):
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a constraint."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
 
         # We need to ensure self.constraint_clause is not None and replace field_name with column_name
         constraint_clause = self.constraint_clause.replace(
@@ -812,7 +812,7 @@ class DropConstraint(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a constraint."""
-        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        column_name = state.get_column_name(self.model_name, self.field_name)
 
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE

@@ -16,7 +16,6 @@ from tortoise_pathway.schema_change import (
     SchemaChange,
     CreateModel,
 )
-from tortoise_pathway.state import State
 
 
 def generate_table_creation_sql(model: Type[Model], dialect: str = "sqlite") -> str:
@@ -179,9 +178,6 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
     # If no changes detected, return placeholder template
     if not changes:
         raise ValueError("No changes")
-
-    # Create a State object to pass to to_migration
-    state = State()
 
     # Prepare imports for schema change classes and models
     schema_changes_used = set()

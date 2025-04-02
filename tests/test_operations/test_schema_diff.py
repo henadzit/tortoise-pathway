@@ -52,7 +52,7 @@ async def setup_test_db(setup_db_file):
 
 async def test_create_table(setup_test_db):
     """Test CreateModel operation."""
-    state = State()
+    state = State("test")
 
     # Create fields dictionary
     fields_dict = {
@@ -95,7 +95,7 @@ async def test_create_table(setup_test_db):
 
 async def test_drop_table(setup_test_db):
     """Test DropModel operation."""
-    state = State()
+    state = State("test")
 
     # First create a table
     fields_dict = {
@@ -137,7 +137,7 @@ async def test_drop_table(setup_test_db):
 
 async def test_add_column(setup_test_db):
     """Test AddField operation."""
-    state = State()
+    state = State("test")
 
     # First create a table
     fields_dict = {
@@ -177,7 +177,7 @@ async def test_add_column(setup_test_db):
 
 async def test_add_index(setup_test_db):
     """Test AddIndex operation."""
-    state = State()
+    state = State("test")
 
     # First create a table
     fields_dict = {
@@ -222,7 +222,7 @@ async def test_add_index(setup_test_db):
 
 async def test_drop_index(setup_test_db):
     """Test DropIndex operation."""
-    state = State()
+    state = State("test")
 
     # First create a table
     fields_dict = {

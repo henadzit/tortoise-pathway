@@ -19,13 +19,13 @@ from tortoise_pathway.schema_change import (
 
 async def test_build_empty_state():
     """Test building an empty state."""
-    state = State()
-    assert state.schemas == {}
+    state = State("test_app")
+    assert state.schema == {"models": {}}
 
 
 async def test_apply_create_model():
     """Test applying a CreateModel operation to the state."""
-    state = State()
+    state = State("test_app")
 
     # Create a model schema that would be used in a migration
     fields = {
@@ -45,49 +45,47 @@ async def test_apply_create_model():
 
     # Define the expected state
     expected_state = {
-        "test_app": {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields["id"],
-                        },
-                        "name": {
-                            "column": "name",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["name"],
-                        },
-                        "description": {
-                            "column": "description",
-                            "type": "TextField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["description"],
-                        },
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
                     },
-                    "indexes": [],
+                    "name": {
+                        "column": "name",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["name"],
+                    },
+                    "description": {
+                        "column": "description",
+                        "type": "TextField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["description"],
+                    },
                 },
-            }
+                "indexes": [],
+            },
         }
     }
 
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
+    # Compare the entire state schema to the expected state
+    assert state.schema == expected_state
 
 
 async def test_apply_add_field():
     """Test applying an AddField operation to the state."""
-    state = State()
+    state = State("test_app")
 
     # First create a table
     fields = {
@@ -114,49 +112,47 @@ async def test_apply_add_field():
 
     # Define the expected state
     expected_state = {
-        "test_app": {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields["id"],
-                        },
-                        "name": {
-                            "column": "name",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["name"],
-                        },
-                        "email": {
-                            "column": "email",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": email_field,
-                        },
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
                     },
-                    "indexes": [],
+                    "name": {
+                        "column": "name",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["name"],
+                    },
+                    "email": {
+                        "column": "email",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": email_field,
+                    },
                 },
-            }
+                "indexes": [],
+            },
         }
     }
 
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
+    # Compare the entire state schema to the expected state
+    assert state.schema == expected_state
 
 
 async def test_apply_drop_field():
     """Test applying a DropField operation to the state."""
-    state = State()
+    state = State("test_app")
 
     # First create a table
     fields = {
@@ -182,41 +178,39 @@ async def test_apply_drop_field():
 
     # Define the expected state
     expected_state = {
-        "test_app": {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields["id"],
-                        },
-                        "name": {
-                            "column": "name",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["name"],
-                        },
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
                     },
-                    "indexes": [],
+                    "name": {
+                        "column": "name",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["name"],
+                    },
                 },
-            }
+                "indexes": [],
+            },
         }
     }
 
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
+    # Compare the entire state schema to the expected state
+    assert state.schema == expected_state
 
 
 async def test_apply_alter_field():
     """Test applying an AlterField operation to the state."""
-    state = State()
+    state = State("test_app")
 
     # First create a table
     fields = {
@@ -244,49 +238,47 @@ async def test_apply_alter_field():
 
     # Define the expected state
     expected_state = {
-        "test_app": {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields["id"],
-                        },
-                        "name": {
-                            "column": "name",  # Column name stays the same
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": new_name_field,  # But field object is updated
-                        },
-                        "created_at": {
-                            "column": "created_at",
-                            "type": "DatetimeField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["created_at"],
-                        },
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
                     },
-                    "indexes": [],
+                    "name": {
+                        "column": "name",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": new_name_field,
+                    },
+                    "created_at": {
+                        "column": "created_at",
+                        "type": "DatetimeField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["created_at"],
+                    },
                 },
-            }
+                "indexes": [],
+            },
         }
     }
 
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
+    # Compare the entire state schema to the expected state
+    assert state.schema == expected_state
 
 
 async def test_apply_rename_field():
     """Test applying a RenameField operation to the state."""
-    state = State()
+    state = State("test_app")
 
     # First create a table
     fields = {
@@ -312,41 +304,96 @@ async def test_apply_rename_field():
 
     # Define the expected state
     expected_state = {
-        "test_app": {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields["id"],
-                        },
-                        "title": {  # Field name is now 'title' instead of 'name'
-                            "column": "name",  # But column name remains 'name'
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["name"],
-                        },
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
                     },
-                    "indexes": [],
+                    "title": {
+                        "column": "name",  # The column name doesn't change, just the field name
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["name"],
+                    },
                 },
-            }
+                "indexes": [],
+            },
         }
     }
 
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
+    # Compare the entire state schema to the expected state
+    assert state.schema == expected_state
 
 
 async def test_apply_rename_model():
     """Test applying a RenameModel operation to the state."""
-    state = State()
+    state = State("test_app")
+
+    # First create a table
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+
+    create_model_op = CreateModel(
+        model="test_app.OldModel",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Now rename the model
+    rename_model_op = RenameModel(
+        model="test_app.OldModel",
+        new_name="new_model",
+    )
+
+    state.apply_operation(rename_model_op)
+
+    # Define the expected state
+    expected_state = {
+        "models": {
+            "OldModel": {  # The model name in the state doesn't change
+                "table": "new_model",  # But the table name does
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
+                    },
+                    "name": {
+                        "column": "name",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["name"],
+                    },
+                },
+                "indexes": [],
+            },
+        }
+    }
+
+    # Compare the entire state schema to the expected state
+    assert state.schema == expected_state
+
+
+async def test_get_schema():
+    """Test getting the schema from the state."""
+    state = State("test_app")
 
     # First create a table
     fields = {
@@ -361,143 +408,156 @@ async def test_apply_rename_model():
 
     state.apply_operation(create_model_op)
 
-    # Now rename the table
-    rename_model_op = RenameModel(
-        model="test_app.TestModel",
-        new_name="posts",  # New table name
-    )
-
-    state.apply_operation(rename_model_op)
-
-    # Define the expected state
-    expected_state = {
-        "test_app": {
-            "models": {
-                "TestModel": {  # The model name in state remains TestModel
-                    "table": "posts",  # But the table name is updated to 'posts'
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields["id"],
-                        },
-                        "name": {
-                            "column": "name",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields["name"],
-                        },
-                    },
-                    "indexes": [],
-                },
-            }
-        }
-    }
-
-    # Compare the entire state.schemas to the expected state
-    assert state.schemas == expected_state
-
-
-async def test_get_schema():
-    """Test getting the schema from the state."""
-    state = State()
-
-    # Add some tables in different apps
-    fields1 = {
-        "id": IntField(primary_key=True),
-        "name": CharField(max_length=100),
-    }
-
-    create_model_op1 = CreateModel(
-        model="auth.User",
-        fields=fields1,
-    )
-
-    fields2 = {
-        "id": IntField(primary_key=True),
-        "title": CharField(max_length=200),
-        "content": TextField(),
-    }
-
-    create_model_op2 = CreateModel(
-        model="blog.Article",
-        fields=fields2,
-    )
-
-    state.apply_operation(create_model_op1)
-    state.apply_operation(create_model_op2)
-
     # Get the schema
     schema = state.get_schema()
 
     # Define the expected schema
     expected_schema = {
-        "auth": {
-            "models": {
-                "User": {
-                    "table": "user",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields1["id"],
-                        },
-                        "name": {
-                            "column": "name",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields1["name"],
-                        },
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": {
+                        "column": "id",
+                        "type": "IntField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": True,
+                        "field_object": fields["id"],
                     },
-                    "indexes": [],
-                }
-            }
-        },
-        "blog": {
-            "models": {
-                "Article": {
-                    "table": "article",
-                    "fields": {
-                        "id": {
-                            "column": "id",
-                            "type": "IntField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": True,
-                            "field_object": fields2["id"],
-                        },
-                        "title": {
-                            "column": "title",
-                            "type": "CharField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields2["title"],
-                        },
-                        "content": {
-                            "column": "content",
-                            "type": "TextField",
-                            "nullable": False,
-                            "default": None,
-                            "primary_key": False,
-                            "field_object": fields2["content"],
-                        },
+                    "name": {
+                        "column": "name",
+                        "type": "CharField",
+                        "nullable": False,
+                        "default": None,
+                        "primary_key": False,
+                        "field_object": fields["name"],
                     },
-                    "indexes": [],
-                }
-            }
-        },
+                },
+                "indexes": [],
+            },
+        }
     }
 
     # Compare the schema to the expected schema
     assert schema == expected_schema
+
+
+async def test_get_models():
+    """Test getting the models from the state."""
+    state = State("test_app")
+
+    # First create a table
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+
+    create_model_op = CreateModel(
+        model="test_app.TestModel",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Get the models
+    models = state.get_models()
+
+    # Define the expected models
+    expected_models = {
+        "TestModel": {
+            "table": "test_model",
+            "fields": {
+                "id": {
+                    "column": "id",
+                    "type": "IntField",
+                    "nullable": False,
+                    "default": None,
+                    "primary_key": True,
+                    "field_object": fields["id"],
+                },
+                "name": {
+                    "column": "name",
+                    "type": "CharField",
+                    "nullable": False,
+                    "default": None,
+                    "primary_key": False,
+                    "field_object": fields["name"],
+                },
+            },
+            "indexes": [],
+        }
+    }
+
+    # Compare the models to the expected models
+    assert models == expected_models
+
+
+async def test_get_table_name():
+    """Test getting the table name from the state."""
+    state = State("test_app")
+
+    # First create a table
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+
+    create_model_op = CreateModel(
+        model="test_app.TestModel",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Get the table name
+    table_name = state.get_table_name("TestModel")
+
+    # Compare the table name to the expected table name
+    assert table_name == "test_model"
+
+
+async def test_get_column_name():
+    """Test getting the column name from the state."""
+    state = State("test_app")
+
+    # First create a table
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+
+    create_model_op = CreateModel(
+        model="test_app.TestModel",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Get the column name
+    column_name = state.get_column_name("TestModel", "name")
+
+    # Compare the column name to the expected column name
+    assert column_name == "name"
+
+
+async def test_ignore_operations_for_different_app():
+    """Test that operations for different app are ignored."""
+    state = State("test_app")
+
+    # Create a model for a different app
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+
+    create_model_op = CreateModel(
+        model="other_app.TestModel",
+        fields=fields,
+    )
+
+    # Apply the operation to the state
+    state.apply_operation(create_model_op)
+
+    # State should be empty as the operation was for a different app
+    assert state.schema == {"models": {}}

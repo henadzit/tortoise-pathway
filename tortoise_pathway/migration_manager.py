@@ -24,7 +24,7 @@ class MigrationManager:
             self.migrations_dir = Path(migrations_dir)
         self.migrations: Dict[str, Type[Migration]] = {}
         self.applied_migrations: Set[str] = set()
-        self.state = State()
+        self.state = State(app_name)
 
     async def initialize(self, connection=None) -> None:
         """Initialize the migration system."""
@@ -125,7 +125,7 @@ class MigrationManager:
 
         if auto:
             # Generate migration content based on model changes compared to existing migrations state
-            differ = SchemaDiffer(self.state)
+            differ = SchemaDiffer(self.app_name, self.state)
             changes = await differ.detect_changes()
             content = generate_auto_migration(migration_name, changes)
         else:
@@ -287,7 +287,7 @@ class MigrationManager:
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""
-        self.state = State()
+        self.state = State(self.app_name)
 
         for migration in self.get_applied_migrations():
             for operation in migration.operations:

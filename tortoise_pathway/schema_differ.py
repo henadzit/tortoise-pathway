@@ -24,12 +24,21 @@ from tortoise_pathway.schema_change import (
 class SchemaDiffer:
     """Detects differences between Tortoise models and database schema."""
 
-    def __init__(self, state: Optional[State] = None, connection=None):
+    def __init__(self, app_name: str, state: Optional[State] = None, connection=None):
+        """
+        Initialize a schema differ for a specific app.
+
+        Args:
+            app_name: Name of the app to detect schema changes for
+            state: Optional State object containing current state
+            connection: Optional database connection
+        """
+        self.app_name = app_name
         self.connection = connection
-        self.state = state or State()
+        self.state = state or State(app_name)
 
     async def get_db_schema(self) -> Dict[str, Any]:
-        """Get the current database schema."""
+        """Get the current database schema for the app."""
         conn = self.connection or Tortoise.get_connection("default")
         db_schema = {}
 
@@ -83,33 +92,19 @@ class SchemaDiffer:
             db_schema[table_name] = {"columns": columns, "indexes": indexes}
 
         # Convert to the new structure format
-        app_schema = self._convert_to_app_models_format(db_schema)
+        app_schema = self._convert_to_models_format(db_schema)
         return app_schema
 
-    def _convert_to_app_models_format(self, db_schema: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert database schema to the app-models format."""
-        app_schema = {}
-
-        # For DB schema without model information, use 'unknown' app as default
-        if "unknown" not in app_schema:
-            app_schema["unknown"] = {"models": {}}
+    def _convert_to_models_format(self, db_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert database schema to the models format for a single app."""
+        app_schema = {"models": {}}
 
         for table_name, table_info in db_schema.items():
             # Extract model name from table name, assuming it follows conventions
             model_name = "".join(part.capitalize() for part in table_name.split("_"))
 
-            # If we can infer app name from table_info["model"], use it
-            app_name = "unknown"
-            if "model" in table_info and "." in table_info["model"]:
-                app_name = table_info["model"].split(".")[0]
-                model_name = table_info["model"].split(".")[1]
-
-            # Ensure app exists in the schema
-            if app_name not in app_schema:
-                app_schema[app_name] = {"models": {}}
-
             # Create model entry
-            app_schema[app_name]["models"][model_name] = {
+            app_schema["models"][model_name] = {
                 "table": table_name,
                 "fields": {},
                 "indexes": table_info["indexes"],
@@ -120,7 +115,7 @@ class SchemaDiffer:
                 # Use column name as field name if no field_name is provided
                 field_name = column_info.get("field_name", column_name)
 
-                app_schema[app_name]["models"][model_name]["fields"][field_name] = {
+                app_schema["models"][model_name]["fields"][field_name] = {
                     "column": column_name,
                     "type": column_info["type"],
                     "nullable": column_info["nullable"],
@@ -132,13 +127,12 @@ class SchemaDiffer:
         return app_schema
 
     def get_model_schema(self) -> Dict[str, Any]:
-        """Get schema representation from Tortoise models."""
-        app_schema = {}
+        """Get schema representation from Tortoise models for this app."""
+        app_schema = {"models": {}}
 
-        # For each registered model
-        for app_name, app_models in Tortoise.apps.items():
-            if app_name not in app_schema:
-                app_schema[app_name] = {"models": {}}
+        # Get models for this app only
+        if self.app_name in Tortoise.apps:
+            app_models = Tortoise.apps[self.app_name]
 
             for model_name, model in app_models.items():
                 if not issubclass(model, Model):
@@ -148,7 +142,7 @@ class SchemaDiffer:
                 table_name = model._meta.db_table
 
                 # Initialize model entry
-                app_schema[app_name]["models"][model_name] = {
+                app_schema["models"][model_name] = {
                     "table": table_name,
                     "fields": {},
                     "indexes": [],
@@ -170,7 +164,7 @@ class SchemaDiffer:
                     source_field = getattr(field_object, "source_field", None)
                     db_column = source_field if source_field is not None else field_name
 
-                    app_schema[app_name]["models"][model_name]["fields"][field_name] = {
+                    app_schema["models"][model_name]["fields"][field_name] = {
                         "column": db_column,
                         "type": field_type,
                         "nullable": nullable,
@@ -199,7 +193,7 @@ class SchemaDiffer:
                                 index_columns.append(column_name)
 
                         if index_columns:
-                            app_schema[app_name]["models"][model_name]["indexes"].append(
+                            app_schema["models"][model_name]["indexes"].append(
                                 {
                                     "name": f"idx_{'_'.join(index_columns)}",
                                     "unique": False,
@@ -227,7 +221,7 @@ class SchemaDiffer:
                                 unique_columns.append(column_name)
 
                         if unique_columns:
-                            app_schema[app_name]["models"][model_name]["indexes"].append(
+                            app_schema["models"][model_name]["indexes"].append(
                                 {
                                     "name": f"uniq_{'_'.join(unique_columns)}",
                                     "unique": True,
@@ -248,23 +242,21 @@ class SchemaDiffer:
         model_schema = self.get_model_schema()
         changes = []
 
-        # Create a map of table names to their app/model for easy lookup
+        # Create a map of table names to their model for easy lookup
         current_tables = {}
         model_tables = {}
 
-        for app_name, app_info in current_schema.items():
-            for model_name, model_info in app_info.get("models", {}).items():
-                current_tables[model_info["table"]] = (app_name, model_name)
+        for model_name, model_info in current_schema["models"].items():
+            current_tables[model_info["table"]] = model_name
 
-        for app_name, app_info in model_schema.items():
-            for model_name, model_info in app_info.get("models", {}).items():
-                model_tables[model_info["table"]] = (app_name, model_name)
+        for model_name, model_info in model_schema["models"].items():
+            model_tables[model_info["table"]] = model_name
 
         # Tables to create (in models but not in current schema)
         for table_name in sorted(set(model_tables.keys()) - set(current_tables.keys())):
-            app_name, model_name = model_tables[table_name]
+            model_name = model_tables[table_name]
             # Get the model info and extract field objects
-            model_info = model_schema[app_name]["models"][model_name]
+            model_info = model_schema["models"][model_name]
             field_objects = {}
 
             for field_name, field_info in model_info["fields"].items():
@@ -272,7 +264,7 @@ class SchemaDiffer:
                 if field_obj is not None:
                     field_objects[field_name] = field_obj
 
-            model_ref = f"{app_name}.{model_name}"
+            model_ref = f"{self.app_name}.{model_name}"
             operation = CreateModel(
                 model=model_ref,
                 fields=field_objects,
@@ -281,8 +273,8 @@ class SchemaDiffer:
 
         # Tables to drop (in current schema but not in models)
         for table_name in sorted(set(current_tables.keys()) - set(model_tables.keys())):
-            app_name, model_name = current_tables[table_name]
-            model_ref = f"{app_name}.{model_name}"
+            model_name = current_tables[table_name]
+            model_ref = f"{self.app_name}.{model_name}"
             changes.append(
                 DropModel(
                     model=model_ref,
@@ -291,13 +283,13 @@ class SchemaDiffer:
 
         # Check changes in existing tables (both in model and current schema)
         for table_name in sorted(set(current_tables.keys()) & set(model_tables.keys())):
-            current_app_name, current_model_name = current_tables[table_name]
-            model_app_name, model_model_name = model_tables[table_name]
+            current_model_name = current_tables[table_name]
+            model_model_name = model_tables[table_name]
 
-            current_model = current_schema[current_app_name]["models"][current_model_name]
-            model_model = model_schema[model_app_name]["models"][model_model_name]
+            current_model = current_schema["models"][current_model_name]
+            model_model = model_schema["models"][model_model_name]
 
-            model_ref = f"{model_app_name}.{model_model_name}"
+            model_ref = f"{self.app_name}.{model_model_name}"
 
             # Map of column names to field names for both schemas
             current_columns = {

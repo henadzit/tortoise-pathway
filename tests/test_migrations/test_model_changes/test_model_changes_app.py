@@ -62,9 +62,6 @@ async def test_model_changes(setup_db_file, tortoise_config):
     # 2. Add 'description' field to 'tags' table
     # 3. Create 'comments' table
 
-    # Create a state object for testing
-    state = State()
-
     # Verify the exact operations and their order
     operations = migration.operations
 
@@ -72,7 +69,7 @@ async def test_model_changes(setup_db_file, tortoise_config):
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
-    assert comments_table_op.get_table_name(state) == "comments"
+    assert comments_table_op.get_table_name(manager.state) == "comments"
     assert "id" in comments_table_op.fields
     assert "content" in comments_table_op.fields
     assert "author_name" in comments_table_op.fields
@@ -80,15 +77,15 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert "blog_id" in comments_table_op.fields
 
     assert isinstance(operations[1], AddField)
-    assert operations[1].get_table_name(state) == "blogs"
+    assert operations[1].get_table_name(manager.state) == "blogs"
     assert operations[1].field_name == "summary"
 
     assert isinstance(operations[2], AddField)
-    assert operations[2].get_table_name(state) == "blogs"
+    assert operations[2].get_table_name(manager.state) == "blogs"
     assert operations[2].field_name == "updated_at"
 
     assert isinstance(operations[3], AddField)
-    assert operations[3].get_table_name(state) == "tags"
+    assert operations[3].get_table_name(manager.state) == "tags"
     assert operations[3].field_name == "description"
 
     # Re-discover migrations

@@ -63,7 +63,7 @@ async def makemigrations(args: argparse.Namespace) -> None:
 
     if not args.empty:
         # Generate automatic migration based on model changes
-        differ = SchemaDiffer()
+        differ = SchemaDiffer(args.app)
         changes = await differ.detect_changes()
 
         if not changes:
