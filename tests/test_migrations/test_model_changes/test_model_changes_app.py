@@ -8,6 +8,10 @@ from pathlib import Path
 from tortoise import Tortoise
 from tortoise_pathway.migration_manager import MigrationManager
 from tortoise_pathway.state import State
+from tortoise_pathway.schema_change import (
+    CreateModel,
+    AddField,
+)
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_model_changes"], indirect=True)
@@ -58,9 +62,6 @@ async def test_model_changes(setup_db_file, tortoise_config):
     # 2. Add 'description' field to 'tags' table
     # 3. Create 'comments' table
 
-    # Import schema change types for proper type checking
-    from tortoise_pathway.schema_change import CreateTable, AddColumn
-
     # Create a state object for testing
     state = State()
 
@@ -70,7 +71,7 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert len(operations) == 4
 
     comments_table_op = operations[0]
-    assert isinstance(comments_table_op, CreateTable)
+    assert isinstance(comments_table_op, CreateModel)
     assert comments_table_op.get_table_name(state) == "comments"
     assert "id" in comments_table_op.fields
     assert "content" in comments_table_op.fields
@@ -78,15 +79,15 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert "created_at" in comments_table_op.fields
     assert "blog_id" in comments_table_op.fields
 
-    assert isinstance(operations[1], AddColumn)
+    assert isinstance(operations[1], AddField)
     assert operations[1].get_table_name(state) == "blogs"
     assert operations[1].field_name == "summary"
 
-    assert isinstance(operations[2], AddColumn)
+    assert isinstance(operations[2], AddField)
     assert operations[2].get_table_name(state) == "blogs"
     assert operations[2].field_name == "updated_at"
 
-    assert isinstance(operations[3], AddColumn)
+    assert isinstance(operations[3], AddField)
     assert operations[3].get_table_name(state) == "tags"
     assert operations[3].field_name == "description"
 

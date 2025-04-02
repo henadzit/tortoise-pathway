@@ -8,12 +8,12 @@ from tortoise.fields import IntField, CharField, TextField, DatetimeField
 from tortoise_pathway.state import State
 from tortoise_pathway.migration import Migration
 from tortoise_pathway.schema_change import (
-    CreateTable,
-    AddColumn,
-    DropColumn,
-    AlterColumn,
-    RenameColumn,
-    RenameTable,
+    CreateModel,
+    AddField,
+    DropField,
+    AlterField,
+    RenameField,
+    RenameModel,
 )
 
 
@@ -23,8 +23,8 @@ async def test_build_empty_state():
     assert state.schemas == {}
 
 
-async def test_apply_create_table():
-    """Test applying a CreateTable operation to the state."""
+async def test_apply_create_model():
+    """Test applying a CreateModel operation to the state."""
     state = State()
 
     # Create a model schema that would be used in a migration
@@ -35,13 +35,13 @@ async def test_apply_create_table():
     }
 
     # Create a migration operation
-    create_table_op = CreateTable(
+    create_model_op = CreateModel(
         model="test_app.TestModel",
         fields=fields,
     )
 
     # Apply the operation to the state
-    state.apply_operation(create_table_op)
+    state.apply_operation(create_model_op)
 
     # Define the expected state
     expected_state = {
@@ -85,8 +85,8 @@ async def test_apply_create_table():
     assert state.schemas == expected_state
 
 
-async def test_apply_add_column():
-    """Test applying an AddColumn operation to the state."""
+async def test_apply_add_field():
+    """Test applying an AddField operation to the state."""
     state = State()
 
     # First create a table
@@ -95,22 +95,22 @@ async def test_apply_add_column():
         "name": CharField(max_length=100),
     }
 
-    create_table_op = CreateTable(
+    create_model_op = CreateModel(
         model="test_app.TestModel",
         fields=fields,
     )
 
-    state.apply_operation(create_table_op)
+    state.apply_operation(create_model_op)
 
-    # Now add a column
+    # Now add a field
     email_field = CharField(max_length=255)
-    add_column_op = AddColumn(
+    add_field_op = AddField(
         model="test_app.TestModel",
         field_object=email_field,
         field_name="email",
     )
 
-    state.apply_operation(add_column_op)
+    state.apply_operation(add_field_op)
 
     # Define the expected state
     expected_state = {
@@ -154,8 +154,8 @@ async def test_apply_add_column():
     assert state.schemas == expected_state
 
 
-async def test_apply_drop_column():
-    """Test applying a DropColumn operation to the state."""
+async def test_apply_drop_field():
+    """Test applying a DropField operation to the state."""
     state = State()
 
     # First create a table
@@ -165,20 +165,20 @@ async def test_apply_drop_column():
         "email": CharField(max_length=255),
     }
 
-    create_table_op = CreateTable(
+    create_model_op = CreateModel(
         model="test_app.TestModel",
         fields=fields,
     )
 
-    state.apply_operation(create_table_op)
+    state.apply_operation(create_model_op)
 
-    # Now drop a column
-    drop_column_op = DropColumn(
+    # Now drop a field
+    drop_field_op = DropField(
         model="test_app.TestModel",
         field_name="email",
     )
 
-    state.apply_operation(drop_column_op)
+    state.apply_operation(drop_field_op)
 
     # Define the expected state
     expected_state = {
@@ -214,32 +214,33 @@ async def test_apply_drop_column():
     assert state.schemas == expected_state
 
 
-async def test_apply_alter_column():
-    """Test applying an AlterColumn operation to the state."""
+async def test_apply_alter_field():
+    """Test applying an AlterField operation to the state."""
     state = State()
 
     # First create a table
     fields = {
         "id": IntField(primary_key=True),
         "name": CharField(max_length=100),
+        "created_at": DatetimeField(auto_now_add=True),
     }
 
-    create_table_op = CreateTable(
+    create_model_op = CreateModel(
         model="test_app.TestModel",
         fields=fields,
     )
 
-    state.apply_operation(create_table_op)
+    state.apply_operation(create_model_op)
 
-    # Now alter a column (make it nullable)
-    altered_field = CharField(max_length=100, null=True)
-    alter_column_op = AlterColumn(
+    # Now alter a field
+    new_name_field = CharField(max_length=200)  # Changed max_length from 100 to 200
+    alter_field_op = AlterField(
         model="test_app.TestModel",
-        field_object=altered_field,
+        field_object=new_name_field,
         field_name="name",
     )
 
-    state.apply_operation(alter_column_op)
+    state.apply_operation(alter_field_op)
 
     # Define the expected state
     expected_state = {
@@ -257,12 +258,20 @@ async def test_apply_alter_column():
                             "field_object": fields["id"],
                         },
                         "name": {
-                            "column": "name",
+                            "column": "name",  # Column name stays the same
                             "type": "CharField",
-                            "nullable": True,
+                            "nullable": False,
                             "default": None,
                             "primary_key": False,
-                            "field_object": altered_field,
+                            "field_object": new_name_field,  # But field object is updated
+                        },
+                        "created_at": {
+                            "column": "created_at",
+                            "type": "DatetimeField",
+                            "nullable": False,
+                            "default": None,
+                            "primary_key": False,
+                            "field_object": fields["created_at"],
                         },
                     },
                     "indexes": [],
@@ -275,8 +284,8 @@ async def test_apply_alter_column():
     assert state.schemas == expected_state
 
 
-async def test_apply_rename_column():
-    """Test applying a RenameColumn operation to the state."""
+async def test_apply_rename_field():
+    """Test applying a RenameField operation to the state."""
     state = State()
 
     # First create a table
@@ -285,21 +294,21 @@ async def test_apply_rename_column():
         "name": CharField(max_length=100),
     }
 
-    create_table_op = CreateTable(
+    create_model_op = CreateModel(
         model="test_app.TestModel",
         fields=fields,
     )
 
-    state.apply_operation(create_table_op)
+    state.apply_operation(create_model_op)
 
-    # Now rename a column
-    rename_column_op = RenameColumn(
+    # Now rename a field
+    rename_field_op = RenameField(
         model="test_app.TestModel",
-        column_name="name",
+        field_name="name",
         new_name="title",
     )
 
-    state.apply_operation(rename_column_op)
+    state.apply_operation(rename_field_op)
 
     # Define the expected state
     expected_state = {
@@ -316,8 +325,8 @@ async def test_apply_rename_column():
                             "primary_key": True,
                             "field_object": fields["id"],
                         },
-                        "name": {
-                            "column": "title",
+                        "title": {  # Field name is now 'title' instead of 'name'
+                            "column": "name",  # But column name remains 'name'
                             "type": "CharField",
                             "nullable": False,
                             "default": None,
@@ -335,8 +344,8 @@ async def test_apply_rename_column():
     assert state.schemas == expected_state
 
 
-async def test_apply_rename_table():
-    """Test applying a RenameTable operation to the state."""
+async def test_apply_rename_model():
+    """Test applying a RenameModel operation to the state."""
     state = State()
 
     # First create a table
@@ -345,27 +354,27 @@ async def test_apply_rename_table():
         "name": CharField(max_length=100),
     }
 
-    create_table_op = CreateTable(
+    create_model_op = CreateModel(
         model="test_app.TestModel",
         fields=fields,
     )
 
-    state.apply_operation(create_table_op)
+    state.apply_operation(create_model_op)
 
     # Now rename the table
-    rename_table_op = RenameTable(
+    rename_model_op = RenameModel(
         model="test_app.TestModel",
-        new_name="new_table",
+        new_name="posts",  # New table name
     )
 
-    state.apply_operation(rename_table_op)
+    state.apply_operation(rename_model_op)
 
     # Define the expected state
     expected_state = {
         "test_app": {
             "models": {
-                "TestModel": {
-                    "table": "new_table",
+                "TestModel": {  # The model name in state remains TestModel
+                    "table": "posts",  # But the table name is updated to 'posts'
                     "fields": {
                         "id": {
                             "column": "id",
@@ -404,7 +413,7 @@ async def test_get_schema():
         "name": CharField(max_length=100),
     }
 
-    create_table_op1 = CreateTable(
+    create_model_op1 = CreateModel(
         model="auth.User",
         fields=fields1,
     )
@@ -415,13 +424,13 @@ async def test_get_schema():
         "content": TextField(),
     }
 
-    create_table_op2 = CreateTable(
+    create_model_op2 = CreateModel(
         model="blog.Article",
         fields=fields2,
     )
 
-    state.apply_operation(create_table_op1)
-    state.apply_operation(create_table_op2)
+    state.apply_operation(create_model_op1)
+    state.apply_operation(create_model_op2)
 
     # Get the schema
     schema = state.get_schema()

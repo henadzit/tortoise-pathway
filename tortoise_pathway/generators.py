@@ -14,7 +14,7 @@ from tortoise.fields import Field, IntField
 
 from tortoise_pathway.schema_change import (
     SchemaChange,
-    CreateTable,
+    CreateModel,
 )
 from tortoise_pathway.state import State
 
@@ -193,8 +193,8 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
         schema_changes_used.add(change.__class__.__name__)
 
         # If we're generating a reverse operation as a different class type, add that too
-        if isinstance(change, CreateTable):
-            schema_changes_used.add("DropTable")
+        if isinstance(change, CreateModel):
+            schema_changes_used.add("DropModel")
 
             # Add field type imports if using fields dictionary
             if hasattr(change, "fields") and change.fields:

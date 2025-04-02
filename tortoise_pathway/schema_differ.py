@@ -13,11 +13,11 @@ from tortoise.models import Model
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_change import (
     SchemaChange,
-    CreateTable,
-    DropTable,
-    AddColumn,
-    DropColumn,
-    AlterColumn,
+    CreateModel,
+    DropModel,
+    AddField,
+    DropField,
+    AlterField,
 )
 
 
@@ -273,7 +273,7 @@ class SchemaDiffer:
                     field_objects[field_name] = field_obj
 
             model_ref = f"{app_name}.{model_name}"
-            operation = CreateTable(
+            operation = CreateModel(
                 model=model_ref,
                 fields=field_objects,
             )
@@ -284,7 +284,7 @@ class SchemaDiffer:
             app_name, model_name = current_tables[table_name]
             model_ref = f"{app_name}.{model_name}"
             changes.append(
-                DropTable(
+                DropModel(
                     model=model_ref,
                 )
             )
@@ -317,7 +317,7 @@ class SchemaDiffer:
 
                 if field_obj is not None:
                     changes.append(
-                        AddColumn(
+                        AddField(
                             model=model_ref,
                             field_object=field_obj,
                             field_name=field_name,
@@ -326,10 +326,11 @@ class SchemaDiffer:
 
             # Columns to drop (in current schema but not in model)
             for column_name in sorted(set(current_columns.keys()) - set(model_columns.keys())):
+                field_name = current_columns[column_name]
                 changes.append(
-                    DropColumn(
+                    DropField(
                         model=model_ref,
-                        column_name=column_name,
+                        field_name=field_name,
                     )
                 )
 
@@ -349,9 +350,8 @@ class SchemaDiffer:
                     field_obj = model_field.get("field_object")
                     if field_obj is not None:
                         changes.append(
-                            AlterColumn(
+                            AlterField(
                                 model=model_ref,
-                                column_name=column_name,
                                 field_object=field_obj,
                                 field_name=model_field_name,
                             )

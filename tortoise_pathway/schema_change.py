@@ -175,8 +175,8 @@ class SchemaChange:
         return self.to_migration().replace("\n", "")
 
 
-class CreateTable(SchemaChange):
-    """Create a new table."""
+class CreateModel(SchemaChange):
+    """Create a new model."""
 
     def __init__(
         self,
@@ -300,9 +300,9 @@ class CreateTable(SchemaChange):
         return sql
 
     def to_migration(self) -> str:
-        """Generate Python code to create a table in a migration."""
+        """Generate Python code to create a model in a migration."""
         lines = []
-        lines.append("CreateTable(")
+        lines.append("CreateModel(")
         lines.append(f'    model="{self.model}",')
 
         # Include fields
@@ -320,8 +320,8 @@ class CreateTable(SchemaChange):
         return "\n".join(lines)
 
 
-class DropTable(SchemaChange):
-    """Drop an existing table."""
+class DropModel(SchemaChange):
+    """Drop an existing model."""
 
     def __init__(
         self,
@@ -341,16 +341,16 @@ class DropTable(SchemaChange):
         return f"-- To recreate table {self.get_table_name(state)}, import the model class from '{self.model}' first"
 
     def to_migration(self) -> str:
-        """Generate Python code to drop a table in a migration."""
+        """Generate Python code to drop a model in a migration."""
         lines = []
-        lines.append("DropTable(")
+        lines.append("DropModel(")
         lines.append(f'    model="{self.model}",')
         lines.append(")")
         return "\n".join(lines)
 
 
-class RenameTable(SchemaChange):
-    """Rename an existing table."""
+class RenameModel(SchemaChange):
+    """Rename an existing model."""
 
     def __init__(
         self,
@@ -375,17 +375,17 @@ class RenameTable(SchemaChange):
             return f"-- Rename table not implemented for dialect: {dialect}"
 
     def to_migration(self) -> str:
-        """Generate Python code to rename a table in a migration."""
+        """Generate Python code to rename a model in a migration."""
         lines = []
-        lines.append("RenameTable(")
+        lines.append("RenameModel(")
         lines.append(f'    model="{self.model}",')
         lines.append(f'    new_name="{self.new_name}",')
         lines.append(")")
         return "\n".join(lines)
 
 
-class AddColumn(SchemaChange):
-    """Add a new column to an existing table."""
+class AddField(SchemaChange):
+    """Add a new field to an existing model."""
 
     def __init__(
         self,
@@ -447,9 +447,9 @@ class AddColumn(SchemaChange):
             return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {self.column_name}"
 
     def to_migration(self) -> str:
-        """Generate Python code to add a column in a migration."""
+        """Generate Python code to add a field in a migration."""
         lines = []
-        lines.append("AddColumn(")
+        lines.append("AddField(")
         lines.append(f'    model="{self.model}",')
         lines.append(f"    field_object={field_to_migration(self.field_object)},")
         lines.append(f'    field_name="{self.field_name}",')
@@ -457,8 +457,8 @@ class AddColumn(SchemaChange):
         return "\n".join(lines)
 
 
-class DropColumn(SchemaChange):
-    """Drop a column from an existing table."""
+class DropField(SchemaChange):
+    """Drop a field from an existing model."""
 
     def __init__(
         self,
@@ -486,17 +486,17 @@ class DropColumn(SchemaChange):
         return f"-- Recreating column {column_name} with string model reference requires implementation"
 
     def to_migration(self) -> str:
-        """Generate Python code to drop a column in a migration."""
+        """Generate Python code to drop a field in a migration."""
         lines = []
-        lines.append("DropColumn(")
+        lines.append("DropField(")
         lines.append(f'    model="{self.model}",')
         lines.append(f'    field_name="{self.field_name}",')
         lines.append(")")
         return "\n".join(lines)
 
 
-class AlterColumn(SchemaChange):
-    """Alter the properties of an existing column."""
+class AlterField(SchemaChange):
+    """Alter the properties of an existing field."""
 
     def __init__(
         self,
@@ -548,9 +548,9 @@ class AlterColumn(SchemaChange):
         return f"-- Reverting column alteration for {column_name} requires manual intervention"
 
     def to_migration(self) -> str:
-        """Generate Python code to alter a column in a migration."""
+        """Generate Python code to alter a field in a migration."""
         lines = []
-        lines.append("AlterColumn(")
+        lines.append("AlterField(")
         lines.append(f'    model="{self.model}",')
         lines.append(f"    field_object={field_to_migration(self.field_object)},")
         lines.append(f'    field_name="{self.field_name}",')
@@ -562,43 +562,49 @@ class AlterColumn(SchemaChange):
         return "\n".join(lines)
 
 
-class RenameColumn(SchemaChange):
-    """Rename an existing column."""
+class RenameField(SchemaChange):
+    """Rename an existing field."""
 
     def __init__(
         self,
         model: str,
-        column_name: str,
+        field_name: str,
         new_name: str,
     ):
         super().__init__(model)
-        self.column_name = column_name
+        self.field_name = field_name
         self.new_name = new_name
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for renaming a column."""
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        # For the new column name, we just use the new field name directly
+        # In a real implementation, we might need to determine the actual column name based on model metadata
+
         if dialect == "sqlite":
             return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the new schema."
         elif dialect == "postgres":
-            return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {self.column_name} TO {self.new_name}"
+            return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {column_name} TO {self.new_name}"
         else:
             return f"-- Rename column not implemented for dialect: {dialect}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for reverting a column rename."""
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+
         if dialect == "sqlite":
             return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the original schema."
         elif dialect == "postgres":
-            return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {self.new_name} TO {self.column_name}"
+            return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {self.new_name} TO {column_name}"
         else:
             return f"-- Rename column not implemented for dialect: {dialect}"
 
     def to_migration(self) -> str:
-        """Generate Python code to rename a column in a migration."""
+        """Generate Python code to rename a field in a migration."""
         lines = []
-        lines.append("RenameColumn(")
+        lines.append("RenameField(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
+        lines.append(f'    field_name="{self.field_name}",')
         lines.append(f'    new_name="{self.new_name}",')
         lines.append(")")
         return "\n".join(lines)
@@ -610,24 +616,30 @@ class AddIndex(SchemaChange):
     def __init__(
         self,
         model: str,
-        column_name: str,
+        field_name: str,
         index_name: Optional[str] = None,
         unique: bool = False,
-        columns: Optional[List[str]] = None,
+        fields: Optional[List[str]] = None,
     ):
         super().__init__(model)
-        self.column_name = column_name
+        self.field_name = field_name
         # Convert model name from CamelCase to snake_case
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
         table_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        self.index_name = index_name or f"idx_{table_name}_{column_name}"
+        self.index_name = index_name or f"idx_{table_name}_{field_name}"
         self.unique = unique
-        self.columns = columns or [column_name]
+        self.fields = fields or [field_name]
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding an index."""
+        # Get actual column names from field names
+        column_names = []
+        for field_name in self.fields:
+            column_name = state.get_column_name(self.app_name, self.model_name, field_name)
+            column_names.append(column_name)
+
         unique_prefix = "UNIQUE " if self.unique else ""
-        columns_str = ", ".join(self.columns)
+        columns_str = ", ".join(column_names)
         return f"CREATE {unique_prefix}INDEX {self.index_name} ON {self.get_table_name(state)} ({columns_str})"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
@@ -639,12 +651,12 @@ class AddIndex(SchemaChange):
         lines = []
         lines.append("AddIndex(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
+        lines.append(f'    field_name="{self.field_name}",')
 
         # Convert model name to snake_case for default index name
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
         table_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        default_index_name = f"idx_{table_name}_{self.column_name}"
+        default_index_name = f"idx_{table_name}_{self.field_name}"
 
         if self.index_name != default_index_name:
             lines.append(f'    index_name="{self.index_name}",')
@@ -652,9 +664,9 @@ class AddIndex(SchemaChange):
         if self.unique:
             lines.append("    unique=True,")
 
-        if self.columns != [self.column_name]:
-            columns_repr = "[" + ", ".join([f'"{col}"' for col in self.columns]) + "]"
-            lines.append(f"    columns={columns_repr},")
+        if self.fields != [self.field_name]:
+            fields_repr = "[" + ", ".join([f'"{field}"' for field in self.fields]) + "]"
+            lines.append(f"    fields={fields_repr},")
 
         lines.append(")")
         return "\n".join(lines)
@@ -666,15 +678,15 @@ class DropIndex(SchemaChange):
     def __init__(
         self,
         model: str,
-        column_name: str,
+        field_name: str,
         index_name: Optional[str] = None,
     ):
         super().__init__(model)
-        self.column_name = column_name
+        self.field_name = field_name
         # Convert model name from CamelCase to snake_case
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
         table_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        self.index_name = index_name or f"idx_{table_name}_{column_name}"
+        self.index_name = index_name or f"idx_{table_name}_{field_name}"
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping an index."""
@@ -682,21 +694,20 @@ class DropIndex(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding an index."""
-        return (
-            f"CREATE INDEX {self.index_name} ON {self.get_table_name(state)} ({self.column_name})"
-        )
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+        return f"CREATE INDEX {self.index_name} ON {self.get_table_name(state)} ({column_name})"
 
     def to_migration(self) -> str:
         """Generate Python code to drop an index in a migration."""
         lines = []
         lines.append("DropIndex(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
+        lines.append(f'    field_name="{self.field_name}",')
 
         # Convert model name to snake_case for default index name
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
         table_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        default_index_name = f"idx_{table_name}_{self.column_name}"
+        default_index_name = f"idx_{table_name}_{self.field_name}"
 
         if self.index_name != default_index_name:
             lines.append(f'    index_name="{self.index_name}",')
@@ -711,26 +722,36 @@ class AddConstraint(SchemaChange):
     def __init__(
         self,
         model: str,
-        column_name: str,
+        field_name: str,
         constraint_name: Optional[str] = None,
         constraint_type: str = "CHECK",
         constraint_clause: Optional[str] = None,
     ):
         super().__init__(model)
-        self.column_name = column_name
+        self.field_name = field_name
         self.constraint_name = (
-            constraint_name or f"constraint_{self.model_name.lower()}_{column_name}"
+            constraint_name or f"constraint_{self.model_name.lower()}_{field_name}"
         )
         self.constraint_type = constraint_type
-        self.constraint_clause = constraint_clause or f"{column_name} IS NOT NULL"
+        # Ensure constraint_clause is always a string
+        self.constraint_clause = (
+            constraint_clause if constraint_clause is not None else f"{field_name} IS NOT NULL"
+        )
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a constraint."""
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+
+        # We need to ensure self.constraint_clause is not None and replace field_name with column_name
+        constraint_clause = self.constraint_clause.replace(
+            self.field_name, column_name if column_name else self.field_name
+        )
+
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE
             return "-- Adding constraints in SQLite may require table recreation"
         else:
-            return f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {self.constraint_name} {self.constraint_type} ({self.constraint_clause})"
+            return f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {self.constraint_name} {self.constraint_type} ({constraint_clause})"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a constraint."""
@@ -747,17 +768,17 @@ class AddConstraint(SchemaChange):
         lines = []
         lines.append("AddConstraint(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
+        lines.append(f'    field_name="{self.field_name}",')
 
         # Instead of comparing with get_table_name(state), use default constraint name pattern
-        default_constraint_name = f"constraint_{self.model_name.lower()}_{self.column_name}"
+        default_constraint_name = f"constraint_{self.model_name.lower()}_{self.field_name}"
         if self.constraint_name != default_constraint_name:
             lines.append(f'    constraint_name="{self.constraint_name}",')
 
         if self.constraint_type != "CHECK":
             lines.append(f'    constraint_type="{self.constraint_type}",')
 
-        if self.constraint_clause != f"{self.column_name} IS NOT NULL":
+        if self.constraint_clause != f"{self.field_name} IS NOT NULL":
             lines.append(f'    constraint_clause="{self.constraint_clause}",')
 
         lines.append(")")
@@ -770,13 +791,13 @@ class DropConstraint(SchemaChange):
     def __init__(
         self,
         model: str,
-        column_name: str,
+        field_name: str,
         constraint_name: Optional[str] = None,
     ):
         super().__init__(model)
-        self.column_name = column_name
+        self.field_name = field_name
         self.constraint_name = (
-            constraint_name or f"constraint_{self.model_name.lower()}_{column_name}"
+            constraint_name or f"constraint_{self.model_name.lower()}_{field_name}"
         )
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
@@ -791,21 +812,23 @@ class DropConstraint(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a constraint."""
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+
         if dialect == "sqlite":
             # SQLite has limited support for constraints via ALTER TABLE
             return "-- Adding constraints in SQLite may require table recreation"
         else:
-            return f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {self.constraint_name} CHECK ({self.column_name} IS NOT NULL)"
+            return f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {self.constraint_name} CHECK ({column_name} IS NOT NULL)"
 
     def to_migration(self) -> str:
         """Generate Python code to drop a constraint in a migration."""
         lines = []
         lines.append("DropConstraint(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
+        lines.append(f'    field_name="{self.field_name}",')
 
         # Instead of comparing with get_table_name(state), use default constraint name pattern
-        default_constraint_name = f"constraint_{self.model_name.lower()}_{self.column_name}"
+        default_constraint_name = f"constraint_{self.model_name.lower()}_{self.field_name}"
         if self.constraint_name != default_constraint_name:
             lines.append(f'    constraint_name="{self.constraint_name}",')
 

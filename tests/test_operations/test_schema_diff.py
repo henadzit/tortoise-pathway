@@ -6,9 +6,9 @@ import pytest
 
 from tortoise import Tortoise, fields, models
 from tortoise_pathway.schema_change import (
-    CreateTable,
-    DropTable,
-    AddColumn,
+    CreateModel,
+    DropModel,
+    AddField,
     AddIndex,
     DropIndex,
 )
@@ -51,7 +51,7 @@ async def setup_test_db(setup_db_file):
 
 
 async def test_create_table(setup_test_db):
-    """Test CreateTable operation."""
+    """Test CreateModel operation."""
     state = State()
 
     # Create fields dictionary
@@ -62,7 +62,7 @@ async def test_create_table(setup_test_db):
     }
 
     # Create and apply operation
-    operation = CreateTable(
+    operation = CreateModel(
         model="tests.test_operations.test_schema_diff.TestModel",
         fields=fields_dict,
     )
@@ -94,7 +94,7 @@ async def test_create_table(setup_test_db):
 
 
 async def test_drop_table(setup_test_db):
-    """Test DropTable operation."""
+    """Test DropModel operation."""
     state = State()
 
     # First create a table
@@ -103,7 +103,7 @@ async def test_drop_table(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(
+    create_op = CreateModel(
         model="tests.test_operations.test_schema_diff.TestModel",
         fields=fields_dict,
     )
@@ -119,7 +119,7 @@ async def test_drop_table(setup_test_db):
     assert len(result[1]) == 1
 
     # Drop the table
-    operation = DropTable(model="tests.test_operations.test_schema_diff.TestModel")
+    operation = DropModel(model="tests.test_operations.test_schema_diff.TestModel")
     # Set table name manually for test
     operation.set_table_name("test_drop")
     await operation.apply(state=state)
@@ -136,7 +136,7 @@ async def test_drop_table(setup_test_db):
 
 
 async def test_add_column(setup_test_db):
-    """Test AddColumn operation."""
+    """Test AddField operation."""
     state = State()
 
     # First create a table
@@ -145,7 +145,7 @@ async def test_add_column(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(
+    create_op = CreateModel(
         model="tests.test_operations.test_schema_diff.TestModel",
         fields=fields_dict,
     )
@@ -155,7 +155,7 @@ async def test_add_column(setup_test_db):
 
     # Add a column
     field = fields.IntField(default=0)
-    operation = AddColumn(
+    operation = AddField(
         model="tests.test_operations.test_schema_diff.TestModel",
         field_object=field,
         field_name="count",
@@ -185,7 +185,7 @@ async def test_add_index(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(
+    create_op = CreateModel(
         model="tests.test_operations.test_schema_diff.TestModel",
         fields=fields_dict,
     )
@@ -196,7 +196,7 @@ async def test_add_index(setup_test_db):
     # Add an index
     operation = AddIndex(
         model="tests.test_operations.test_schema_diff.TestModel",
-        column_name="name",
+        field_name="name",
     )
     # Set table name manually for test
     operation.set_table_name("test_add_index")
@@ -230,7 +230,7 @@ async def test_drop_index(setup_test_db):
         "name": fields.CharField(max_length=100),
     }
 
-    create_op = CreateTable(
+    create_op = CreateModel(
         model="tests.test_operations.test_schema_diff.TestModel",
         fields=fields_dict,
     )
@@ -241,7 +241,7 @@ async def test_drop_index(setup_test_db):
     # Add an index
     add_index_op = AddIndex(
         model="tests.test_operations.test_schema_diff.TestModel",
-        column_name="name",
+        field_name="name",
     )
     # Set table name manually for test
     add_index_op.set_table_name("test_drop_index")
@@ -258,7 +258,7 @@ async def test_drop_index(setup_test_db):
     # Drop the index
     operation = DropIndex(
         model="tests.test_operations.test_schema_diff.TestModel",
-        column_name="name",
+        field_name="name",
     )
     # Set table name manually for test
     operation.set_table_name("test_drop_index")

@@ -3,7 +3,7 @@ Initial migration for test_model_changes app
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_change import CreateTable
+from tortoise_pathway.schema_change import CreateModel
 from tortoise.fields.data import CharField
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.data import IntField
@@ -17,7 +17,7 @@ class InitialMigration(Migration):
 
     dependencies = []
     operations = [
-        CreateTable(
+        CreateModel(
             model="test_model_changes.Blog",
             fields={
                 "id": IntField(primary_key=True),
@@ -27,7 +27,7 @@ class InitialMigration(Migration):
                 # Note: summary and updated_at fields are missing in the initial migration
             },
         ),
-        CreateTable(
+        CreateModel(
             model="test_model_changes.Tag",
             fields={
                 "id": IntField(primary_key=True),

@@ -3,7 +3,7 @@ Initial migration for test_applied_migrations app
 """
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_change import CreateTable
+from tortoise_pathway.schema_change import CreateModel
 from tortoise.fields.data import BooleanField
 from tortoise.fields.data import CharField
 from tortoise.fields.data import DatetimeField
@@ -19,7 +19,7 @@ class InitialMigration(Migration):
 
     dependencies = []
     operations = [
-        CreateTable(
+        CreateModel(
             model="test_applied_migrations.Product",
             fields={
                 "id": IntField(primary_key=True),
@@ -30,7 +30,7 @@ class InitialMigration(Migration):
                 "created_at": DatetimeField(auto_now_add=True),
             },
         ),
-        CreateTable(
+        CreateModel(
             model="test_applied_migrations.Category",
             fields={
                 "id": IntField(primary_key=True),

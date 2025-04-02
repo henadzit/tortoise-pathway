@@ -44,7 +44,7 @@ async def test_create_initial_migration(setup_db_file, tortoise_config):
     with open(migration.path(), "r") as f:
         content = f.read()
         # Verify it includes table creation operations
-        assert "CreateTable" in content
+        assert "CreateModel" in content
         assert 'model="test_no_migrations.User"' in content
         assert 'model="test_no_migrations.Note"' in content
 

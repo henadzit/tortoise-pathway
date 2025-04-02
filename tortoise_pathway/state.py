@@ -10,13 +10,13 @@ from typing import Dict, Any, Optional, cast
 
 from tortoise_pathway.schema_change import (
     SchemaChange,
-    CreateTable,
-    DropTable,
-    RenameTable,
-    AddColumn,
-    DropColumn,
-    AlterColumn,
-    RenameColumn,
+    CreateModel,
+    DropModel,
+    RenameModel,
+    AddField,
+    DropField,
+    AlterField,
+    RenameField,
     AddIndex,
     DropIndex,
     AddConstraint,
@@ -80,20 +80,20 @@ class State:
             self.schemas[app_name] = {"models": {}}
 
         # Handle each type of operation
-        if isinstance(operation, CreateTable):
-            self._apply_create_table(app_name, model_name, operation)
-        elif isinstance(operation, DropTable):
-            self._apply_drop_table(app_name, model_name, operation)
-        elif isinstance(operation, RenameTable):
-            self._apply_rename_table(app_name, model_name, operation)
-        elif isinstance(operation, AddColumn):
-            self._apply_add_column(app_name, model_name, operation)
-        elif isinstance(operation, DropColumn):
-            self._apply_drop_column(app_name, model_name, operation)
-        elif isinstance(operation, AlterColumn):
-            self._apply_alter_column(app_name, model_name, operation)
-        elif isinstance(operation, RenameColumn):
-            self._apply_rename_column(app_name, model_name, operation)
+        if isinstance(operation, CreateModel):
+            self._apply_create_model(app_name, model_name, operation)
+        elif isinstance(operation, DropModel):
+            self._apply_drop_model(app_name, model_name, operation)
+        elif isinstance(operation, RenameModel):
+            self._apply_rename_model(app_name, model_name, operation)
+        elif isinstance(operation, AddField):
+            self._apply_add_field(app_name, model_name, operation)
+        elif isinstance(operation, DropField):
+            self._apply_drop_field(app_name, model_name, operation)
+        elif isinstance(operation, AlterField):
+            self._apply_alter_field(app_name, model_name, operation)
+        elif isinstance(operation, RenameField):
+            self._apply_rename_field(app_name, model_name, operation)
         elif isinstance(operation, AddIndex):
             self._apply_add_index(app_name, model_name, operation)
         elif isinstance(operation, DropIndex):
@@ -103,8 +103,8 @@ class State:
         elif isinstance(operation, DropConstraint):
             self._apply_drop_constraint(app_name, model_name, operation)
 
-    def _apply_create_table(self, app_name: str, model_name: str, operation: CreateTable) -> None:
-        """Apply a CreateTable operation to the state."""
+    def _apply_create_model(self, app_name: str, model_name: str, operation: CreateModel) -> None:
+        """Apply a CreateModel operation to the state."""
         table_name = operation.get_table_name(self)
 
         # Create a new model entry
@@ -136,14 +136,14 @@ class State:
                 "field_object": field_obj,
             }
 
-    def _apply_drop_table(self, app_name: str, model_name: str, operation: DropTable) -> None:
-        """Apply a DropTable operation to the state."""
+    def _apply_drop_model(self, app_name: str, model_name: str, operation: DropModel) -> None:
+        """Apply a DropModel operation to the state."""
         # Remove the model if it exists
         if model_name in self.schemas[app_name]["models"]:
             del self.schemas[app_name]["models"][model_name]
 
-    def _apply_rename_table(self, app_name: str, model_name: str, operation: RenameTable) -> None:
-        """Apply a RenameTable operation to the state."""
+    def _apply_rename_model(self, app_name: str, model_name: str, operation: RenameModel) -> None:
+        """Apply a RenameModel operation to the state."""
         new_table_name = operation.new_name
 
         if not new_table_name or model_name not in self.schemas[app_name]["models"]:
@@ -152,8 +152,8 @@ class State:
         # Update the table name
         self.schemas[app_name]["models"][model_name]["table"] = new_table_name
 
-    def _apply_add_column(self, app_name: str, model_name: str, operation: AddColumn) -> None:
-        """Apply an AddColumn operation to the state."""
+    def _apply_add_field(self, app_name: str, model_name: str, operation: AddField) -> None:
+        """Apply an AddField operation to the state."""
         column_name = operation.column_name
         field_obj = operation.field_object
         field_name = operation.field_name
@@ -177,8 +177,8 @@ class State:
             "field_object": field_obj,
         }
 
-    def _apply_drop_column(self, app_name: str, model_name: str, operation: DropColumn) -> None:
-        """Apply a DropColumn operation to the state."""
+    def _apply_drop_field(self, app_name: str, model_name: str, operation: DropField) -> None:
+        """Apply a DropField operation to the state."""
         field_name = operation.field_name
 
         if model_name not in self.schemas[app_name]["models"]:
@@ -188,8 +188,8 @@ class State:
         if field_name in self.schemas[app_name]["models"][model_name]["fields"]:
             del self.schemas[app_name]["models"][model_name]["fields"][field_name]
 
-    def _apply_alter_column(self, app_name: str, model_name: str, operation: AlterColumn) -> None:
-        """Apply an AlterColumn operation to the state."""
+    def _apply_alter_field(self, app_name: str, model_name: str, operation: AlterField) -> None:
+        """Apply an AlterField operation to the state."""
         field_name = operation.field_name
         field_obj = operation.field_object
 
@@ -204,117 +204,96 @@ class State:
             pk = getattr(field_obj, "pk", False)
             field_type = field_obj.__class__.__name__
 
-            # Update the field in the state
-            self.schemas[app_name]["models"][model_name]["fields"][field_name].update(
-                {
-                    "type": field_type,
-                    "nullable": nullable,
-                    "default": default,
-                    "primary_key": pk,
-                    "field_object": field_obj,
-                }
-            )
+            # Get the column name (keep the existing one)
+            column_name = self.schemas[app_name]["models"][model_name]["fields"][field_name][
+                "column"
+            ]
 
-    def _apply_rename_column(self, app_name: str, model_name: str, operation: RenameColumn) -> None:
-        """Apply a RenameColumn operation to the state."""
-        column_name = operation.column_name
-        new_column_name = operation.new_name
+            # Update the field in the state
+            self.schemas[app_name]["models"][model_name]["fields"][field_name] = {
+                "column": column_name,
+                "type": field_type,
+                "nullable": nullable,
+                "default": default,
+                "primary_key": pk,
+                "field_object": field_obj,
+            }
+
+    def _apply_rename_field(self, app_name: str, model_name: str, operation: RenameField) -> None:
+        """Apply a RenameField operation to the state."""
+        old_field_name = operation.field_name
+        new_field_name = operation.new_name
 
         if model_name not in self.schemas[app_name]["models"]:
             return
 
-        # Find the field that maps to this column and update its column mapping
-        for field_name, field_info in self.schemas[app_name]["models"][model_name][
-            "fields"
-        ].items():
-            if field_info.get("column") == column_name:
-                field_info["column"] = new_column_name
-                break
+        # Verify the old field exists
+        if old_field_name in self.schemas[app_name]["models"][model_name]["fields"]:
+            # Get the old field's data
+            field_data = self.schemas[app_name]["models"][model_name]["fields"][old_field_name]
+
+            # Add the field with the new name
+            self.schemas[app_name]["models"][model_name]["fields"][new_field_name] = field_data
+
+            # Remove the old field
+            del self.schemas[app_name]["models"][model_name]["fields"][old_field_name]
 
     def _apply_add_index(self, app_name: str, model_name: str, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
         if model_name not in self.schemas[app_name]["models"]:
             return
 
-        # Extract index information from the operation
-        index_name = operation.index_name
-        unique = operation.unique
-        columns = operation.columns
+        # Get field names from operation
+        fields = operation.fields if hasattr(operation, "fields") else [operation.field_name]
+
+        # Convert field names to column names
+        columns = []
+        for field_name in fields:
+            if field_name in self.schemas[app_name]["models"][model_name]["fields"]:
+                column_name = self.schemas[app_name]["models"][model_name]["fields"][field_name][
+                    "column"
+                ]
+                columns.append(column_name)
 
         # Add the index to the state
-        self.schemas[app_name]["models"][model_name]["indexes"].append(
-            {
-                "name": index_name,
-                "unique": unique,
-                "columns": columns,
-            }
-        )
+        if columns:
+            self.schemas[app_name]["models"][model_name]["indexes"].append(
+                {
+                    "name": operation.index_name,
+                    "unique": operation.unique,
+                    "columns": columns,
+                }
+            )
 
     def _apply_drop_index(self, app_name: str, model_name: str, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
-        field_name = operation.column_name  # Keep for compatibility, but should be renamed
-        index_name = operation.index_name
-
         if model_name not in self.schemas[app_name]["models"]:
             return
 
-        # Remove the index from the state
-        if index_name:
-            # Remove by name
-            self.schemas[app_name]["models"][model_name]["indexes"] = [
-                idx
-                for idx in self.schemas[app_name]["models"][model_name]["indexes"]
-                if idx["name"] != index_name
-            ]
-        else:
-            # Remove by column - Get real column name if needed
-            column_name = self.get_column_name(app_name, model_name, field_name)
-            self.schemas[app_name]["models"][model_name]["indexes"] = [
-                idx
-                for idx in self.schemas[app_name]["models"][model_name]["indexes"]
-                if column_name not in idx["columns"]
-            ]
+        # Find and remove the index by name
+        for i, index in enumerate(self.schemas[app_name]["models"][model_name]["indexes"]):
+            if index["name"] == operation.index_name:
+                del self.schemas[app_name]["models"][model_name]["indexes"][i]
+                break
 
     def _apply_add_constraint(
         self, app_name: str, model_name: str, operation: AddConstraint
     ) -> None:
         """Apply an AddConstraint operation to the state."""
-        # For simplicity, we're treating constraints as special indexes
-        # Create a temporary AddIndex with the same properties
-        from tortoise_pathway.schema_change import AddIndex
-
-        temp_add_index = AddIndex(
-            model=operation.model,
-            column_name=operation.column_name,
-            index_name=operation.constraint_name,
-            unique=False,
-            columns=[operation.column_name],
-        )
-        self._apply_add_index(app_name, model_name, temp_add_index)
+        # Constraints aren't directly represented in our schema state model yet
+        # This is a simplified implementation
+        pass
 
     def _apply_drop_constraint(
         self, app_name: str, model_name: str, operation: DropConstraint
     ) -> None:
         """Apply a DropConstraint operation to the state."""
-        # For simplicity, we're treating constraints as special indexes
-        # Create a temporary DropIndex with the same properties
-        from tortoise_pathway.schema_change import DropIndex
-
-        temp_drop_index = DropIndex(
-            model=operation.model,
-            column_name=operation.column_name,
-            index_name=operation.constraint_name,
-        )
-        self._apply_drop_index(app_name, model_name, temp_drop_index)
+        # Constraints aren't directly represented in our schema state model yet
+        # This is a simplified implementation
+        pass
 
     def get_schema(self) -> Dict[str, Any]:
-        """
-        Get the schema representation.
-
-        Returns:
-            The model-centric schema dictionary.
-        """
-        # Simply return the model-centric schema
+        """Get the entire schema representation."""
         return self.schemas
 
     def get_models(self, app: str) -> Dict[str, Any]:
@@ -322,49 +301,44 @@ class State:
         Get all models for a specific app.
 
         Args:
-            app: Application name.
+            app: The app name.
 
         Returns:
-            Dictionary mapping model names to their definitions.
+            Dictionary of models for the app.
         """
-        if app not in self.schemas:
-            return {}
-
-        return self.schemas[app].get("models", {})
+        if app in self.schemas and "models" in self.schemas[app]:
+            return self.schemas[app]["models"]
+        return {}
 
     def get_table_name(self, app: str, model: str) -> Optional[str]:
         """
         Get the table name for a specific model.
 
         Args:
-            app: Application name.
-            model: Model name.
+            app: The app name.
+            model: The model name.
 
         Returns:
-            The table name for the model, or a converted snake_case name if not found.
+            The table name, or None if not found.
         """
-        if app in self.schemas and model in self.schemas[app].get("models", {}):
+        try:
             return self.schemas[app]["models"][model]["table"]
-
-        return None
+        except (KeyError, TypeError):
+            return None
 
     def get_column_name(self, app: str, model: str, field_name: str) -> Optional[str]:
         """
-        Get the column name for a specific field in a model.
+        Get the column name for a specific field.
 
         Args:
-            app: Application name.
-            model: Model name.
-            field_name: Field name.
+            app: The app name.
+            model: The model name.
+            field_name: The field name.
 
         Returns:
-            The column name for the field, or the field name itself if not found.
+            The column name, or None if not found.
         """
-        if (
-            app in self.schemas
-            and model in self.schemas[app].get("models", {})
-            and field_name in self.schemas[app]["models"][model].get("fields", {})
-        ):
+        try:
             return self.schemas[app]["models"][model]["fields"][field_name]["column"]
-
-        return None
+        except (KeyError, TypeError):
+            return field_name  # Fall back to using field name as column name
