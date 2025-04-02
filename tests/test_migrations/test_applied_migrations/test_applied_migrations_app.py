@@ -3,6 +3,7 @@ Tests for application with applied migrations.
 """
 
 import pytest
+import os
 from pathlib import Path
 
 from tortoise import Tortoise

@@ -18,10 +18,14 @@ class MigrationManager:
 
     def __init__(self, app_name: str, migrations_dir: str = "migrations"):
         self.app_name = app_name
+        # Create the base migrations directory path
         if Path(migrations_dir).is_absolute():
-            self.migrations_dir = Path(migrations_dir).relative_to(Path.cwd())
+            self.base_migrations_dir = Path(migrations_dir).relative_to(Path.cwd())
         else:
-            self.migrations_dir = Path(migrations_dir)
+            self.base_migrations_dir = Path(migrations_dir)
+
+        # Set the app-specific migrations directory
+        self.migrations_dir = self.base_migrations_dir / app_name
         self.migrations: Dict[str, Type[Migration]] = {}
         self.applied_migrations: Set[str] = set()
         self.state = State(app_name)
@@ -76,6 +80,7 @@ class MigrationManager:
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory."""
+        # Ensure the app-specific migrations directory exists
         if not self.migrations_dir.exists():
             self.migrations_dir.mkdir(parents=True, exist_ok=True)
             return
@@ -86,8 +91,10 @@ class MigrationManager:
 
             migration_name = file_path.stem
 
+            # Create module path with app name included
             module_path = (
-                f"{str(self.migrations_dir).replace('/', '.').replace('\\', '.')}.{migration_name}"
+                f"{str(self.base_migrations_dir).replace('/', '.').replace('\\', '.')}."
+                f"{self.app_name}.{migration_name}"
             )
 
             try:
@@ -117,7 +124,7 @@ class MigrationManager:
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         migration_name = f"{timestamp}_{name}"
 
-        # Make sure migrations directory exists
+        # Make sure app migrations directory exists
         self.migrations_dir.mkdir(parents=True, exist_ok=True)
 
         # Create migration file path
@@ -137,7 +144,8 @@ class MigrationManager:
 
         # Load the migration module and instantiate the migration
         module_path = (
-            f"{str(self.migrations_dir).replace('/', '.').replace('\\', '.')}.{migration_name}"
+            f"{str(self.base_migrations_dir).replace('/', '.').replace('\\', '.')}."
+            f"{self.app_name}.{migration_name}"
         )
         try:
             module = importlib.import_module(module_path)

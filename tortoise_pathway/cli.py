@@ -51,7 +51,8 @@ async def makemigrations(args: argparse.Namespace) -> None:
         print(f"Error: App '{args.app}' not found in Tortoise ORM config")
         sys.exit(1)
 
-    migration_dir = args.directory or os.path.join(args.app, "migrations")
+    # The migrations directory is now the base directory, no need to join with app name
+    migration_dir = args.directory or "migrations"
 
     manager = MigrationManager(args.app, migration_dir)
     await manager.initialize()
@@ -90,7 +91,8 @@ async def migrate(args: argparse.Namespace) -> None:
         print("Error: You must specify an app name with --app")
         sys.exit(1)
 
-    migration_dir = args.directory or os.path.join(args.app, "migrations")
+    # The migrations directory is now the base directory, no need to join with app name
+    migration_dir = args.directory or "migrations"
 
     manager = MigrationManager(args.app, migration_dir)
     await manager.initialize()
@@ -121,7 +123,8 @@ async def rollback(args: argparse.Namespace) -> None:
         print("Error: You must specify an app name with --app")
         sys.exit(1)
 
-    migration_dir = args.directory or os.path.join(args.app, "migrations")
+    # The migrations directory is now the base directory, no need to join with app name
+    migration_dir = args.directory or "migrations"
 
     manager = MigrationManager(args.app, migration_dir)
     await manager.initialize()
@@ -145,7 +148,8 @@ async def showmigrations(args: argparse.Namespace) -> None:
         print("Error: You must specify an app name with --app")
         sys.exit(1)
 
-    migration_dir = args.directory or os.path.join(args.app, "migrations")
+    # The migrations directory is now the base directory, no need to join with app name
+    migration_dir = args.directory or "migrations"
 
     manager = MigrationManager(args.app, migration_dir)
     await manager.initialize()
@@ -187,23 +191,31 @@ def main() -> None:
     make_parser.add_argument("--app", help="App name")
     make_parser.add_argument("--name", help="Migration name (default: 'auto')")
     make_parser.add_argument("--empty", action="store_true", help="Create an empty migration")
-    make_parser.add_argument("--directory", help="Migrations directory")
+    make_parser.add_argument(
+        "--directory", help="Base migrations directory (default: 'migrations')"
+    )
 
     # migrate command
     migrate_parser = subparsers.add_parser("migrate", help="Apply migrations")
     migrate_parser.add_argument("--app", help="App name")
-    migrate_parser.add_argument("--directory", help="Migrations directory")
+    migrate_parser.add_argument(
+        "--directory", help="Base migrations directory (default: 'migrations')"
+    )
 
     # rollback command
     rollback_parser = subparsers.add_parser("rollback", help="Revert migrations")
     rollback_parser.add_argument("--app", help="App name")
     rollback_parser.add_argument("--migration", help="Specific migration to revert")
-    rollback_parser.add_argument("--directory", help="Migrations directory")
+    rollback_parser.add_argument(
+        "--directory", help="Base migrations directory (default: 'migrations')"
+    )
 
     # showmigrations command
     show_parser = subparsers.add_parser("showmigrations", help="List migrations and their status")
     show_parser.add_argument("--app", help="App name")
-    show_parser.add_argument("--directory", help="Migrations directory")
+    show_parser.add_argument(
+        "--directory", help="Base migrations directory (default: 'migrations')"
+    )
 
     args = parser.parse_args()
 

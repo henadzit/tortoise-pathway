@@ -24,7 +24,7 @@ async def clean_migrations():
     test_migrations_dir = Path(os.getcwd()) / "tests" / "test_migrations"
 
     def _cleanup():
-        for item in test_migrations_dir.glob("*/migrations/*.py"):
+        for item in test_migrations_dir.glob("*/migrations/*/*.py"):
             if item.is_file() and item.name != "__init__.py" and "donotdelete" not in item.name:
                 print(f"Removing migration file: {item}")
                 item.unlink()

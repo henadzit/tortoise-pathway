@@ -3,6 +3,7 @@ Tests for application with model changes after initial migration.
 """
 
 import pytest
+import os
 from pathlib import Path
 
 from tortoise import Tortoise
