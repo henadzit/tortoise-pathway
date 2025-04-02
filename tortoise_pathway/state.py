@@ -190,34 +190,30 @@ class State:
 
     def _apply_alter_column(self, app_name: str, model_name: str, operation: AlterColumn) -> None:
         """Apply an AlterColumn operation to the state."""
-        column_name = operation.column_name
+        field_name = operation.field_name
         field_obj = operation.field_object
 
         if model_name not in self.schemas[app_name]["models"]:
             return
 
-        # Find the field that maps to this column
-        for field_name, field_info in self.schemas[app_name]["models"][model_name][
-            "fields"
-        ].items():
-            if field_info.get("column") == column_name:
-                # Extract field properties
-                nullable = getattr(field_obj, "null", False)
-                default = getattr(field_obj, "default", None)
-                pk = getattr(field_obj, "pk", False)
-                field_type = field_obj.__class__.__name__
+        # Verify the field exists
+        if field_name in self.schemas[app_name]["models"][model_name]["fields"]:
+            # Extract field properties
+            nullable = getattr(field_obj, "null", False)
+            default = getattr(field_obj, "default", None)
+            pk = getattr(field_obj, "pk", False)
+            field_type = field_obj.__class__.__name__
 
-                # Update the field in the state
-                self.schemas[app_name]["models"][model_name]["fields"][field_name].update(
-                    {
-                        "type": field_type,
-                        "nullable": nullable,
-                        "default": default,
-                        "primary_key": pk,
-                        "field_object": field_obj,
-                    }
-                )
-                break
+            # Update the field in the state
+            self.schemas[app_name]["models"][model_name]["fields"][field_name].update(
+                {
+                    "type": field_type,
+                    "nullable": nullable,
+                    "default": default,
+                    "primary_key": pk,
+                    "field_object": field_obj,
+                }
+            )
 
     def _apply_rename_column(self, app_name: str, model_name: str, operation: RenameColumn) -> None:
         """Apply a RenameColumn operation to the state."""

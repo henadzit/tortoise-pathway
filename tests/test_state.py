@@ -235,7 +235,6 @@ async def test_apply_alter_column():
     altered_field = CharField(max_length=100, null=True)
     alter_column_op = AlterColumn(
         model="test_app.TestModel",
-        column_name="name",
         field_object=altered_field,
         field_name="name",
     )

@@ -501,19 +501,19 @@ class AlterColumn(SchemaChange):
     def __init__(
         self,
         model: str,
-        column_name: str,
         field_object: Field,
         field_name: str,
         old_field_object: Optional[Field] = None,
     ):
         super().__init__(model)
-        self.column_name = column_name
         self.field_object = field_object
         self.field_name = field_name
         self.old_field_object = old_field_object
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for altering a column."""
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+
         if dialect == "sqlite":
             return "-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the new schema."
         elif dialect == "postgres":
@@ -527,12 +527,14 @@ class AlterColumn(SchemaChange):
             if is_pk and field_type == "IntField" and dialect == "postgres":
                 column_type = "SERIAL"
 
-            return f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {self.column_name} TYPE {column_type}"
+            return f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {column_name} TYPE {column_type}"
         else:
             return f"-- Alter column not implemented for dialect: {dialect}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for reverting a column alteration."""
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
+
         # This requires old column information
         if not self.old_field_object:
             return "-- Cannot revert column alteration: old column information not available"
@@ -543,14 +545,13 @@ class AlterColumn(SchemaChange):
 
         # For postgres and other databases that support ALTER COLUMN
         # This is a simplified version, would need more detailed logic for a real implementation
-        return f"-- Reverting column alteration for {self.column_name} requires manual intervention"
+        return f"-- Reverting column alteration for {column_name} requires manual intervention"
 
     def to_migration(self) -> str:
         """Generate Python code to alter a column in a migration."""
         lines = []
         lines.append("AlterColumn(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    column_name="{self.column_name}",')
         lines.append(f"    field_object={field_to_migration(self.field_object)},")
         lines.append(f'    field_name="{self.field_name}",')
 
