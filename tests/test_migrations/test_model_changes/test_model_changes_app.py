@@ -67,7 +67,6 @@ async def test_model_changes(setup_db_file, tortoise_config):
 
     # Verify the exact operations and their order
     operations = migration.operations
-
     assert len(operations) == 5
 
     comments_table_op = operations[0]

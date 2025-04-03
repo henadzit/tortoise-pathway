@@ -110,19 +110,8 @@ class SchemaDiffer:
                 "indexes": table_info["indexes"],
             }
 
-            # Convert columns to fields
-            for column_name, column_info in table_info["columns"].items():
-                # Use column name as field name if no field_name is provided
-                field_name = column_info.get("field_name", column_name)
-
-                app_schema["models"][model_name]["fields"][field_name] = {
-                    "column": column_name,
-                    "type": column_info["type"],
-                    "nullable": column_info["nullable"],
-                    "default": column_info["default"],
-                    "primary_key": column_info["primary_key"],
-                    "field_object": column_info.get("field_object"),
-                }
+            # This conversion is incomplete as we don't have actual Field objects from the database
+            # In a real implementation, we would need to create Field objects from the column info
 
         return app_schema
 
@@ -154,24 +143,8 @@ class SchemaDiffer:
                     if field_object.__class__.__name__ == "BackwardFKRelation":
                         continue
 
-                    # Get field properties
-                    field_type = field_object.__class__.__name__
-                    nullable = getattr(field_object, "null", False)
-                    default = getattr(field_object, "default", None)
-                    pk = getattr(field_object, "pk", False)
-
-                    # Get the actual DB column name
-                    source_field = getattr(field_object, "source_field", None)
-                    db_column = source_field if source_field is not None else field_name
-
-                    app_schema["models"][model_name]["fields"][field_name] = {
-                        "column": db_column,
-                        "type": field_type,
-                        "nullable": nullable,
-                        "default": default,
-                        "primary_key": pk,
-                        "field_object": field_object,
-                    }
+                    # Store the field object directly
+                    app_schema["models"][model_name]["fields"][field_name] = field_object
 
                 # Get indexes
                 if hasattr(model._meta, "indexes") and isinstance(
@@ -257,12 +230,7 @@ class SchemaDiffer:
             model_name = model_tables[table_name]
             # Get the model info and extract field objects
             model_info = model_schema["models"][model_name]
-            field_objects = {}
-
-            for field_name, field_info in model_info["fields"].items():
-                field_obj = field_info.get("field_object")
-                if field_obj is not None:
-                    field_objects[field_name] = field_obj
+            field_objects = model_info["fields"]  # Field objects are already stored directly
 
             model_ref = f"{self.app_name}.{model_name}"
             operation = CreateModel(
@@ -281,44 +249,39 @@ class SchemaDiffer:
                 )
             )
 
-        # Check changes in existing tables (both in model and current schema)
+        # For tables that exist in both
         for table_name in sorted(set(current_tables.keys()) & set(model_tables.keys())):
             current_model_name = current_tables[table_name]
             model_model_name = model_tables[table_name]
 
+            # Get the model info for both
             current_model = current_schema["models"][current_model_name]
             model_model = model_schema["models"][model_model_name]
 
+            # Get field sets for comparison
+            current_fields = current_model["fields"]
+            model_fields = model_model["fields"]
+
+            # Map of field names between current schema and model
+            current_field_names = set(current_fields.keys())
+            model_field_names = set(model_fields.keys())
+
+            # Reference to the model
             model_ref = f"{self.app_name}.{model_model_name}"
 
-            # Map of column names to field names for both schemas
-            current_columns = {
-                field_info["column"]: field_name
-                for field_name, field_info in current_model["fields"].items()
-            }
-            model_columns = {
-                field_info["column"]: field_name
-                for field_name, field_info in model_model["fields"].items()
-            }
-
-            # Columns to add (in model but not in current schema)
-            for column_name in sorted(set(model_columns.keys()) - set(current_columns.keys())):
-                field_name = model_columns[column_name]
-                field_info = model_model["fields"][field_name]
-                field_obj = field_info.get("field_object")
-
-                if field_obj is not None:
-                    changes.append(
-                        AddField(
-                            model=model_ref,
-                            field_object=field_obj,
-                            field_name=field_name,
-                        )
+            # Fields to add (in model but not in current schema)
+            for field_name in sorted(model_field_names - current_field_names):
+                field_obj = model_fields[field_name]
+                changes.append(
+                    AddField(
+                        model=model_ref,
+                        field_object=field_obj,
+                        field_name=field_name,
                     )
+                )
 
-            # Columns to drop (in current schema but not in model)
-            for column_name in sorted(set(current_columns.keys()) - set(model_columns.keys())):
-                field_name = current_columns[column_name]
+            # Fields to drop (in current schema but not in model)
+            for field_name in sorted(current_field_names - model_field_names):
                 changes.append(
                     DropField(
                         model=model_ref,
@@ -326,30 +289,79 @@ class SchemaDiffer:
                     )
                 )
 
-            # Columns to alter (in both, but different)
-            for column_name in sorted(set(current_columns.keys()) & set(model_columns.keys())):
-                current_field_name = current_columns[column_name]
-                model_field_name = model_columns[column_name]
+            # Fields to alter (in both, but might be different)
+            for field_name in sorted(current_field_names & model_field_names):
+                current_field = current_fields[field_name]
+                model_field = model_fields[field_name]
 
-                current_field = current_model["fields"][current_field_name]
-                model_field = model_model["fields"][model_field_name]
-
-                # Check if there are differences that require altering
-                if (
-                    current_field["type"] != model_field["type"]
-                    or current_field["nullable"] != model_field["nullable"]
-                ):
-                    field_obj = model_field.get("field_object")
-                    if field_obj is not None:
-                        changes.append(
-                            AlterField(
-                                model=model_ref,
-                                field_object=field_obj,
-                                field_name=model_field_name,
-                            )
+                # Check if fields are different
+                if self._are_fields_different(current_field, model_field):
+                    changes.append(
+                        AlterField(
+                            model=model_ref,
+                            field_object=model_field,
+                            field_name=field_name,
                         )
+                    )
 
         return changes
+
+    def _are_fields_different(self, field1, field2) -> bool:
+        """
+        Compare two Field objects to determine if they are effectively different.
+
+        Args:
+            field1: First Field object
+            field2: Second Field object
+
+        Returns:
+            True if the fields are different (require migration), False otherwise
+        """
+        # Check if they're the same class type
+        if field1.__class__.__name__ != field2.__class__.__name__:
+            return True
+
+        # Check key field attributes that would require a migration
+        important_attrs = [
+            "null",
+            "default",
+            "pk",
+            "unique",
+            "index",
+            "max_length",
+            "description",
+            "constraint_name",
+            "reference",
+            "auto_now",
+            "auto_now_add",
+        ]
+
+        # For more strict comparison
+        for attr in important_attrs:
+            if (hasattr(field1, attr) and not hasattr(field2, attr)) or (
+                not hasattr(field1, attr) and hasattr(field2, attr)
+            ):
+                return True
+
+            if hasattr(field1, attr) and hasattr(field2, attr):
+                val1 = getattr(field1, attr)
+                val2 = getattr(field2, attr)
+                if val1 != val2:
+                    return True
+
+        # For RelationalField objects, check additional attributes
+        if hasattr(field1, "model_name") and hasattr(field2, "model_name"):
+            if getattr(field1, "model_name") != getattr(field2, "model_name"):
+                return True
+
+            # Check related_name
+            related_name1 = getattr(field1, "related_name", None)
+            related_name2 = getattr(field2, "related_name", None)
+            if related_name1 != related_name2:
+                return True
+
+        # Fields are effectively the same for migration purposes
+        return False
 
     def _get_table_centric_schema(self, app_schema: Dict[str, Any]) -> Dict[str, Any]:
         """Convert app-models schema to table-centric schema for comparison. DEPRECATED."""

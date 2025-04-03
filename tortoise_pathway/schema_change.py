@@ -477,8 +477,6 @@ class DropField(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for recreating a column."""
-        # With the model as a string, we can't directly access fields_map
-        # An implementation would need to import the model dynamically
         column_name = state.get_column_name(self.model_name, self.field_name)
         return f"-- Recreating column {column_name} with string model reference requires implementation"
 
@@ -633,6 +631,9 @@ class AddIndex(SchemaChange):
         column_names = []
         for field_name in self.fields:
             column_name = state.get_column_name(self.model_name, field_name)
+            # Fall back to field name if column name is None
+            if column_name is None:
+                column_name = field_name
             column_names.append(column_name)
 
         unique_prefix = "UNIQUE " if self.unique else ""
@@ -692,6 +693,9 @@ class DropIndex(SchemaChange):
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding an index."""
         column_name = state.get_column_name(self.model_name, self.field_name)
+        # Fall back to field name if column name is None
+        if column_name is None:
+            column_name = self.field_name
         return f"CREATE INDEX {self.index_name} ON {self.get_table_name(state)} ({column_name})"
 
     def to_migration(self) -> str:

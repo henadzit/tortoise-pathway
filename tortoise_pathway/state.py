@@ -51,14 +51,7 @@ class State:
         #         'ModelName': {
         #             'table': 'table_name',
         #             'fields': {
-        #                 'field_name': {
-        #                     'column': 'column_name',
-        #                     'type': 'field_type',
-        #                     'nullable': True/False,
-        #                     'default': default_value,
-        #                     'primary_key': True/False,
-        #                     'field_object': field_object,
-        #                 }
+        #                 'field_name': field_object,  # The actual Field instance
         #             },
         #             'indexes': [
         #                 {'name': 'index_name', 'unique': True/False, 'columns': ['col1', 'col2']},
@@ -119,27 +112,9 @@ class State:
             "indexes": [],
         }
 
-        # Add fields
+        # Add fields directly from the operation
         for field_name, field_obj in operation.fields.items():
-            # Get the actual DB column name
-            source_field = getattr(field_obj, "source_field", None)
-            db_column = source_field if source_field is not None else field_name
-
-            # Extract field properties
-            nullable = getattr(field_obj, "null", False)
-            default = getattr(field_obj, "default", None)
-            pk = getattr(field_obj, "pk", False)
-            field_type = field_obj.__class__.__name__
-
-            # Add the field to the state
-            self.schema["models"][model_name]["fields"][field_name] = {
-                "column": db_column,
-                "type": field_type,
-                "nullable": nullable,
-                "default": default,
-                "primary_key": pk,
-                "field_object": field_obj,
-            }
+            self.schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_drop_model(self, model_name: str, operation: DropModel) -> None:
         """Apply a DropModel operation to the state."""
@@ -159,28 +134,14 @@ class State:
 
     def _apply_add_field(self, model_name: str, operation: AddField) -> None:
         """Apply an AddField operation to the state."""
-        column_name = operation.column_name
         field_obj = operation.field_object
         field_name = operation.field_name
 
         if model_name not in self.schema["models"]:
             return
 
-        # Extract field properties
-        nullable = getattr(field_obj, "null", False)
-        default = getattr(field_obj, "default", None)
-        pk = getattr(field_obj, "pk", False)
-        field_type = field_obj.__class__.__name__
-
-        # Add the field to the state
-        self.schema["models"][model_name]["fields"][field_name] = {
-            "column": column_name,
-            "type": field_type,
-            "nullable": nullable,
-            "default": default,
-            "primary_key": pk,
-            "field_object": field_obj,
-        }
+        # Add the field directly to the state
+        self.schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_drop_field(self, model_name: str, operation: DropField) -> None:
         """Apply a DropField operation to the state."""
@@ -203,24 +164,8 @@ class State:
 
         # Verify the field exists
         if field_name in self.schema["models"][model_name]["fields"]:
-            # Extract field properties
-            nullable = getattr(field_obj, "null", False)
-            default = getattr(field_obj, "default", None)
-            pk = getattr(field_obj, "pk", False)
-            field_type = field_obj.__class__.__name__
-
-            # Get the column name (keep the existing one)
-            column_name = self.schema["models"][model_name]["fields"][field_name]["column"]
-
-            # Update the field in the state
-            self.schema["models"][model_name]["fields"][field_name] = {
-                "column": column_name,
-                "type": field_type,
-                "nullable": nullable,
-                "default": default,
-                "primary_key": pk,
-                "field_object": field_obj,
-            }
+            # Replace with the new field object
+            self.schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_rename_field(self, model_name: str, operation: RenameField) -> None:
         """Apply a RenameField operation to the state."""
@@ -232,11 +177,11 @@ class State:
 
         # Verify the old field exists
         if old_field_name in self.schema["models"][model_name]["fields"]:
-            # Get the old field's data
-            field_data = self.schema["models"][model_name]["fields"][old_field_name]
+            # Get the field object
+            field_obj = self.schema["models"][model_name]["fields"][old_field_name]
 
             # Add the field with the new name
-            self.schema["models"][model_name]["fields"][new_field_name] = field_data
+            self.schema["models"][model_name]["fields"][new_field_name] = field_obj
 
             # Remove the old field
             del self.schema["models"][model_name]["fields"][old_field_name]
@@ -249,11 +194,13 @@ class State:
         # Get field names from operation
         fields = operation.fields if hasattr(operation, "fields") else [operation.field_name]
 
-        # Convert field names to column names
+        # Get column names from the fields
         columns = []
         for field_name in fields:
             if field_name in self.schema["models"][model_name]["fields"]:
-                column_name = self.schema["models"][model_name]["fields"][field_name]["column"]
+                field_obj = self.schema["models"][model_name]["fields"][field_name]
+                # Get the column name from the field object or use field name as default
+                column_name = getattr(field_obj, "source_field", field_name)
                 columns.append(column_name)
 
         # Add the index to the state
@@ -329,6 +276,14 @@ class State:
             The column name, or None if not found.
         """
         try:
-            return self.schema["models"][model]["fields"][field_name]["column"]
+            if (
+                model in self.schema["models"]
+                and field_name in self.schema["models"][model]["fields"]
+            ):
+                field_obj = self.schema["models"][model]["fields"][field_name]
+                # Get source_field if available, otherwise use field_name as the column name
+                source_field = getattr(field_obj, "source_field", None)
+                return source_field if source_field is not None else field_name
+            return None
         except (KeyError, TypeError):
             return field_name  # Fall back to using field name as column name
