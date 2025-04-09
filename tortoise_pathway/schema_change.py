@@ -441,10 +441,7 @@ class AddField(SchemaChange):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
-        if dialect == "sqlite":
-            return "-- SQLite doesn't support DROP COLUMN directly. Create a new table without this column."
-        else:
-            return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {self.column_name}"
+        return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {self.column_name}"
 
     def to_migration(self) -> str:
         """Generate Python code to add a field in a migration."""
@@ -469,16 +466,16 @@ class DropField(SchemaChange):
         self.field_name = field_name
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
-        """Generate SQL for dropping a column."""
         # Get actual column name from state
         column_name = state.get_column_name(self.model_name, self.field_name)
 
         return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {column_name}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
-        """Generate SQL for recreating a column."""
-        column_name = state.get_column_name(self.model_name, self.field_name)
-        return f"-- Recreating column {column_name} with string model reference requires implementation"
+        field = state.prev().get_field(self.model_name, self.field_name)
+        if field is None:
+            raise ValueError(f"Field {self.field_name} not found in model {self.model_name}")
+        return AddField(self.model, field, self.field_name).forward_sql(state, dialect)
 
     def to_migration(self) -> str:
         """Generate Python code to drop a field in a migration."""
@@ -498,12 +495,10 @@ class AlterField(SchemaChange):
         model: str,
         field_object: Field,
         field_name: str,
-        old_field_object: Optional[Field] = None,
     ):
         super().__init__(model)
         self.field_object = field_object
         self.field_name = field_name
-        self.old_field_object = old_field_object
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for altering a column."""
@@ -527,20 +522,10 @@ class AlterField(SchemaChange):
             return f"-- Alter column not implemented for dialect: {dialect}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
-        """Generate SQL for reverting a column alteration."""
-        column_name = state.get_column_name(self.model_name, self.field_name)
-
-        # This requires old column information
-        if not self.old_field_object:
-            return "-- Cannot revert column alteration: old column information not available"
-
-        # Even with old info, SQLite doesn't support this directly
-        if dialect == "sqlite":
-            return "-- SQLite doesn't support ALTER COLUMN directly. Create a new table with the original schema."
-
-        # For postgres and other databases that support ALTER COLUMN
-        # This is a simplified version, would need more detailed logic for a real implementation
-        return f"-- Reverting column alteration for {column_name} requires manual intervention"
+        prev_field = state.prev().get_field(self.model_name, self.field_name)
+        if prev_field is None:
+            raise ValueError(f"Field {self.field_name} not found in model {self.model_name}")
+        return AlterField(self.model, prev_field, self.field_name).forward_sql(state, dialect)
 
     def to_migration(self) -> str:
         """Generate Python code to alter a field in a migration."""
@@ -549,10 +534,6 @@ class AlterField(SchemaChange):
         lines.append(f'    model="{self.model}",')
         lines.append(f"    field_object={field_to_migration(self.field_object)},")
         lines.append(f'    field_name="{self.field_name}",')
-
-        if self.old_field_object:
-            lines.append(f"    old_field_object={field_to_migration(self.old_field_object)},")
-
         lines.append(")")
         return "\n".join(lines)
 
@@ -573,26 +554,16 @@ class RenameField(SchemaChange):
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for renaming a column."""
         column_name = state.get_column_name(self.model_name, self.field_name)
-        # For the new column name, we just use the new field name directly
-        # In a real implementation, we might need to determine the actual column name based on model metadata
 
-        if dialect == "sqlite":
-            return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the new schema."
-        elif dialect == "postgres":
-            return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {column_name} TO {self.new_name}"
-        else:
-            return f"-- Rename column not implemented for dialect: {dialect}"
+        return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {column_name} TO {self.new_name}"
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for reverting a column rename."""
-        column_name = state.get_column_name(self.model_name, self.field_name)
+        old_name = state.prev().get_column_name(self.model_name, self.field_name)
 
-        if dialect == "sqlite":
-            return "-- SQLite doesn't support RENAME COLUMN directly. Create a new table with the original schema."
-        elif dialect == "postgres":
-            return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {self.new_name} TO {column_name}"
-        else:
-            return f"-- Rename column not implemented for dialect: {dialect}"
+        return (
+            f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {self.new_name} TO {old_name}"
+        )
 
     def to_migration(self) -> str:
         """Generate Python code to rename a field in a migration."""

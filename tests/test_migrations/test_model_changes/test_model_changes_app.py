@@ -10,6 +10,7 @@ from tortoise import Tortoise
 from tortoise_pathway.migration_manager import MigrationManager
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_change import (
+    AlterField,
     CreateModel,
     AddField,
     DropField,
@@ -67,7 +68,7 @@ async def test_model_changes(setup_db_file, tortoise_config):
 
     # Verify the exact operations and their order
     operations = migration.operations
-    assert len(operations) == 5
+    assert len(operations) == 6
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
@@ -90,9 +91,15 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert operations[3].get_table_name(manager.state) == "blogs"
     assert operations[3].field_name == "content"
 
-    assert isinstance(operations[4], AddField)
-    assert operations[4].get_table_name(manager.state) == "tags"
-    assert operations[4].field_name == "description"
+    assert isinstance(operations[4], AlterField)
+    assert operations[4].get_table_name(manager.state) == "blogs"
+    assert operations[4].field_name == "slug"
+    assert operations[4].field_object is not None
+    assert operations[4].field_object.unique
+
+    assert isinstance(operations[5], AddField)
+    assert operations[5].get_table_name(manager.state) == "tags"
+    assert operations[5].field_name == "description"
 
     # Verify field deletion operation
 

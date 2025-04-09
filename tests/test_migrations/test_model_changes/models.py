@@ -3,12 +3,15 @@ Models for testing application with model changes after initial migration.
 """
 
 from tortoise import fields, models
+from tortoise.indexes import Index
 
 
 class Blog(models.Model):
-    """Blog model for testing."""
+    """Existing model"""
 
     id = fields.IntField(primary_key=True)
+    # Changed from original: Added unique=True
+    slug = fields.CharField(max_length=255, unique=True)
     title = fields.CharField(max_length=255)
     # Changed from original: Removed the 'content' field to simulate field deletion
     # content = fields.TextField()
@@ -20,13 +23,15 @@ class Blog(models.Model):
 
     class Meta:
         table = "blogs"
+        # Changed from original: Added a new index
+        indexes = [("created_at",)]
 
     def __str__(self):
         return self.title
 
 
 class Tag(models.Model):
-    """Tag model for testing."""
+    """Existing model"""
 
     id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=50, unique=True)
@@ -42,7 +47,7 @@ class Tag(models.Model):
 
 # Changed from original: Added a new model
 class Comment(models.Model):
-    """Comment model for testing."""
+    """New model"""
 
     id = fields.IntField(primary_key=True)
     blog = fields.ForeignKeyField("test_model_changes.Blog", related_name="comments")

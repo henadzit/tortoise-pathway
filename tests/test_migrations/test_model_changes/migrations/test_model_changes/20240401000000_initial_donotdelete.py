@@ -21,6 +21,7 @@ class InitialMigration(Migration):
             model="test_model_changes.Blog",
             fields={
                 "id": IntField(primary_key=True),
+                "slug": CharField(max_length=255),
                 "title": CharField(max_length=255),
                 "content": TextField(),
                 "created_at": DatetimeField(auto_now_add=True),

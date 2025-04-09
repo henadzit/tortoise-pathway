@@ -8,6 +8,7 @@ on applied migrations, rather than the actual database state.
 import copy
 from typing import Dict, Any, List, Optional, Tuple, cast
 
+from tortoise.fields import Field
 
 from tortoise_pathway.schema_change import (
     SchemaChange,
@@ -283,6 +284,14 @@ class State:
             return self.schema["models"][model]["table"]
         except (KeyError, TypeError):
             return None
+
+    def get_field(self, model: str, field_name: str) -> Optional[Field]:
+        """
+        Get the field object for a specific field.
+        """
+        if model in self.schema["models"] and field_name in self.schema["models"][model]["fields"]:
+            return self.schema["models"][model]["fields"][field_name]
+        return None
 
     def get_column_name(self, model: str, field_name: str) -> Optional[str]:
         """
