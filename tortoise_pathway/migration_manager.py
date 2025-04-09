@@ -179,7 +179,9 @@ class MigrationManager:
 
             try:
                 # Apply migration
-                await migration.apply(state=self.state)
+                for operation in migration.operations:
+                    await operation.apply(self.state)
+                    self.state.apply_operation(operation)
 
                 # Record that migration was applied
                 now = datetime.datetime.now().isoformat()
@@ -190,9 +192,8 @@ class MigrationManager:
 
                 self.applied_migrations.add(migration_name)
                 applied_migrations.append(migration)
-                self._rebuild_state()
+                self.state.snapshot(migration_name)
                 print(f"Applied migration: {migration_name}")
-
             except Exception as e:
                 print(f"Error applying migration {migration_name}: {e}")
                 # Rollback transaction if supported
@@ -239,9 +240,9 @@ class MigrationManager:
         migration = migration_class()
 
         try:
-            # Revert migration
-            await migration.revert(state=self.state)
-
+            for operation in reversed(migration.operations):
+                await operation.revert(self.state)
+                self.state.apply_operation(operation)
             # Remove migration record
             await conn.execute_query(
                 "DELETE FROM tortoise_migrations WHERE app = ? AND name = ?",
@@ -251,7 +252,7 @@ class MigrationManager:
             self.applied_migrations.remove(migration_name)
 
             # Rebuild state from remaining applied migrations
-            self._rebuild_state()
+            self.state = self.state.prev()
 
             print(f"Reverted migration: {migration_name}")
             return migration
@@ -300,3 +301,4 @@ class MigrationManager:
         for migration in self.get_applied_migrations():
             for operation in migration.operations:
                 self.state.apply_operation(operation)
+            self.state.snapshot(migration.name())

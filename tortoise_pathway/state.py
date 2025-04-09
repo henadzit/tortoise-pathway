@@ -5,7 +5,8 @@ This module provides the State class that manages the state of the models based
 on applied migrations, rather than the actual database state.
 """
 
-from typing import Dict, Any, Optional, cast
+import copy
+from typing import Dict, Any, List, Optional, Tuple, cast
 
 
 from tortoise_pathway.schema_change import (
@@ -60,6 +61,7 @@ class State:
         #     }
         # }
         self.schema: Dict[str, Dict[str, Any]] = {"models": {}}
+        self.snapshots: List[Tuple[str, State]] = []
 
     def apply_operation(self, operation: SchemaChange) -> None:
         """
@@ -100,6 +102,24 @@ class State:
             self._apply_add_constraint(model_name, operation)
         elif isinstance(operation, DropConstraint):
             self._apply_drop_constraint(model_name, operation)
+
+    def snapshot(self, name: str) -> None:
+        """
+        Take a snapshot of the current state.
+
+        Args:
+            name: The name of the snapshot.
+        """
+        self.snapshots.append((name, copy.deepcopy(self)))
+
+    def prev(self) -> "State":
+        """
+        Get the previous state.
+        """
+        if len(self.snapshots) == 1:
+            return State(self.app_name)
+        _, state = self.snapshots[-2]
+        return state
 
     def _apply_create_model(self, model_name: str, operation: CreateModel) -> None:
         """Apply a CreateModel operation to the state."""
