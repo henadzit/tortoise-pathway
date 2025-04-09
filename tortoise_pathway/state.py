@@ -293,6 +293,20 @@ class State:
             return self.schema["models"][model]["fields"][field_name]
         return None
 
+    def get_fields(self, model: str) -> Optional[Dict[str, Field]]:
+        """
+        Get all fields for a specific model.
+
+        Args:
+            model: The model name.
+
+        Returns:
+            Dictionary mapping field names to Field objects, or None if model not found.
+        """
+        if model in self.schema["models"]:
+            return self.schema["models"][model]["fields"]
+        return None
+
     def get_column_name(self, model: str, field_name: str) -> Optional[str]:
         """
         Get the column name for a specific field.

@@ -150,5 +150,28 @@ async def test_model_changes(setup_db_file, tortoise_config):
     tag_column_names = [column["name"] for column in tag_columns[1]]
     assert "description" in tag_column_names
 
+    # Verify the unique index on the slug field
+    indexes = await conn.execute_query("PRAGMA index_list('blogs')")
+    index_names = [idx["name"] for idx in indexes[1]]
+
+    # Find any index that might be on the slug column
+    slug_index = None
+    for index_name in index_names:
+        index_info = await conn.execute_query(f"PRAGMA index_info('{index_name}')")
+        for column_info in index_info[1]:
+            if column_info["name"] == "slug":
+                slug_index = index_name
+                break
+        if slug_index:
+            break
+
+    assert slug_index is not None, "No index found for the slug column"
+
+    # Check if the index is unique
+    for idx in indexes[1]:
+        if idx["name"] == slug_index:
+            assert idx["unique"] == 1, "The index on slug is not unique"
+            break
+
     # Clean up
     await Tortoise.close_connections()
