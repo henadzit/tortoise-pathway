@@ -13,6 +13,7 @@ from tortoise import Tortoise, Model
 from tortoise.fields import Field, IntField
 
 from tortoise_pathway.schema_change import (
+    AddField,
     SchemaChange,
     CreateModel,
 )
@@ -194,10 +195,10 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
 
             # Add field type imports if using fields dictionary
             if hasattr(change, "fields") and change.fields:
-                for field_name, field_obj in change.fields.items():
-                    field_class = field_obj.__class__.__name__
-                    field_module = field_obj.__class__.__module__
-                    field_imports.add(f"from {field_module} import {field_class}")
+                for field_obj in change.fields.values():
+                    field_imports.add(field_to_import(field_obj))
+        elif isinstance(change, AddField):
+            field_imports.add(field_to_import(change.field_object))
 
     schema_imports = ", ".join(sorted(schema_changes_used))
     model_imports_str = "\n".join(sorted(model_imports))
@@ -255,3 +256,10 @@ class {class_name}(Migration):
 {operations_str}
     ]
 '''
+
+
+def field_to_import(field: Field) -> str:
+    """
+    Convert a field object to an import string.
+    """
+    return f"from {field.__class__.__module__} import {field.__class__.__name__}"
