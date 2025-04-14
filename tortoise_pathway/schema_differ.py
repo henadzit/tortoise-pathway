@@ -11,8 +11,8 @@ from tortoise import Tortoise
 from tortoise.models import Model
 
 from tortoise_pathway.state import State
-from tortoise_pathway.schema_change import (
-    SchemaChange,
+from tortoise_pathway.operations import (
+    Operation,
     CreateModel,
     DropModel,
     AddField,
@@ -206,12 +206,12 @@ class SchemaDiffer:
 
         return app_schema
 
-    async def detect_changes(self) -> List[SchemaChange]:
+    async def detect_changes(self) -> List[Operation]:
         """
         Detect schema changes between models and state derived from migrations.
 
         Returns:
-            List of SchemaChange objects representing the detected changes.
+            List of Operation objects representing the detected changes.
         """
         current_schema = self.state.get_schema()
         model_schema = self.get_model_schema()

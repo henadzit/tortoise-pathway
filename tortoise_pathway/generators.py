@@ -12,9 +12,9 @@ import re
 from tortoise import Tortoise, Model
 from tortoise.fields import Field, IntField
 
-from tortoise_pathway.schema_change import (
+from tortoise_pathway.operations import (
     AddField,
-    SchemaChange,
+    Operation,
     CreateModel,
 )
 
@@ -86,7 +86,9 @@ def generate_table_creation_sql(model: Type[Model], dialect: str = "sqlite") -> 
 
         # Add foreign key constraints if needed
         if hasattr(field_obj, "reference") and field_obj.reference:
-            related_table = field_obj.reference.db_table
+            reference = getattr(field_obj, "reference")
+            # Safe access to db_table via getattr
+            related_table = getattr(reference, "db_table", None)
 
             # For SQLite, in-place constraints are possible
             if related_table:
@@ -163,7 +165,7 @@ class {class_name}(Migration):
 '''
 
 
-def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) -> str:
+def generate_auto_migration(migration_name: str, changes: List[Operation]) -> str:
     """
     Generate migration file content based on detected changes.
 
@@ -207,7 +209,7 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
     # Complete import section
     imports = []
     imports.append("from tortoise_pathway.migration import Migration")
-    imports.append(f"from tortoise_pathway.schema_change import {schema_imports}")
+    imports.append(f"from tortoise_pathway.operations import {schema_imports}")
 
     if model_imports_str:
         imports.append(model_imports_str)
@@ -220,8 +222,6 @@ def generate_auto_migration(migration_name: str, changes: List[SchemaChange]) ->
     # Generate operations code by utilizing the to_migration method
     operations = []
     for i, change in enumerate(changes):
-        operations.append(f"    # {change}")
-
         # Get the to_migration code which represents the operation
         migration_code = change.to_migration()
 

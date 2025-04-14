@@ -10,8 +10,8 @@ from typing import Dict, Any, List, Optional, Tuple, cast
 
 from tortoise.fields import Field
 
-from tortoise_pathway.schema_change import (
-    SchemaChange,
+from tortoise_pathway.operations import (
+    Operation,
     CreateModel,
     DropModel,
     RenameModel,
@@ -64,12 +64,12 @@ class State:
         self.schema: Dict[str, Dict[str, Any]] = {"models": {}}
         self.snapshots: List[Tuple[str, State]] = []
 
-    def apply_operation(self, operation: SchemaChange) -> None:
+    def apply_operation(self, operation: Operation) -> None:
         """
         Apply a single schema change operation to the state.
 
         Args:
-            operation: The SchemaChange object to apply.
+            operation: The Operation object to apply.
         """
         # Extract app_name and model_name from the model reference (format: "app_name.ModelName")
         parts = operation.model.split(".")

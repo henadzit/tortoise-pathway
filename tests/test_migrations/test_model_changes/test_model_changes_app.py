@@ -8,8 +8,7 @@ from pathlib import Path
 
 from tortoise import Tortoise
 from tortoise_pathway.migration_manager import MigrationManager
-from tortoise_pathway.state import State
-from tortoise_pathway.schema_change import (
+from tortoise_pathway.operations import (
     AddIndex,
     AlterField,
     CreateModel,

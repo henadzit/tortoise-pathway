@@ -5,7 +5,7 @@ Tests for schema change operations.
 import pytest
 
 from tortoise import Tortoise, fields, models
-from tortoise_pathway.schema_change import (
+from tortoise_pathway.operations import (
     CreateModel,
     DropModel,
     AddField,

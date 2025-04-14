@@ -6,8 +6,7 @@ Tests for the State class.
 from tortoise.fields import IntField, CharField, TextField, DatetimeField
 
 from tortoise_pathway.state import State
-from tortoise_pathway.migration import Migration
-from tortoise_pathway.schema_change import (
+from tortoise_pathway.operations import (
     CreateModel,
     AddField,
     DropField,

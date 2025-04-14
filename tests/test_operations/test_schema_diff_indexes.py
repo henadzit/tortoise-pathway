@@ -6,7 +6,7 @@ from tortoise.fields import IntField, CharField, DatetimeField
 
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_differ import SchemaDiffer
-from tortoise_pathway.schema_change import AddIndex, DropIndex, CreateModel
+from tortoise_pathway.operations import AddIndex, DropIndex, CreateModel
 
 
 async def test_detect_index_additions():

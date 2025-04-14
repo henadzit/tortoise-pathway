@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import List
 
-from tortoise_pathway.schema_change import SchemaChange
+from tortoise_pathway.operations import Operation
 
 
 class Migration:
     """Base class for all migrations."""
 
     dependencies: List[str] = []
-    operations: List[SchemaChange] = []
+    operations: List[Operation] = []
 
     def name(self) -> str:
         """
