@@ -18,6 +18,8 @@ from tortoise_pathway.schema_change import (
     AddField,
     DropField,
     AlterField,
+    AddIndex,
+    DropIndex,
 )
 
 
@@ -303,6 +305,104 @@ class SchemaDiffer:
                             field_name=field_name,
                         )
                     )
+
+            # Compare indexes
+            # Get indexes from both current schema and model schema
+            current_indexes = current_model.get("indexes", [])
+            model_indexes = model_model.get("indexes", [])
+
+            # Create maps of index names for easier comparison
+            current_index_map = {idx["name"]: idx for idx in current_indexes}
+            model_index_map = {idx["name"]: idx for idx in model_indexes}
+
+            # Indexes to add (in model but not in current schema)
+            for index_name in set(model_index_map.keys()) - set(current_index_map.keys()):
+                index = model_index_map[index_name]
+                # Use the first column as the primary field name for the AddIndex operation
+                # The other columns will be included in the 'fields' parameter
+                if index["columns"]:
+                    primary_field_name = index["columns"][0]
+                    # Find the corresponding field name from column name
+                    for field_name, field_obj in model_fields.items():
+                        source_field = getattr(field_obj, "source_field", None)
+                        if source_field == primary_field_name or field_name == primary_field_name:
+                            changes.append(
+                                AddIndex(
+                                    model=model_ref,
+                                    field_name=field_name,
+                                    index_name=index_name,
+                                    unique=index["unique"],
+                                    fields=index["columns"],
+                                )
+                            )
+                            break
+
+            # Indexes to drop (in current schema but not in model)
+            for index_name in set(current_index_map.keys()) - set(model_index_map.keys()):
+                index = current_index_map[index_name]
+                # Use the first column as the primary field name for the DropIndex operation
+                if index["columns"]:
+                    primary_field_name = index["columns"][0]
+                    # Find the corresponding field name from column name
+                    for field_name, field_obj in current_fields.items():
+                        source_field = getattr(field_obj, "source_field", None)
+                        if source_field == primary_field_name or field_name == primary_field_name:
+                            changes.append(
+                                DropIndex(
+                                    model=model_ref,
+                                    field_name=field_name,
+                                    index_name=index_name,
+                                )
+                            )
+                            break
+
+            # Indexes to alter (in both, but different)
+            for index_name in set(current_index_map.keys()) & set(model_index_map.keys()):
+                current_index = current_index_map[index_name]
+                model_index = model_index_map[index_name]
+
+                # Check if indexes are different
+                if (
+                    current_index["unique"] != model_index["unique"]
+                    or current_index["columns"] != model_index["columns"]
+                ):
+                    # First drop the old index
+                    if current_index["columns"]:
+                        primary_field_name = current_index["columns"][0]
+                        for field_name, field_obj in current_fields.items():
+                            source_field = getattr(field_obj, "source_field", None)
+                            if (
+                                source_field == primary_field_name
+                                or field_name == primary_field_name
+                            ):
+                                changes.append(
+                                    DropIndex(
+                                        model=model_ref,
+                                        field_name=field_name,
+                                        index_name=index_name,
+                                    )
+                                )
+                                break
+
+                    # Then add the new index
+                    if model_index["columns"]:
+                        primary_field_name = model_index["columns"][0]
+                        for field_name, field_obj in model_fields.items():
+                            source_field = getattr(field_obj, "source_field", None)
+                            if (
+                                source_field == primary_field_name
+                                or field_name == primary_field_name
+                            ):
+                                changes.append(
+                                    AddIndex(
+                                        model=model_ref,
+                                        field_name=field_name,
+                                        index_name=index_name,
+                                        unique=model_index["unique"],
+                                        fields=model_index["columns"],
+                                    )
+                                )
+                                break
 
         return changes
 
