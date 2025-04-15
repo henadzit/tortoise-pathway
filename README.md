@@ -1,12 +1,16 @@
 # Tortoise Pathway
 
-Tortoise Pathway is a migration system for Tortoise ORM, inspired by Django's migration approach.
+⚠️ **This project is in VERY early development and not yet ready for production use. Most things are broken and they will break again, APIs will change.**
+
+⚠️ **Most of the code is written with Claude, there are some issues with code style.**
+
+Tortoise Pathway is a migration system for [Tortoise ORM](https://github.com/tortoise/tortoise-orm/), inspired by Django's migration approach.
 
 ## Features
 
 - Generate schema migrations from Tortoise models
 - Apply and revert migrations
-
+- No need for a database connection to generate migrations
 
 ## Installation
 
@@ -73,17 +77,17 @@ class User(models.Model):
 
 Generate migrations automatically based on your models:
 ```
-python -m tortoise_pathway make --config myapp.config.TORTOISE_ORM
+python -m tortoise_pathway --config myapp.config.TORTOISE_ORM make
 ```
 
 Apply migrations:
 ```
-python -m tortoise_pathway migrate --config myapp.config.TORTOISE_ORM
+python -m tortoise_pathway --config myapp.config.TORTOISE_ORM migrate
 ```
 
 Revert a migration:
 ```
-python -m tortoise_pathway rollback --config myapp.config.TORTOISE_ORM --migration <migration_name>
+python -m tortoise_pathway --config myapp.config.TORTOISE_ORM rollback --migration <migration_name>
 ```
 
 ## Known Limitations
