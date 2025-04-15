@@ -20,10 +20,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourname/tortoise-pathway"
-Documentation = "https://github.com/yourname/tortoise-pathway"
-Repository = "https://github.com/yourname/tortoise-pathway.git"
-Issues = "https://github.com/yourname/tortoise-pathway/issues"
+Homepage = "https://github.com/henadzit/tortoise-pathway"
+Documentation = "https://github.com/henadzit/tortoise-pathway"
+Repository = "https://github.com/henadzit/tortoise-pathway.git"
+Issues = "https://github.com/henadzit/tortoise-pathway/issues"
 
 [project.scripts]
 tortoise-pathway = "tortoise_pathway.cli:main"
@@ -72,7 +72,6 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# Moved from top-level
 ignore = []
 fixable = ["ALL"]
 unfixable = []

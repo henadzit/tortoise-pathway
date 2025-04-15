@@ -3,7 +3,6 @@ Tests for application with no migrations.
 """
 
 import pytest
-import os
 from pathlib import Path
 
 from tortoise import Tortoise

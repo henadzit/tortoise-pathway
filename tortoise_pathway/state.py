@@ -6,7 +6,7 @@ on applied migrations, rather than the actual database state.
 """
 
 import copy
-from typing import Dict, Any, List, Optional, Tuple, cast
+from typing import Dict, Any, List, Optional, Tuple
 
 from tortoise.fields import Field
 

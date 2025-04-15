@@ -67,7 +67,7 @@ class CreateModel(Operation):
                     db_column = f"{db_field_name}_id"
 
                 # Add foreign key constraint if related table is known
-                related_model_name = getattr(field, "model_name", None)
+                _ = getattr(field, "model_name", None)
                 related_table = getattr(field, "related_table", None)
 
                 if related_table:

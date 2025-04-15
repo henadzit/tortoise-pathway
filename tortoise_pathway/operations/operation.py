@@ -3,7 +3,7 @@ Base operation for Tortoise ORM migrations.
 """
 
 import re
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from tortoise import connections
 
@@ -82,7 +82,6 @@ class Operation:
 
         # Last resort: Convert from model name to table name using convention
         # (typically CamelCase to snake_case)
-        import re
 
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
         return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()

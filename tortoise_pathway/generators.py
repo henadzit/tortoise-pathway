@@ -6,11 +6,10 @@ across the codebase. It includes SQL generation and migration file templates.
 """
 
 import datetime
-from typing import List, Type, Dict, Any, Set
+from typing import List
 import re
 
-from tortoise import Tortoise, Model
-from tortoise.fields import Field, IntField
+from tortoise.fields import Field
 
 from tortoise_pathway.operations import (
     AddField,

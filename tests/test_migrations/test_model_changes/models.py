@@ -3,7 +3,6 @@ Models for testing application with model changes after initial migration.
 """
 
 from tortoise import fields, models
-from tortoise.indexes import Index
 
 
 class Blog(models.Model):

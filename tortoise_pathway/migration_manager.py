@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Type, cast
 
 from tortoise import Tortoise
-from tortoise.exceptions import OperationalError
 
 from tortoise_pathway.migration import Migration
 from tortoise_pathway.schema_differ import SchemaDiffer

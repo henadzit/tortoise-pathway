@@ -4,7 +4,6 @@ Command-line interface for Tortoise ORM migrations.
 This module provides a command-line interface for managing migrations.
 """
 
-import os
 import sys
 import asyncio
 import argparse
