@@ -77,7 +77,7 @@ async def test_model_changes(setup_db_file, tortoise_config):
     assert "content" in comments_table_op.fields
     assert "author_name" in comments_table_op.fields
     assert "created_at" in comments_table_op.fields
-    assert "blog_id" in comments_table_op.fields
+    assert "blog" in comments_table_op.fields
 
     assert isinstance(operations[1], AddField)
     assert operations[1].get_table_name(manager.state) == "blogs"

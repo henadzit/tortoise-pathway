@@ -21,18 +21,7 @@ def get_dialect(connection) -> str:
     Returns:
         A string representing the dialect ('sqlite', 'postgres', etc.)
     """
-    # Check connection attributes or class name to determine dialect
-    connection_class = connection.__class__.__name__
-
-    if "SQLite" in connection_class:
-        return "sqlite"
-    elif "Postgres" in connection_class:
-        return "postgres"
-    elif "MySQL" in connection_class:
-        return "mysql"
-
-    # Default to sqlite if unknown
-    return "sqlite"
+    return connection.capabilities.dialect
 
 
 class Operation:

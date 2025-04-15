@@ -8,7 +8,7 @@ dependencies = [
     "tortoise-orm>=0.24.2",
 ]
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "henadzit"},
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -27,6 +27,11 @@ Issues = "https://github.com/yourname/tortoise-pathway/issues"
 
 [project.scripts]
 tortoise-pathway = "tortoise_pathway.cli:main"
+
+[project.optional-dependencies]
+psycopg = [
+    "psycopg[pool]>=3.2.6",
+]
 
 [build-system]
 requires = ["hatchling"]

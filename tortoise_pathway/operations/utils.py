@@ -61,10 +61,8 @@ def field_to_migration(field: Field) -> str:
             params.append(f"decimal_places={decimal_places}")
 
     if isinstance(field, RelationalField):
-        # For RelationalField attributes, ensure they exist before accessing
-        if hasattr(field, "model_name"):
-            related_model = getattr(field, "model_name")
-            params.append(f"'{related_model}'")
+        related_model = getattr(field, "model_name")
+        params.append(f"'{related_model}'")
 
         if hasattr(field, "related_name"):
             related_name = getattr(field, "related_name")
@@ -74,6 +72,8 @@ def field_to_migration(field: Field) -> str:
         if hasattr(field, "on_delete"):
             on_delete = getattr(field, "on_delete")
             params.append(f"on_delete='{on_delete}'")
+
+        params.append(f"source_field='{field.source_field}'")
 
     # Generate the final string representation
     return f"{field_type}({', '.join(params)})"

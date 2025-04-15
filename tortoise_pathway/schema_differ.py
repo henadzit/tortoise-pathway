@@ -141,8 +141,13 @@ class SchemaDiffer:
 
                 # Get fields
                 for field_name, field_object in model._meta.fields_map.items():
+
                     # Skip reverse relations
                     if field_object.__class__.__name__ == "BackwardFKRelation":
+                        continue
+
+                    # skip fields that are references to other models, e.g. user_id
+                    if field_object.reference is not None:
                         continue
 
                     # Store the field object directly

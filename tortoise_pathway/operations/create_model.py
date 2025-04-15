@@ -4,7 +4,7 @@ CreateModel operation for Tortoise ORM migrations.
 
 from typing import Dict, TYPE_CHECKING
 
-from tortoise.fields import Field
+from tortoise.fields import Field, IntField
 from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.operations.operation import Operation
@@ -56,7 +56,7 @@ class CreateModel(Operation):
                 continue
 
             # Handle ForeignKey fields
-            if field_type == "ForeignKeyField":
+            if isinstance(field, RelationalField):
                 # For ForeignKeyField, use the actual db column name (typically field_name + "_id")
                 db_field_name = getattr(field, "model_field_name", field_name)
                 source_field = getattr(field, "source_field", None)
@@ -72,18 +72,20 @@ class CreateModel(Operation):
 
                 if related_table:
                     constraints.append(f"FOREIGN KEY ({db_column}) REFERENCES {related_table} (id)")
+
+                # TODO: foreign keys might have a different type
+                sql_type = IntField().get_for_dialect(dialect, "SQL_TYPE")
             else:
                 # Use source_field if provided, otherwise use the field name
                 source_field = getattr(field, "source_field", None)
                 db_column = source_field if source_field is not None else field_name
 
+                sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
+
             nullable = getattr(field, "null", False)
             unique = getattr(field, "unique", False)
             pk = getattr(field, "pk", False)
             default = getattr(field, "default", None)
-
-            # Get SQL type using the get_for_dialect method
-            sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
 
             # Handle special cases for primary keys
             if pk:
@@ -128,7 +130,7 @@ class CreateModel(Operation):
             columns.append(column_def)
 
         # Build the CREATE TABLE statement
-        sql = f"CREATE TABLE {self.get_table_name(state)} (\n"
+        sql = f'CREATE TABLE "{self.get_table_name(state)}" (\n'
         sql += ",\n".join(["    " + col for col in columns])
 
         if constraints:

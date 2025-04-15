@@ -48,25 +48,13 @@ class MigrationManager:
         """Create migration history table if it doesn't exist."""
         conn = connection or Tortoise.get_connection("default")
 
-        try:
-            await conn.execute_script("""
-            CREATE TABLE IF NOT EXISTS tortoise_migrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                app VARCHAR(100) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                applied_at TIMESTAMP NOT NULL
-            )
-            """)
-        except OperationalError:
-            # Different syntax for PostgreSQL
-            await conn.execute_script("""
-            CREATE TABLE IF NOT EXISTS tortoise_migrations (
-                id SERIAL PRIMARY KEY,
-                app VARCHAR(100) NOT NULL,
-                name VARCHAR(255) NOT NULL,
-                applied_at TIMESTAMP NOT NULL
-            )
-            """)
+        await conn.execute_script("""
+        CREATE TABLE IF NOT EXISTS tortoise_migrations (
+            app VARCHAR(100) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            applied_at TIMESTAMP NOT NULL
+        )
+        """)
 
     async def _load_applied_migrations(self, connection=None) -> None:
         """Load list of applied migrations from the database."""
@@ -185,9 +173,10 @@ class MigrationManager:
 
                 # Record that migration was applied
                 now = datetime.datetime.now().isoformat()
+                # inlining the values helps to avoid the complexity of choosing the correct placeholders
+                # for the backend. The probability of SQL injection here is close to 0.
                 await conn.execute_query(
-                    "INSERT INTO tortoise_migrations (app, name, applied_at) VALUES (?, ?, ?)",
-                    [self.app_name, migration_name, now],
+                    f"INSERT INTO tortoise_migrations (app, name, applied_at) VALUES ('{self.app_name}', '{migration_name}', '{now}')",
                 )
 
                 self.applied_migrations.add(migration_name)
