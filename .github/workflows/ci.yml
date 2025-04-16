@@ -11,6 +11,17 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: 123456
+          POSTGRES_USER: postgres
+        options: --health-cmd=pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
     steps:
     - uses: actions/checkout@v4
 
@@ -20,9 +31,16 @@ jobs:
     - name: Set up Python
       run: uv python install
 
-    - name: Run tests
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Run tests (sqlite)
       run: |
         uv run pytest
+
+    - name: Run tests (postgres)
+      run: |
+        TORTOISE_TEST_DB="psycopg://postgres:123456@127.0.0.1:5432/test_{}" uv run pytest
 
     - name: Run ruff check
       run: |
