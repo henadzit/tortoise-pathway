@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -33,3 +34,22 @@ async def tortoise_config(setup_db_file: Path, request) -> Dict[str, Any]:
         },
         "use_tz": False,
     }
+
+
+@pytest.fixture(autouse=True)
+async def clean_migrations():
+    """Clean up migrations directory after tests."""
+
+    test_migrations_dir = Path(os.getcwd()) / "tests" / "e2e"
+
+    def _cleanup():
+        for item in test_migrations_dir.glob("*/migrations/*/*.py"):
+            if item.is_file() and item.name != "__init__.py" and "donotdelete" not in item.name:
+                print(f"Removing migration file: {item}")
+                item.unlink()
+
+    _cleanup()
+
+    yield
+
+    _cleanup()

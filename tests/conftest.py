@@ -1,4 +1,3 @@
-import os
 import pytest
 from pathlib import Path
 from typing import AsyncGenerator
@@ -10,25 +9,6 @@ from tortoise import Tortoise
 async def clean_apps():
     """Clean up Tortoise apps after tests."""
     Tortoise.apps = {}
-
-
-@pytest.fixture(autouse=True)
-async def clean_migrations():
-    """Clean up migrations directory after tests."""
-
-    test_migrations_dir = Path(os.getcwd()) / "tests" / "test_migrations"
-
-    def _cleanup():
-        for item in test_migrations_dir.glob("*/migrations/*/*.py"):
-            if item.is_file() and item.name != "__init__.py" and "donotdelete" not in item.name:
-                print(f"Removing migration file: {item}")
-                item.unlink()
-
-    _cleanup()
-
-    yield
-
-    _cleanup()
 
 
 @pytest.fixture
@@ -48,6 +28,7 @@ async def setup_db_file(tmp_path: Path) -> AsyncGenerator[Path, None]:
 @pytest.fixture
 async def setup_test_db(setup_db_file):
     """Set up a test database with Tortoise ORM."""
+
     config = {
         "connections": {
             "default": {
