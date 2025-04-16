@@ -8,12 +8,30 @@ import sys
 import asyncio
 import argparse
 import importlib
-from typing import Dict, Any
+import functools
+from typing import Dict, Any, Callable, TypeVar, Coroutine
 
 from tortoise import Tortoise
 
 from tortoise_pathway.migration_manager import MigrationManager
-from tortoise_pathway.schema_differ import SchemaDiffer
+
+
+T = TypeVar("T")
+
+
+def close_connections_after(
+    func: Callable[..., Coroutine[Any, Any, T]],
+) -> Callable[..., Coroutine[Any, Any, T]]:
+    """Decorator that ensures Tortoise connections are closed after the function completes."""
+
+    @functools.wraps(func)
+    async def wrapper(*args: Any, **kwargs: Any) -> T:
+        try:
+            return await func(*args, **kwargs)
+        finally:
+            await Tortoise.close_connections()
+
+    return wrapper
 
 
 async def init_tortoise(config_path: str) -> Dict[str, Any]:
@@ -75,6 +93,7 @@ def get_app_name(args: argparse.Namespace, config: Dict[str, Any]) -> str:
     sys.exit(1)
 
 
+@close_connections_after
 async def make(args: argparse.Namespace) -> None:
     """Create new migration(s) based on model changes."""
     config = await init_tortoise(args.config)
@@ -93,18 +112,10 @@ async def make(args: argparse.Namespace) -> None:
 
     if not args.empty:
         # Generate automatic migration based on model changes
-        differ = SchemaDiffer(app)
-        changes = await differ.detect_changes()
-
-        if not changes:
+        migration = await manager.create_migration(name, auto=True)
+        if migration is None:
             print("No changes detected.")
             return
-
-        print(f"Detected {len(changes)} changes:")
-        for change in changes:
-            print(f"  - {change}")
-
-        migration = await manager.create_migration(name, auto=True)
     else:
         # Create an empty migration
         migration = await manager.create_migration(name, auto=False)
@@ -112,6 +123,7 @@ async def make(args: argparse.Namespace) -> None:
     print(f"Created migration {migration.name()} at {migration.path()}")
 
 
+@close_connections_after
 async def migrate(args: argparse.Namespace) -> None:
     """Apply migrations to the database."""
     config = await init_tortoise(args.config)
@@ -141,6 +153,7 @@ async def migrate(args: argparse.Namespace) -> None:
         print("No migrations were applied.")
 
 
+@close_connections_after
 async def rollback(args: argparse.Namespace) -> None:
     """Revert the most recent migration."""
     config = await init_tortoise(args.config)
@@ -163,6 +176,7 @@ async def rollback(args: argparse.Namespace) -> None:
         print("No migration was reverted.")
 
 
+@close_connections_after
 async def showmigrations(args: argparse.Namespace) -> None:
     """Show migration status."""
     config = await init_tortoise(args.config)
@@ -206,7 +220,7 @@ def main() -> None:
 
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
 
-    # makemigrations command
+    # make command
     make_parser = subparsers.add_parser("make", help="Create new migration(s)")
     make_parser.add_argument("--app", help="App name (optional if config has only one app)")
     make_parser.add_argument("--name", help="Migration name (default: 'auto')")
@@ -255,5 +269,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-    asyncio.run(Tortoise.close_connections())

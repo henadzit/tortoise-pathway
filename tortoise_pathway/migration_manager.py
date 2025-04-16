@@ -94,7 +94,7 @@ class MigrationManager:
             except (ImportError, AttributeError) as e:
                 print(f"Error loading migration {migration_name}: {e}")
 
-    async def create_migration(self, name: str, auto: bool = True) -> Migration:
+    async def create_migration(self, name: str, auto: bool = True) -> Optional[Migration]:
         """
         Create a new migration file and return the Migration instance.
 
@@ -103,7 +103,8 @@ class MigrationManager:
             auto: Whether to auto-generate migration operations based on model changes
 
         Returns:
-            A Migration instance representing the newly created migration
+            A Migration instance representing the newly created migration.
+            None if no changes were detected.
 
         Raises:
             ImportError: If the migration file couldn't be loaded or no Migration class was found
@@ -121,6 +122,9 @@ class MigrationManager:
             # Generate migration content based on model changes compared to existing migrations state
             differ = SchemaDiffer(self.app_name, self.state)
             changes = await differ.detect_changes()
+            if not changes:
+                return None
+
             content = generate_auto_migration(migration_name, changes)
         else:
             # Create an empty migration template
