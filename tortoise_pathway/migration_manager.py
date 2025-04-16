@@ -27,7 +27,8 @@ class MigrationManager:
         self.migrations_dir = self.base_migrations_dir / app_name
         self.migrations: Dict[str, Type[Migration]] = {}
         self.applied_migrations: Set[str] = set()
-        self.state = State(app_name)
+        self.migration_state = State(app_name)
+        self.applied_state = State(app_name)
 
     async def initialize(self, connection=None) -> None:
         """Initialize the migration system."""
@@ -40,7 +41,7 @@ class MigrationManager:
         # Discover available migrations
         self._discover_migrations()
 
-        # Rebuild state from applied migrations
+        # Rebuild state from migrations
         self._rebuild_state()
 
     async def _ensure_migration_table_exists(self, connection=None) -> None:
@@ -72,7 +73,10 @@ class MigrationManager:
             self.migrations_dir.mkdir(parents=True, exist_ok=True)
             return
 
-        for file_path in self.migrations_dir.glob("*.py"):
+        # Get all Python files and sort them by name
+        migration_files = sorted(self.migrations_dir.glob("*.py"))
+
+        for file_path in migration_files:
             if file_path.name.startswith("__"):
                 continue
 
@@ -120,7 +124,7 @@ class MigrationManager:
 
         if auto:
             # Generate migration content based on model changes compared to existing migrations state
-            differ = SchemaDiffer(self.app_name, self.state)
+            differ = SchemaDiffer(self.app_name, self.migration_state)
             changes = await differ.detect_changes()
             if not changes:
                 return None
@@ -143,6 +147,11 @@ class MigrationManager:
             for name, obj in inspect.getmembers(module):
                 if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
                     self.migrations[migration_name] = obj
+
+                    for operation in obj().operations:
+                        self.migration_state.apply_operation(operation)
+                    self.migration_state.snapshot(migration_name)
+
                     return obj()
 
             # If we reach here, no Migration class was found in the module
@@ -150,6 +159,7 @@ class MigrationManager:
         except (ImportError, AttributeError) as e:
             print(f"Error loading migration {migration_name}: {e}")
             raise ImportError(f"Failed to load newly created migration: {e}")
+
 
     async def apply_migrations(self, connection=None) -> List[Migration]:
         """
@@ -171,8 +181,8 @@ class MigrationManager:
             try:
                 # Apply migration
                 for operation in migration.operations:
-                    await operation.apply(self.state)
-                    self.state.apply_operation(operation)
+                    await operation.apply(self.applied_state)
+                    self.applied_state.apply_operation(operation)
 
                 # Record that migration was applied
                 now = datetime.datetime.now().isoformat()
@@ -184,7 +194,7 @@ class MigrationManager:
 
                 self.applied_migrations.add(migration_name)
                 applied_migrations.append(migration)
-                self.state.snapshot(migration_name)
+                self.applied_state.snapshot(migration_name)
                 print(f"Applied migration: {migration_name}")
             except Exception as e:
                 print(f"Error applying migration {migration_name}: {e}")
@@ -233,8 +243,9 @@ class MigrationManager:
 
         try:
             for operation in reversed(migration.operations):
-                await operation.revert(self.state)
-                self.state.apply_operation(operation)
+                await operation.revert(self.applied_state)
+                # TODO: should be reverting, not applying
+                self.applied_state.apply_operation(operation)
             # Remove migration record
             await conn.execute_query(
                 "DELETE FROM tortoise_migrations WHERE app = ? AND name = ?",
@@ -244,7 +255,7 @@ class MigrationManager:
             self.applied_migrations.remove(migration_name)
 
             # Rebuild state from remaining applied migrations
-            self.state = self.state.prev()
+            self.applied_state = self.applied_state.prev()
 
             print(f"Reverted migration: {migration_name}")
             return migration
@@ -288,9 +299,15 @@ class MigrationManager:
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""
-        self.state = State(self.app_name)
+        self.migration_state = State(self.app_name)
 
+        for migration in self.migrations.values():
+            for operation in migration.operations:
+                self.migration_state.apply_operation(operation)
+            self.migration_state.snapshot(migration().name())
+
+        self.applied_state = State(self.app_name)
         for migration in self.get_applied_migrations():
             for operation in migration.operations:
-                self.state.apply_operation(operation)
-            self.state.snapshot(migration.name())
+                self.applied_state.apply_operation(operation)
+            self.applied_state.snapshot(migration.name())

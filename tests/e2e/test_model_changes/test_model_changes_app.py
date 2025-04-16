@@ -63,7 +63,7 @@ async def test_model_changes(setup_test_db):
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
-    assert comments_table_op.get_table_name(manager.state) == "comments"
+    assert comments_table_op.get_table_name(manager.migration_state) == "comments"
     assert "id" in comments_table_op.fields
     assert "content" in comments_table_op.fields
     assert "author_name" in comments_table_op.fields
@@ -71,31 +71,31 @@ async def test_model_changes(setup_test_db):
     assert "blog" in comments_table_op.fields
 
     assert isinstance(operations[1], AddField)
-    assert operations[1].get_table_name(manager.state) == "blogs"
+    assert operations[1].get_table_name(manager.migration_state) == "blogs"
     assert operations[1].field_name == "summary"
 
     assert isinstance(operations[2], AddField)
-    assert operations[2].get_table_name(manager.state) == "blogs"
+    assert operations[2].get_table_name(manager.migration_state) == "blogs"
     assert operations[2].field_name == "updated_at"
 
     assert isinstance(operations[3], DropField)
-    assert operations[3].get_table_name(manager.state) == "blogs"
+    assert operations[3].get_table_name(manager.migration_state) == "blogs"
     assert operations[3].field_name == "content"
 
     assert isinstance(operations[4], AlterField)
-    assert operations[4].get_table_name(manager.state) == "blogs"
+    assert operations[4].get_table_name(manager.migration_state) == "blogs"
     assert operations[4].field_name == "slug"
     assert operations[4].field_object is not None
     assert operations[4].field_object.unique
 
     assert isinstance(operations[5], AddIndex)
-    assert operations[5].get_table_name(manager.state) == "blogs"
+    assert operations[5].get_table_name(manager.migration_state) == "blogs"
     assert operations[5].field_name == "created_at"
     assert operations[5].index_name == "idx_created_at"
     assert not operations[5].unique
 
     assert isinstance(operations[6], AddField)
-    assert operations[6].get_table_name(manager.state) == "tags"
+    assert operations[6].get_table_name(manager.migration_state) == "tags"
     assert operations[6].field_name == "description"
 
     # Verify field deletion operation
