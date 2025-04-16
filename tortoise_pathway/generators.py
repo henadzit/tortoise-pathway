@@ -46,7 +46,7 @@ def generate_timestamp() -> str:
     return datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
 
-def generate_empty_migration(migration_name: str) -> str:
+def generate_empty_migration(migration_name: str, dependencies: List[str] = []) -> str:
     """
     Generate content for an empty migration file.
 
@@ -57,6 +57,10 @@ def generate_empty_migration(migration_name: str) -> str:
         String content for the migration file.
     """
     class_name = generate_migration_class_name(migration_name)
+
+    dependencies_str = ""
+    if dependencies:
+        dependencies_str = ", ".join(f'"{dep}"' for dep in dependencies)
 
     return f'''"""
 {migration_name} migration
@@ -70,14 +74,16 @@ class {class_name}(Migration):
     Custom migration.
     """
 
-    dependencies = []
+    dependencies = [{dependencies_str}]
     operations = [
         # Define your operations here
     ]
 '''
 
 
-def generate_auto_migration(migration_name: str, changes: List[Operation]) -> str:
+def generate_auto_migration(
+    migration_name: str, changes: List[Operation], dependencies: List[str] = []
+) -> str:
     """
     Generate migration file content based on detected changes.
 
@@ -131,6 +137,10 @@ def generate_auto_migration(migration_name: str, changes: List[Operation]) -> st
 
     all_imports = "\n".join(imports)
 
+    dependencies_str = ""
+    if dependencies:
+        dependencies_str = ", ".join(f'"{dep}"' for dep in dependencies)
+
     # Generate operations code by utilizing the to_migration method
     operations = []
     for i, change in enumerate(changes):
@@ -163,7 +173,7 @@ class {class_name}(Migration):
     Auto-generated migration based on model changes.
     """
 
-    dependencies = []
+    dependencies = [{dependencies_str}]
     operations = [
 {operations_str}
     ]

@@ -1,3 +1,4 @@
+from collections import defaultdict
 import importlib
 import inspect
 import datetime
@@ -17,7 +18,6 @@ class MigrationManager:
 
     def __init__(self, app_name: str, migrations_dir: str = "migrations"):
         self.app_name = app_name
-        # Create the base migrations directory path
         if Path(migrations_dir).is_absolute():
             self.base_migrations_dir = Path(migrations_dir).relative_to(Path.cwd())
         else:
@@ -25,7 +25,7 @@ class MigrationManager:
 
         # Set the app-specific migrations directory
         self.migrations_dir = self.base_migrations_dir / app_name
-        self.migrations: Dict[str, Type[Migration]] = {}
+        self.migrations: list[Type[Migration]] = []
         self.applied_migrations: Set[str] = set()
         self.migration_state = State(app_name)
         self.applied_state = State(app_name)
@@ -67,36 +67,9 @@ class MigrationManager:
         self.applied_migrations = {record["name"] for record in records[1]}
 
     def _discover_migrations(self) -> None:
-        """Discover available migrations in the migrations directory."""
-        # Ensure the app-specific migrations directory exists
-        if not self.migrations_dir.exists():
-            self.migrations_dir.mkdir(parents=True, exist_ok=True)
-            return
-
-        # Get all Python files and sort them by name
-        migration_files = sorted(self.migrations_dir.glob("*.py"))
-
-        for file_path in migration_files:
-            if file_path.name.startswith("__"):
-                continue
-
-            migration_name = file_path.stem
-
-            # Create module path with app name included
-            module_path = (
-                f"{str(self.base_migrations_dir).replace('/', '.').replace('\\', '.')}."
-                f"{self.app_name}.{migration_name}"
-            )
-
-            try:
-                module = importlib.import_module(module_path)
-
-                for name, obj in inspect.getmembers(module):
-                    if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
-                        self.migrations[migration_name] = obj
-                        break
-            except (ImportError, AttributeError) as e:
-                print(f"Error loading migration {migration_name}: {e}")
+        """Discover available migrations in the migrations directory and sort them based on dependencies."""
+        migrations = load_migrations_from_disk(self.migrations_dir)
+        self.migrations = sort_migrations(migrations)
 
     async def create_migration(self, name: str, auto: bool = True) -> Optional[Type[Migration]]:
         """
@@ -122,6 +95,10 @@ class MigrationManager:
         # Create migration file path
         migration_file = self.migrations_dir / f"{migration_name}.py"
 
+        dependencies = []
+        if self.migrations:
+            dependencies = [self.migrations[-1].name()]
+
         if auto:
             # Generate migration content based on model changes compared to existing migrations state
             differ = SchemaDiffer(self.app_name, self.migration_state)
@@ -129,10 +106,9 @@ class MigrationManager:
             if not changes:
                 return None
 
-            content = generate_auto_migration(migration_name, changes)
+            content = generate_auto_migration(migration_name, changes, dependencies)
         else:
-            # Create an empty migration template
-            content = generate_empty_migration(migration_name)
+            content = generate_empty_migration(migration_name, dependencies)
 
         with open(migration_file, "w") as f:
             f.write(content)
@@ -146,7 +122,7 @@ class MigrationManager:
             module = importlib.import_module(module_path)
             for name, obj in inspect.getmembers(module):
                 if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
-                    self.migrations[migration_name] = obj
+                    self.migrations.append(obj)
 
                     for operation in obj.operations:
                         self.migration_state.apply_operation(operation)
@@ -204,7 +180,7 @@ class MigrationManager:
 
     async def revert_migration(
         self, migration_name: Optional[str] = None, connection=None
-    ) -> Optional[Migration]:
+    ) -> Optional[Type[Migration]]:
         """
         Revert the last applied migration or a specific migration.
 
@@ -230,15 +206,14 @@ class MigrationManager:
 
             migration_name = cast(str, records[1][0]["name"])
 
-        if migration_name not in self.migrations:
+        if migration_name not in [m.name() for m in self.migrations]:
             raise ValueError(f"Migration {migration_name} not found")
 
         if migration_name not in self.applied_migrations:
             raise ValueError(f"Migration {migration_name} is not applied")
 
         # Revert the migration
-        migration_class = self.migrations[migration_name]
-        migration = migration_class()
+        migration = next(m for m in self.migrations if m.name() == migration_name)
 
         try:
             for operation in reversed(migration.operations):
@@ -271,14 +246,7 @@ class MigrationManager:
         Returns:
             List of Migration instances
         """
-        # Get pending migration names
-        pending_names = [name for name in self.migrations if name not in self.applied_migrations]
-
-        # Sort by timestamp (assuming migration names start with timestamp)
-        pending_names = sorted(pending_names)
-
-        # Convert to Migration objects
-        return [self.migrations[name] for name in pending_names]
+        return [m for m in self.migrations if m.name() not in self.applied_migrations]
 
     def get_applied_migrations(self) -> List[Type[Migration]]:
         """
@@ -287,26 +255,101 @@ class MigrationManager:
         Returns:
             List of Migration instances
         """
-        # Get applied migration names that we have loaded
-        applied_names = [name for name in self.applied_migrations if name in self.migrations]
-
-        # Sort them
-        applied_names = sorted(applied_names)
-
-        # Convert to Migration objects
-        return [self.migrations[name] for name in applied_names]
+        return [m for m in self.migrations if m.name() in self.applied_migrations]
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""
         self.migration_state = State(self.app_name)
 
-        for migration in self.migrations.values():
+        for migration in self.migrations:
             for operation in migration.operations:
                 self.migration_state.apply_operation(operation)
-            self.migration_state.snapshot(migration().name())
+            self.migration_state.snapshot(migration.name())
 
         self.applied_state = State(self.app_name)
         for migration in self.get_applied_migrations():
             for operation in migration.operations:
                 self.applied_state.apply_operation(operation)
             self.applied_state.snapshot(migration.name())
+
+
+def load_migrations_from_disk(migrations_dir: Path) -> List[Type[Migration]]:
+    """Load migrations from the migrations directory."""
+    # Ensure the app-specific migrations directory exists
+    if not migrations_dir.exists():
+        migrations_dir.mkdir(parents=True, exist_ok=True)
+        return []
+
+    # Get all Python files and sort them by name for idempotency
+    migration_files = sorted(migrations_dir.glob("*.py"))
+
+    loaded_migrations = []
+    for file_path in migration_files:
+        if file_path.name.startswith("__"):
+            continue
+
+        migration_name = file_path.stem
+
+        # Create module path with app name included
+        module_path = f"{str(migrations_dir).replace('/', '.').replace('\\', '.')}.{migration_name}"
+
+        try:
+            module = importlib.import_module(module_path)
+
+            for name, obj in inspect.getmembers(module):
+                if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
+                    loaded_migrations.append(obj)
+                    break
+        except (ImportError, AttributeError) as e:
+            print(f"Error loading migration {migration_name}: {e}")
+
+    return loaded_migrations
+
+
+def sort_migrations(migrations: List[Type[Migration]]) -> List[Type[Migration]]:
+    """Sort migrations based on dependencies."""
+    root = None
+    # for traversing the dependency graph from the root to the leaves
+    reverse_dependency_graph: Dict[str, List[Type[Migration]]] = defaultdict(list)
+
+    for migration in migrations:
+        for dependency in migration.dependencies:
+            reverse_dependency_graph[dependency].append(migration)
+
+        if not migration.dependencies:
+            if root:
+                raise ValueError(
+                    f"Multiple root migrations found: {root.name()} and {migration.name()}"
+                )
+            root = migration
+
+    if migrations and root is None:
+        raise ValueError("No root migration found")
+
+    sorted_migrations = []
+    if root is None:
+        return sorted_migrations
+
+    visited: Dict[str, int] = defaultdict(int)
+    stack: List[Type[Migration]] = [root]
+
+    while stack:
+        migration = stack.pop()
+        visited[migration.name()] += 1
+
+        if visited[migration.name()] < len(migration.dependencies):
+            # wait for other branches before proceeding further
+            continue
+
+        if migration != root and visited[migration.name()] > len(migration.dependencies):
+            raise ValueError(f"Circular dependency detected to {migration.name()}")
+
+        sorted_migrations.append(migration)
+
+        for next_node in reverse_dependency_graph[migration.name()]:
+            stack.append(next_node)
+
+    if len(sorted_migrations) != len(migrations):
+        raise ValueError(f"Circular dependency detected to {migration.name()}")
+
+    return sorted_migrations

@@ -7,8 +7,8 @@ from tortoise_pathway.operations import Operation
 class Migration:
     """Base class for all migrations."""
 
-    dependencies: List[str] = []
-    operations: List[Operation] = []
+    dependencies: List[str]
+    operations: List[Operation]
 
     @classmethod
     def name(cls) -> str:
@@ -18,7 +18,6 @@ class Migration:
         The name is extracted from the module name where this migration class is defined.
         """
         module = cls.__module__
-        # Get the filename which is the last part of the module path
         return module.split(".")[-1]
 
     @classmethod
