@@ -379,7 +379,9 @@ class SchemaDiffer:
             "description",
             "constraint_name",
             "reference",
-            "auto_now",
+            # TODO: in Tortoise, if auto_now_add=True, auto_now is also True, however, you cann set both to True.
+            # We need to handle auto_now separately.
+            # "auto_now",
             "auto_now_add",
         ]
 

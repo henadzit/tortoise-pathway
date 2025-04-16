@@ -5,6 +5,7 @@ Utility functions for operations.
 from typing import Any
 from tortoise.converters import encoders
 from tortoise.fields import Field
+from tortoise.fields.data import DatetimeField
 from tortoise.fields.relational import RelationalField
 
 
@@ -75,6 +76,12 @@ def field_to_migration(field: Field) -> str:
             params.append(f"on_delete='{on_delete}'")
 
         params.append(f"source_field='{field.source_field}'")
+
+    if isinstance(field, DatetimeField):
+        if getattr(field, "auto_now_add", False):
+            params.append("auto_now_add=True")
+        elif getattr(field, "auto_now", False):
+            params.append("auto_now=True")
 
     # Generate the final string representation
     return f"{field_type}({', '.join(params)})"
