@@ -30,9 +30,6 @@ async def test_detect_index_additions():
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
 
-    # Mock the get_model_schema method to return a model with an index
-    original_get_model_schema = differ.get_model_schema
-
     def mock_get_model_schema():
         return {
             "models": {
@@ -63,9 +60,6 @@ async def test_detect_index_additions():
     assert changes[0].index_name == "idx_test_model_created_at"
     assert changes[0].fields == ["created_at"]
 
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
-
 
 async def test_detect_index_removals():
     """Test detecting removed indexes."""
@@ -93,9 +87,6 @@ async def test_detect_index_removals():
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
 
-    # Mock the get_model_schema method to return a model without an index
-    original_get_model_schema = differ.get_model_schema
-
     def mock_get_model_schema():
         return {"models": {"TestModel": {"table": "test_model", "fields": fields, "indexes": []}}}
 
@@ -110,9 +101,6 @@ async def test_detect_index_removals():
     assert changes[0].model == "test.TestModel"
     assert changes[0].field_name == "created_at"
     assert changes[0].index_name == "idx_test_model_created_at"
-
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
 
 
 async def test_detect_index_modifications():
@@ -140,9 +128,6 @@ async def test_detect_index_modifications():
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
-
-    # Mock the get_model_schema method to return a model with a unique index
-    original_get_model_schema = differ.get_model_schema
 
     def mock_get_model_schema():
         return {
@@ -178,6 +163,3 @@ async def test_detect_index_modifications():
     assert changes[1].field_name == "created_at"
     assert changes[1].index_name == "idx_test_model_created_at"
     assert changes[1].unique is True
-
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema

@@ -1,14 +1,9 @@
-"""
-Pytest configuration and fixtures for Tortoise Pathway tests.
-"""
-
 import os
 import pytest
 from pathlib import Path
-from typing import Dict, Any, AsyncGenerator
+from typing import AsyncGenerator
 
 from tortoise import Tortoise
-from tortoise_pathway.migration_manager import MigrationManager
 
 
 @pytest.fixture(autouse=True)
@@ -51,20 +46,9 @@ async def setup_db_file(tmp_path: Path) -> AsyncGenerator[Path, None]:
 
 
 @pytest.fixture
-async def tortoise_config(setup_db_file: Path, request) -> Dict[str, Any]:
-    """Create a Tortoise ORM configuration for tests."""
-    app_name = request.param if hasattr(request, "param") else "models"
-
-    # The actual test path is determined dynamically from the test file's location
-    test_path = Path(request.node.fspath).parent
-
-    # Construct the models module path correctly
-    # First get the relative path from the project root to the test directory
-    rel_path = test_path.relative_to(Path.cwd())
-    # Convert the path to a module path (replacing / with .)
-    models_module = str(rel_path).replace("/", ".") + ".models"
-
-    return {
+async def setup_test_db(setup_db_file):
+    """Set up a test database with Tortoise ORM."""
+    config = {
         "connections": {
             "default": {
                 "engine": "tortoise.backends.sqlite",
@@ -72,35 +56,13 @@ async def tortoise_config(setup_db_file: Path, request) -> Dict[str, Any]:
             },
         },
         "apps": {
-            app_name: {
-                "models": [models_module],
+            "test": {
+                "models": ["tests.models"],
                 "default_connection": "default",
-            },
+            }
         },
-        "use_tz": False,
     }
 
-
-@pytest.fixture
-async def migration_manager(
-    tortoise_config: Dict[str, Any], setup_db_file: Path, request
-) -> MigrationManager:
-    """Create a migration manager for tests."""
-    # Get the test app name from the test path
-    test_path = Path(request.node.fspath).parent
-    app_name = test_path.name
-
-    # Set up migrations directory
-    migrations_dir = test_path / "migrations"
-    os.makedirs(migrations_dir, exist_ok=True)
-
-    # Create the migration manager
-    manager = MigrationManager(
-        app_name=app_name,
-        migrations_dir=str(migrations_dir),
-    )
-
-    # Initialize the migration manager
-    await manager.initialize()
-
-    return manager
+    await Tortoise.init(config=config)
+    yield
+    await Tortoise.close_connections()

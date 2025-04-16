@@ -39,64 +39,6 @@ class SchemaDiffer:
         self.connection = connection
         self.state = state or State(app_name)
 
-    async def get_db_schema(self) -> Dict[str, Any]:
-        """Get the current database schema for the app."""
-        conn = self.connection or Tortoise.get_connection("default")
-        db_schema = {}
-
-        # This is a simplified version. A real implementation would:
-        # - Get all tables
-        # - Get columns for each table
-        # - Get indexes and constraints
-
-        # Example for SQLite (would need different implementations for other DBs)
-        tables = await conn.execute_query("SELECT name FROM sqlite_master WHERE type='table'")
-
-        for table_record in tables[1]:
-            table_name = table_record["name"]
-
-            # Skip the migration tracking table and SQLite system tables
-            if table_name == "tortoise_migrations" or table_name.startswith("sqlite_"):
-                continue
-
-            # Get column information
-            columns_info = await conn.execute_query(f"PRAGMA table_info({table_name})")
-
-            columns = {}
-            for column in columns_info[1]:
-                column_name = column["name"]
-                column_type = column["type"]
-                default_value = column["dflt_value"]
-                is_pk = column["pk"] == 1
-                notnull = column["notnull"] or is_pk
-
-                columns[column_name] = {
-                    "type": column_type,
-                    "nullable": not notnull,
-                    "default": default_value,
-                    "primary_key": is_pk,
-                }
-
-            # Get index information
-            indexes_info = await conn.execute_query(f"PRAGMA index_list({table_name})")
-
-            indexes = []
-            for index in indexes_info[1]:
-                index_name = index["name"]
-                is_unique = index["unique"]
-
-                # Get columns in this index
-                index_columns_info = await conn.execute_query(f"PRAGMA index_info({index_name})")
-                index_columns = [col["name"] for col in index_columns_info[1]]
-
-                indexes.append({"name": index_name, "unique": is_unique, "columns": index_columns})
-
-            db_schema[table_name] = {"columns": columns, "indexes": indexes}
-
-        # Convert to the new structure format
-        app_schema = self._convert_to_models_format(db_schema)
-        return app_schema
-
     def _convert_to_models_format(self, db_schema: Dict[str, Any]) -> Dict[str, Any]:
         """Convert database schema to the models format for a single app."""
         app_schema = {"models": {}}
