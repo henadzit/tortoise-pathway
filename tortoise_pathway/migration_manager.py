@@ -98,7 +98,7 @@ class MigrationManager:
             except (ImportError, AttributeError) as e:
                 print(f"Error loading migration {migration_name}: {e}")
 
-    async def create_migration(self, name: str, auto: bool = True) -> Optional[Migration]:
+    async def create_migration(self, name: str, auto: bool = True) -> Optional[Type[Migration]]:
         """
         Create a new migration file and return the Migration instance.
 
@@ -148,11 +148,11 @@ class MigrationManager:
                 if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
                     self.migrations[migration_name] = obj
 
-                    for operation in obj().operations:
+                    for operation in obj.operations:
                         self.migration_state.apply_operation(operation)
                     self.migration_state.snapshot(migration_name)
 
-                    return obj()
+                    return obj
 
             # If we reach here, no Migration class was found in the module
             raise ImportError(f"No Migration class found in the generated module {module_path}")
@@ -160,8 +160,7 @@ class MigrationManager:
             print(f"Error loading migration {migration_name}: {e}")
             raise ImportError(f"Failed to load newly created migration: {e}")
 
-
-    async def apply_migrations(self, connection=None) -> List[Migration]:
+    async def apply_migrations(self, connection=None) -> List[Type[Migration]]:
         """
         Apply pending migrations.
 
@@ -265,7 +264,7 @@ class MigrationManager:
             # Rollback transaction if supported
             raise
 
-    def get_pending_migrations(self) -> List[Migration]:
+    def get_pending_migrations(self) -> List[Type[Migration]]:
         """
         Get list of pending migrations.
 
@@ -279,9 +278,9 @@ class MigrationManager:
         pending_names = sorted(pending_names)
 
         # Convert to Migration objects
-        return [self.migrations[name]() for name in pending_names]
+        return [self.migrations[name] for name in pending_names]
 
-    def get_applied_migrations(self) -> List[Migration]:
+    def get_applied_migrations(self) -> List[Type[Migration]]:
         """
         Get list of applied migrations.
 
@@ -295,7 +294,7 @@ class MigrationManager:
         applied_names = sorted(applied_names)
 
         # Convert to Migration objects
-        return [self.migrations[name]() for name in applied_names]
+        return [self.migrations[name] for name in applied_names]
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""
