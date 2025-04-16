@@ -1,8 +1,6 @@
-"""
-Tests for DropModel operation.
-"""
-
+import pytest
 from tortoise import Tortoise, fields
+
 from tortoise_pathway.operations import CreateModel, DropModel
 from tortoise_pathway.state import State
 
@@ -27,10 +25,7 @@ async def test_drop_table(setup_test_db):
 
     # Verify table exists
     conn = Tortoise.get_connection("default")
-    result = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='test_drop'"
-    )
-    assert len(result[1]) == 1
+    await conn.execute_query("SELECT * FROM test_drop")
 
     # Drop the table
     operation = DropModel(model="tests.models.TestModel")
@@ -39,10 +34,8 @@ async def test_drop_table(setup_test_db):
     await operation.apply(state=state)
 
     # Verify table was dropped
-    result = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='test_drop'"
-    )
-    assert len(result[1]) == 0
+    with pytest.raises(Exception):
+        await conn.execute_query("SELECT * FROM test_drop")
 
     # Test SQL generation
     forward_sql = operation.forward_sql(state=state)

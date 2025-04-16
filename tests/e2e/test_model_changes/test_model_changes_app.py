@@ -17,11 +17,8 @@ from tortoise_pathway.operations import (
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_model_changes"], indirect=True)
-async def test_model_changes(setup_db_file, tortoise_config):
+async def test_model_changes(setup_test_db):
     """Test detecting and applying model changes after initial migration."""
-    # Initialize Tortoise ORM
-    await Tortoise.init(config=tortoise_config)
-
     # Get the current directory (where the test file is located)
     test_dir = Path(__file__).parent
     migrations_dir = test_dir / "migrations"
@@ -44,15 +41,10 @@ async def test_model_changes(setup_db_file, tortoise_config):
 
     # Check the database to verify initial tables were created
     conn = Tortoise.get_connection("default")
-    result = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('blogs', 'tags', 'comments')"
-    )
-
-    # Should find blogs and tags but not comments
-    table_names = [record["name"] for record in result[1]]
-    assert "blogs" in table_names
-    assert "tags" in table_names
-    assert "comments" not in table_names
+    await conn.execute_query("SELECT * FROM blogs")
+    await conn.execute_query("SELECT * FROM tags")
+    with pytest.raises(Exception):
+        await conn.execute_query("SELECT * FROM comments")
 
     # Detect changes and create a new migration
     migration = await manager.create_migration("model_changes", auto=True)
@@ -138,10 +130,11 @@ async def test_model_changes(setup_db_file, tortoise_config):
 
     # Check the database to verify changes were applied
     # 1. Verify new table was created
-    result = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='comments'"
-    )
-    assert len(result[1]) == 1
+    await conn.execute_query("SELECT * FROM comments")
+
+    if conn.capabilities.dialect != "sqlite":
+        # we need to figure out how to check it for all dialects
+        return
 
     # 2. Verify new columns were added to existing tables
     blog_columns = await conn.execute_query("PRAGMA table_info(blogs)")
@@ -177,6 +170,3 @@ async def test_model_changes(setup_db_file, tortoise_config):
         if idx["name"] == slug_index:
             assert idx["unique"] == 1, "The index on slug is not unique"
             break
-
-    # Clean up
-    await Tortoise.close_connections()

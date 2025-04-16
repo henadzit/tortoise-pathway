@@ -30,7 +30,7 @@ async def test_add_column(setup_test_db):
     operation = AddField(
         model="tests.models.TestModel",
         field_object=field,
-        field_name="count",
+        field_name="int_field",
     )
     # Set table name manually for test
     operation.set_table_name("test_add_column")
@@ -38,10 +38,8 @@ async def test_add_column(setup_test_db):
 
     # Verify column was added
     conn = Tortoise.get_connection("default")
-    columns = await conn.execute_query("PRAGMA table_info(test_add_column)")
-    column_names = [column["name"] for column in columns[1]]
-    assert "count" in column_names
+    await conn.execute_query("SELECT int_field from test_add_column")
 
     # Test SQL generation
     forward_sql = operation.forward_sql(state=state)
-    assert "ALTER TABLE test_add_column ADD COLUMN count" in forward_sql
+    assert "ALTER TABLE test_add_column ADD COLUMN int_field" in forward_sql

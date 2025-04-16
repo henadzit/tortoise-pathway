@@ -1,8 +1,11 @@
-import pytest
+import os
 from pathlib import Path
 from typing import AsyncGenerator
 
+import pytest
+
 from tortoise import Tortoise
+from tortoise.backends.base.config_generator import expand_db_url
 
 
 @pytest.fixture(autouse=True)
@@ -26,15 +29,12 @@ async def setup_db_file(tmp_path: Path) -> AsyncGenerator[Path, None]:
 
 
 @pytest.fixture
-async def setup_test_db(setup_db_file):
-    """Set up a test database with Tortoise ORM."""
+def tortoise_config(setup_db_file):
+    db_url = os.environ.get("TORTOISE_TEST_DB", f"sqlite://{setup_db_file}")
 
-    config = {
+    return {
         "connections": {
-            "default": {
-                "engine": "tortoise.backends.sqlite",
-                "credentials": {"file_path": str(setup_db_file)},
-            },
+            "default": expand_db_url(db_url, testing=True),
         },
         "apps": {
             "test": {
@@ -44,6 +44,10 @@ async def setup_test_db(setup_db_file):
         },
     }
 
-    await Tortoise.init(config=config)
+
+@pytest.fixture
+async def setup_test_db(tortoise_config):
+    """Set up a test database with Tortoise ORM."""
+    await Tortoise.init(config=tortoise_config, _create_db=True)
     yield
     await Tortoise.close_connections()

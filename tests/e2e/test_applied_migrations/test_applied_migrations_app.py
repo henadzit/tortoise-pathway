@@ -10,11 +10,8 @@ from tortoise_pathway.migration_manager import MigrationManager
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_applied_migrations"], indirect=True)
-async def test_applied_migrations(setup_db_file, tortoise_config):
+async def test_applied_migrations(setup_test_db):
     """Test handling of already applied migrations."""
-    # Initialize Tortoise ORM
-    await Tortoise.init(config=tortoise_config)
-
     # Get the current directory (where the test file is located)
     test_dir = Path(__file__).parent
     migrations_dir = test_dir / "migrations"
@@ -43,14 +40,8 @@ async def test_applied_migrations(setup_db_file, tortoise_config):
     conn = Tortoise.get_connection("default")
 
     # For SQLite: check if tables exist
-    result = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('products', 'categories')"
-    )
-
-    # Should find both tables
-    table_names = [record["name"] for record in result[1]]
-    assert "products" in table_names
-    assert "categories" in table_names
+    await conn.execute_query("SELECT * FROM products")
+    await conn.execute_query("SELECT * FROM categories")
 
     # Initialize a new instance of the manager to simulate restarting the application
     new_manager = MigrationManager(
@@ -63,6 +54,3 @@ async def test_applied_migrations(setup_db_file, tortoise_config):
     assert len(new_manager.migrations) == 1
     assert len(new_manager.get_applied_migrations()) == 1
     assert len(new_manager.get_pending_migrations()) == 0
-
-    # Clean up
-    await Tortoise.close_connections()

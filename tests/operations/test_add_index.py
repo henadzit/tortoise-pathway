@@ -36,11 +36,13 @@ async def test_add_index(setup_test_db):
 
     # Verify index was added (for SQLite)
     conn = Tortoise.get_connection("default")
-    indices = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_add_index'"
-    )
-    index_names = [index["name"] for index in indices[1]]
-    assert "idx_test_model_name" in index_names
+
+    if conn.capabilities.dialect == "sqlite":
+        indices = await conn.execute_query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_add_index'"
+        )
+        index_names = [index["name"] for index in indices[1]]
+        assert "idx_test_model_name" in index_names
 
     # Test SQL generation
     forward_sql = operation.forward_sql(state=state)

@@ -5,16 +5,12 @@ Tests for application with no migrations.
 import pytest
 from pathlib import Path
 
-from tortoise import Tortoise
 from tortoise_pathway.migration_manager import MigrationManager
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_no_migrations"], indirect=True)
-async def test_create_initial_migration(setup_db_file, tortoise_config):
+async def test_create_initial_migration(setup_test_db):
     """Test creating an initial migration when no migrations exist."""
-    # Initialize Tortoise ORM
-    await Tortoise.init(config=tortoise_config)
-
     # Get the current directory (where the test file is located)
     test_dir = Path(__file__).parent
     migrations_dir = test_dir / "migrations"
@@ -47,6 +43,3 @@ async def test_create_initial_migration(setup_db_file, tortoise_config):
         assert "CreateModel" in content
         assert 'model="test_no_migrations.User"' in content
         assert 'model="test_no_migrations.Note"' in content
-
-    # Clean up
-    await Tortoise.close_connections()

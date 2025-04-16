@@ -5,8 +5,9 @@ AddField operation for Tortoise ORM migrations.
 from typing import TYPE_CHECKING
 from tortoise.fields import Field
 
+
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.utils import field_to_migration
+from tortoise_pathway.operations.utils import default_to_sql, field_to_migration
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -55,14 +56,7 @@ class AddField(Operation):
             sql += " NOT NULL"
 
         if default is not None and not callable(default):
-            if isinstance(default, bool):
-                default_val = "1" if default else "0"
-            elif isinstance(default, (int, float)):
-                default_val = str(default)
-            elif isinstance(default, str):
-                default_val = f"'{default}'"
-            else:
-                default_val = f"'{default}'"
+            default_val = default_to_sql(default, dialect)
             sql += f" DEFAULT {default_val}"
 
         return sql

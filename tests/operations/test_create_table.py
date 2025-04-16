@@ -29,17 +29,7 @@ async def test_create_table(setup_test_db):
 
     # Verify table was created
     conn = Tortoise.get_connection("default")
-    result = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='test_create'"
-    )
-    assert len(result[1]) == 1
-
-    # Verify table has the expected columns
-    columns = await conn.execute_query("PRAGMA table_info(test_create)")
-    column_names = [column["name"] for column in columns[1]]
-    assert "id" in column_names
-    assert "name" in column_names
-    assert "description" in column_names
+    await conn.execute_query("SELECT id, name, description FROM test_create")
 
     # Test forward_sql and backward_sql methods
     forward_sql = operation.forward_sql(state=state)

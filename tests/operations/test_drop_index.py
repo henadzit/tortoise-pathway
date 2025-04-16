@@ -36,11 +36,12 @@ async def test_drop_index(setup_test_db):
 
     # Verify index exists
     conn = Tortoise.get_connection("default")
-    indices = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
-    )
-    index_names = [index["name"] for index in indices[1]]
-    assert "idx_test_model_name" in index_names
+    if conn.capabilities.dialect == "sqlite":
+        indices = await conn.execute_query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
+        )
+        index_names = [index["name"] for index in indices[1]]
+        assert "idx_test_model_name" in index_names
 
     # Drop the index
     operation = DropIndex(
@@ -52,11 +53,12 @@ async def test_drop_index(setup_test_db):
     await operation.apply(state=state)
 
     # Verify index was dropped
-    indices = await conn.execute_query(
-        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
-    )
-    index_names = [index["name"] for index in indices[1]]
-    assert "idx_test_model_name" not in index_names
+    if conn.capabilities.dialect == "sqlite":
+        indices = await conn.execute_query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test_drop_index'"
+        )
+        index_names = [index["name"] for index in indices[1]]
+        assert "idx_test_model_name" not in index_names
 
     # Test SQL generation
     forward_sql = operation.forward_sql(state=state)

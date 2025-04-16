@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.fixture
-async def tortoise_config(setup_db_file: Path, request) -> Dict[str, Any]:
+async def tortoise_config(tortoise_config, request) -> Dict[str, Any]:
     """Create a Tortoise ORM configuration for tests."""
     app_name = request.param if hasattr(request, "param") else "models"
 
@@ -19,21 +19,14 @@ async def tortoise_config(setup_db_file: Path, request) -> Dict[str, Any]:
     # Convert the path to a module path (replacing / with .)
     models_module = str(rel_path).replace("/", ".") + ".models"
 
-    return {
-        "connections": {
-            "default": {
-                "engine": "tortoise.backends.sqlite",
-                "credentials": {"file_path": str(setup_db_file)},
-            },
+    tortoise_config["apps"] = {
+        app_name: {
+            "models": [models_module],
+            "default_connection": "default",
         },
-        "apps": {
-            app_name: {
-                "models": [models_module],
-                "default_connection": "default",
-            },
-        },
-        "use_tz": False,
     }
+
+    return tortoise_config
 
 
 @pytest.fixture(autouse=True)
