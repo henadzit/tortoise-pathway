@@ -207,6 +207,15 @@ async def showmigrations(args: argparse.Namespace) -> None:
         print("  (none)")
 
 
+def print_warning():
+    RED = "\033[91m"
+    RESET = "\033[0m"
+    print(
+        f"{RED}Wargning! This project is in VERY early development and not yet ready for production use."
+        f" Most things are broken and they will break again, APIs will change.{RESET}"
+    )
+
+
 def main() -> None:
     """Main entry point for the command-line interface."""
     parser = argparse.ArgumentParser(description="Tortoise ORM migrations")
@@ -252,6 +261,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    print_warning()
 
     if not args.command:
         parser.print_help()
