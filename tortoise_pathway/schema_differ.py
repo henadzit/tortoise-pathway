@@ -153,15 +153,19 @@ class SchemaDiffer:
 
         return app_schema
 
-    async def detect_changes(self) -> List[Operation]:
+    async def _detect_create_models(
+        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
+    ) -> List[Operation]:
         """
-        Detect schema changes between models and state derived from migrations.
+        Detect models that need to be created (models in the model schema but not in the current schema).
+
+        Args:
+            current_schema: Schema from the current state
+            model_schema: Schema derived from Tortoise models
 
         Returns:
-            List of Operation objects representing the detected changes.
+            List of CreateModel operations
         """
-        current_schema = self.state.get_schema()
-        model_schema = self.get_model_schema()
         changes = []
 
         # Tables to create (in models but not in current schema)
@@ -179,6 +183,23 @@ class SchemaDiffer:
             )
             changes.append(operation)
 
+        return changes
+
+    async def _detect_drop_models(
+        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
+    ) -> List[Operation]:
+        """
+        Detect models that need to be dropped (models in the current schema but not in the model schema).
+
+        Args:
+            current_schema: Schema from the current state
+            model_schema: Schema derived from Tortoise models
+
+        Returns:
+            List of DropModel operations
+        """
+        changes = []
+
         # Tables to drop (in current schema but not in models)
         for model_name in sorted(
             set(current_schema["models"].keys()) - set(model_schema["models"].keys())
@@ -189,6 +210,23 @@ class SchemaDiffer:
                     model=model_ref,
                 )
             )
+
+        return changes
+
+    async def _detect_field_changes(
+        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
+    ) -> List[Operation]:
+        """
+        Detect field and index changes for models that exist in both schemas.
+
+        Args:
+            current_schema: Schema from the current state
+            model_schema: Schema derived from Tortoise models
+
+        Returns:
+            List of field and index related operations
+        """
+        changes = []
 
         # For tables that exist in both
         for model_name in sorted(
@@ -341,6 +379,26 @@ class SchemaDiffer:
                                     )
                                 )
                                 break
+
+        return changes
+
+    async def detect_changes(self) -> List[Operation]:
+        """
+        Detect schema changes between models and state derived from migrations.
+
+        Returns:
+            List of Operation objects representing the detected changes.
+        """
+        current_schema = self.state.get_schema()
+        model_schema = self.get_model_schema()
+
+        # Collect changes from each detection method
+        create_model_changes = await self._detect_create_models(current_schema, model_schema)
+        drop_model_changes = await self._detect_drop_models(current_schema, model_schema)
+        field_changes = await self._detect_field_changes(current_schema, model_schema)
+
+        # Combine all changes
+        changes = create_model_changes + drop_model_changes + field_changes
 
         return changes
 
