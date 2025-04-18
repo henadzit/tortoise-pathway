@@ -8,6 +8,7 @@ Tortoise models and the actual database schema.
 from typing import Dict, List, Any, Optional
 
 from tortoise import Tortoise
+from tortoise.fields.relational import ForeignKeyFieldInstance
 from tortoise.models import Model
 
 from tortoise_pathway.state import State
@@ -168,13 +169,35 @@ class SchemaDiffer:
         """
         changes = []
 
-        # Tables to create (in models but not in current schema)
-        for model_name in sorted(
+        processed_model_names = []
+        models_to_create = list(
             set(model_schema["models"].keys()) - set(current_schema["models"].keys())
-        ):
-            # Get the model info and extract field objects
+        )
+
+        # Tables to create (in models but not in current schema)
+        while len(models_to_create) > 0:
+            model_name = models_to_create.pop(0)
             model_info = model_schema["models"][model_name]
-            field_objects = model_info["fields"]  # Field objects are already stored directly
+            field_objects = model_info["fields"]
+
+            # The following code ensures that the referenced models are created before
+            # the model that references them. Otherwise, we won't be able to create
+            # foreign key constraints.
+            try_again = False
+            for field in field_objects.values():
+                if isinstance(field, ForeignKeyFieldInstance):
+                    referenced_model_name = field.model_name.split(".")[-1]
+                    if (
+                        referenced_model_name not in current_schema["models"]
+                        and referenced_model_name not in processed_model_names
+                    ):
+                        # The referenced model has not been created yet, so we need to try again later
+                        models_to_create.append(model_name)
+                        try_again = True
+                        break
+
+            if try_again:
+                continue
 
             model_ref = f"{self.app_name}.{model_name}"
             operation = CreateModel(
@@ -182,6 +205,7 @@ class SchemaDiffer:
                 fields=field_objects,
             )
             changes.append(operation)
+            processed_model_names.append(model_name)
 
         return changes
 
