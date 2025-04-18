@@ -164,19 +164,10 @@ class SchemaDiffer:
         model_schema = self.get_model_schema()
         changes = []
 
-        # Create a map of table names to their model for easy lookup
-        current_tables = {}
-        model_tables = {}
-
-        for model_name, model_info in current_schema["models"].items():
-            current_tables[model_info["table"]] = model_name
-
-        for model_name, model_info in model_schema["models"].items():
-            model_tables[model_info["table"]] = model_name
-
         # Tables to create (in models but not in current schema)
-        for table_name in sorted(set(model_tables.keys()) - set(current_tables.keys())):
-            model_name = model_tables[table_name]
+        for model_name in sorted(
+            set(model_schema["models"].keys()) - set(current_schema["models"].keys())
+        ):
             # Get the model info and extract field objects
             model_info = model_schema["models"][model_name]
             field_objects = model_info["fields"]  # Field objects are already stored directly
@@ -189,8 +180,9 @@ class SchemaDiffer:
             changes.append(operation)
 
         # Tables to drop (in current schema but not in models)
-        for table_name in sorted(set(current_tables.keys()) - set(model_tables.keys())):
-            model_name = current_tables[table_name]
+        for model_name in sorted(
+            set(current_schema["models"].keys()) - set(model_schema["models"].keys())
+        ):
             model_ref = f"{self.app_name}.{model_name}"
             changes.append(
                 DropModel(
@@ -199,13 +191,12 @@ class SchemaDiffer:
             )
 
         # For tables that exist in both
-        for table_name in sorted(set(current_tables.keys()) & set(model_tables.keys())):
-            current_model_name = current_tables[table_name]
-            model_model_name = model_tables[table_name]
-
+        for model_name in sorted(
+            set(current_schema["models"].keys()) & set(model_schema["models"].keys())
+        ):
             # Get the model info for both
-            current_model = current_schema["models"][current_model_name]
-            model_model = model_schema["models"][model_model_name]
+            current_model = current_schema["models"][model_name]
+            model_model = model_schema["models"][model_name]
 
             # Get field sets for comparison
             current_fields = current_model["fields"]
@@ -216,7 +207,7 @@ class SchemaDiffer:
             model_field_names = set(model_fields.keys())
 
             # Reference to the model
-            model_ref = f"{self.app_name}.{model_model_name}"
+            model_ref = f"{self.app_name}.{model_name}"
 
             # Fields to add (in model but not in current schema)
             for field_name in sorted(model_field_names - current_field_names):
