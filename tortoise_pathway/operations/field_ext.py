@@ -1,10 +1,25 @@
 """
-Utility functions for operations.
+Utility functions for Tortoise Field objects.
 """
 
 from tortoise.fields import Field
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.relational import RelationalField
+
+
+def field_db_column(field: Field, field_name: str) -> str:
+    """
+    Get the database column name for a field. Usually you can get the column name from the Field object,
+    however, it requires to initialize the Tortoise models which is not always possible in a migration.
+    """
+    source_field = getattr(field, "source_field", None)
+    if source_field:
+        return source_field
+    elif isinstance(field, RelationalField):
+        # Default to tortoise convention: field_name + "_id"
+        return f"{field_name}_id"
+    else:
+        return field_name
 
 
 def field_to_migration(field: Field) -> str:

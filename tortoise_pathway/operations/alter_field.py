@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from tortoise.fields import Field
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.field_ext import field_to_migration
+from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -28,7 +28,7 @@ class AlterField(Operation):
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for altering a column."""
-        column_name = state.get_column_name(self.model_name, self.field_name)
+        db_column = field_db_column(self.field_object, self.field_name)
 
         if dialect == "sqlite":
             table_name = self.get_table_name(state)
@@ -90,7 +90,7 @@ class AlterField(Operation):
             if is_pk and field_type == "IntField" and dialect == "postgres":
                 column_type = "SERIAL"
 
-            return f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {column_name} TYPE {column_type}"
+            return f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} TYPE {column_type}"
         else:
             return f"-- Alter column not implemented for dialect: {dialect}"
 

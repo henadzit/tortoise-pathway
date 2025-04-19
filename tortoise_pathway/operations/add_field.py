@@ -8,7 +8,7 @@ from tortoise.fields.relational import RelationalField
 
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.field_ext import field_to_migration
+from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.operations.sql import default_value_to_sql
 
 if TYPE_CHECKING:
@@ -27,14 +27,7 @@ class AddField(Operation):
         super().__init__(model)
         self.field_object = field_object
         self.field_name = field_name
-        source_field = getattr(field_object, "source_field", None)
-        if source_field:
-            self._db_column = source_field
-        elif isinstance(field_object, RelationalField):
-            # Default to tortoise convention: field_name + "_id"
-            self._db_column = f"{field_name}_id"
-        else:
-            self._db_column = field_name
+        self._db_column = field_db_column(field_object, field_name)
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a column."""

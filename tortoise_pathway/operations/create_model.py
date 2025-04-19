@@ -8,7 +8,7 @@ from tortoise.fields import Field, IntField
 from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.field_ext import field_to_migration
+from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.operations.sql import default_value_to_sql
 
 if TYPE_CHECKING:
@@ -56,16 +56,10 @@ class CreateModel(Operation):
             if field_type == "BackwardFKRelation":
                 continue
 
+            db_column = field_db_column(field, field_name)
+
             # Handle ForeignKey fields
             if isinstance(field, RelationalField):
-                # For ForeignKeyField, use the actual db column name (typically field_name + "_id")
-                source_field = getattr(field, "source_field", None)
-                if source_field:
-                    db_column = source_field
-                else:
-                    # Default to tortoise convention: field_name + "_id"
-                    db_column = f"{field_name}_id"
-
                 related_app_model_name = field.model_name
                 related_model_name = related_app_model_name.split(".")[-1]
                 model = state.get_models()[related_model_name]
@@ -78,10 +72,6 @@ class CreateModel(Operation):
                 # TODO: foreign keys might have a different type
                 sql_type = IntField().get_for_dialect(dialect, "SQL_TYPE")
             else:
-                # Use source_field if provided, otherwise use the field name
-                source_field = getattr(field, "source_field", None)
-                db_column = source_field if source_field is not None else field_name
-
                 sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
 
             nullable = getattr(field, "null", False)
