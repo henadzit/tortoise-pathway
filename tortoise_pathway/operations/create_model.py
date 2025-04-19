@@ -4,12 +4,12 @@ CreateModel operation for Tortoise ORM migrations.
 
 from typing import Dict, TYPE_CHECKING
 
-from tortoise.fields import Field, IntField
+from tortoise.fields import Field
 from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.operations.operation import Operation
 from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
-from tortoise_pathway.operations.sql import default_value_to_sql
+from tortoise_pathway.operations.sql import field_definition_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -69,50 +69,8 @@ class CreateModel(Operation):
                     f'FOREIGN KEY ({db_column}) REFERENCES "{related_table}" ({to_field})'
                 )
 
-                # TODO: foreign keys might have a different type
-                sql_type = IntField().get_for_dialect(dialect, "SQL_TYPE")
-            else:
-                sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
-
-            nullable = getattr(field, "null", False)
-            unique = getattr(field, "unique", False)
-            pk = getattr(field, "pk", False)
-            default = getattr(field, "default", None)
-
-            # Handle special cases for primary keys
-            if pk:
-                if dialect == "sqlite" and field_type == "IntField":
-                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                    sql_type = "INTEGER"
-                elif pk and field_type == "IntField" and dialect == "postgres":
-                    sql_type = "SERIAL"
-
-            # Build column definition
-            column_def = f"{db_column} {sql_type}"
-
-            if pk:
-                if dialect == "sqlite":
-                    column_def += " PRIMARY KEY"
-                    if field_type == "IntField":
-                        column_def += " AUTOINCREMENT"
-                else:
-                    column_def += " PRIMARY KEY"
-                    if field_type == "IntField" and dialect == "postgres":
-                        # For PostgreSQL, we'd use SERIAL instead
-                        column_def = f"{db_column} {sql_type} PRIMARY KEY"
-
-            if not nullable and not pk:
-                column_def += " NOT NULL"
-
-            if unique and not pk:
-                column_def += " UNIQUE"
-
-            if default is not None and not callable(default):
-                default_val = default_value_to_sql(default, dialect)
-
-                column_def += f" DEFAULT {default_val}"
-
-            columns.append(column_def)
+            column_def = field_definition_to_sql(field, dialect)
+            columns.append(f"{db_column} {column_def}")
 
         # Build the CREATE TABLE statement
         sql = f'CREATE TABLE "{self.get_table_name(state)}" (\n'

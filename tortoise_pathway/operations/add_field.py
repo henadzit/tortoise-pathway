@@ -9,7 +9,7 @@ from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.operations.operation import Operation
 from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
-from tortoise_pathway.operations.sql import default_value_to_sql
+from tortoise_pathway.operations.sql import field_definition_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -31,40 +31,13 @@ class AddField(Operation):
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a column."""
-        field_type = self.field_object.__class__.__name__
-        nullable = getattr(self.field_object, "null", False)
-        default = getattr(self.field_object, "default", None)
-        is_pk = getattr(self.field_object, "pk", False)
-        is_foreign_key = isinstance(self.field_object, RelationalField)
-
         # Handle foreign key fields
-        if is_foreign_key:
+        if isinstance(self.field_object, RelationalField):
             return self._generate_foreign_key_sql(state, dialect)
 
         # Handle regular fields
-        sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column}"
-
-        # Get SQL type using the get_for_dialect method
-        sql_type = self.field_object.get_for_dialect(dialect, "SQL_TYPE")
-
-        # Special case for primary keys
-        if is_pk:
-            if dialect == "sqlite" and field_type == "IntField":
-                # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                sql_type = "INTEGER"
-            elif field_type == "IntField" and dialect == "postgres":
-                sql_type = "SERIAL"
-
-        sql += f" {sql_type}"
-
-        if not nullable:
-            sql += " NOT NULL"
-
-        if default is not None and not callable(default):
-            default_val = default_value_to_sql(default, dialect)
-            sql += f" DEFAULT {default_val}"
-
-        return sql
+        column_def = field_definition_to_sql(self.field_object, dialect)
+        return f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column} {column_def}"
 
     def _generate_foreign_key_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a foreign key column."""

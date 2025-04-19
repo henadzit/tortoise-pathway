@@ -90,6 +90,10 @@ class AlterField(Operation):
             if is_pk and field_type == "IntField" and dialect == "postgres":
                 column_type = "SERIAL"
 
+            # TODO: implement default value
+            # TODO: implement nullable
+            # TODO: implement unique
+
             return f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} TYPE {column_type}"
         else:
             return f"-- Alter column not implemented for dialect: {dialect}"

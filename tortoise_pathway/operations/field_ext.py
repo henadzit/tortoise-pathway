@@ -91,10 +91,13 @@ def field_to_migration(field: Field) -> str:
         params.append(f"source_field='{field.source_field}'")
 
     if isinstance(field, DatetimeField):
-        if getattr(field, "auto_now_add", False):
-            params.append("auto_now_add=True")
-        elif getattr(field, "auto_now", False):
+        # Tortoise will set both auto_now and auto_now_add to True if auto_now_add is True,
+        # even though you cannot pass both to the field constructor.
+        # The following code ensures that both of them aren't True at the same time.
+        if getattr(field, "auto_now", False):
             params.append("auto_now=True")
+        elif getattr(field, "auto_now_add", False):
+            params.append("auto_now_add=True")
 
     # Generate the final string representation
     return f"{field_type}({', '.join(params)})"
