@@ -4,11 +4,12 @@ CreateModel operation for Tortoise ORM migrations.
 
 from typing import Dict, TYPE_CHECKING
 
-from tortoise.fields import Field, IntField
+from tortoise.fields import Field
 from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.utils import default_to_sql, field_to_migration
+from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
+from tortoise_pathway.operations.sql import field_definition_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -55,73 +56,21 @@ class CreateModel(Operation):
             if field_type == "BackwardFKRelation":
                 continue
 
+            db_column = field_db_column(field, field_name)
+
             # Handle ForeignKey fields
             if isinstance(field, RelationalField):
-                # For ForeignKeyField, use the actual db column name (typically field_name + "_id")
-                source_field = getattr(field, "source_field", None)
-                if source_field:
-                    db_column = source_field
-                else:
-                    # Default to tortoise convention: field_name + "_id"
-                    db_column = f"{field_name}_id"
-
                 related_app_model_name = field.model_name
                 related_model_name = related_app_model_name.split(".")[-1]
-                model = state.get_models()[related_model_name]
+                model = state.get_model(related_model_name)
                 related_table = model["table"]
                 to_field = field.to_field or "id"
                 constraints.append(
                     f'FOREIGN KEY ({db_column}) REFERENCES "{related_table}" ({to_field})'
                 )
 
-                # TODO: foreign keys might have a different type
-                sql_type = IntField().get_for_dialect(dialect, "SQL_TYPE")
-            else:
-                # Use source_field if provided, otherwise use the field name
-                source_field = getattr(field, "source_field", None)
-                db_column = source_field if source_field is not None else field_name
-
-                sql_type = field.get_for_dialect(dialect, "SQL_TYPE")
-
-            nullable = getattr(field, "null", False)
-            unique = getattr(field, "unique", False)
-            pk = getattr(field, "pk", False)
-            default = getattr(field, "default", None)
-
-            # Handle special cases for primary keys
-            if pk:
-                if dialect == "sqlite" and field_type == "IntField":
-                    # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                    sql_type = "INTEGER"
-                elif pk and field_type == "IntField" and dialect == "postgres":
-                    sql_type = "SERIAL"
-
-            # Build column definition
-            column_def = f"{db_column} {sql_type}"
-
-            if pk:
-                if dialect == "sqlite":
-                    column_def += " PRIMARY KEY"
-                    if field_type == "IntField":
-                        column_def += " AUTOINCREMENT"
-                else:
-                    column_def += " PRIMARY KEY"
-                    if field_type == "IntField" and dialect == "postgres":
-                        # For PostgreSQL, we'd use SERIAL instead
-                        column_def = f"{db_column} {sql_type} PRIMARY KEY"
-
-            if not nullable and not pk:
-                column_def += " NOT NULL"
-
-            if unique and not pk:
-                column_def += " UNIQUE"
-
-            if default is not None and not callable(default):
-                default_val = default_to_sql(default, dialect)
-
-                column_def += f" DEFAULT {default_val}"
-
-            columns.append(column_def)
+            column_def = field_definition_to_sql(field, dialect)
+            columns.append(f"{db_column} {column_def}")
 
         # Build the CREATE TABLE statement
         sql = f'CREATE TABLE "{self.get_table_name(state)}" (\n'

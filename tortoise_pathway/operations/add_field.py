@@ -8,7 +8,8 @@ from tortoise.fields.relational import RelationalField
 
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.utils import default_to_sql, field_to_migration
+from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
+from tortoise_pathway.operations.sql import field_definition_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -26,51 +27,17 @@ class AddField(Operation):
         super().__init__(model)
         self.field_object = field_object
         self.field_name = field_name
-        source_field = getattr(field_object, "source_field", None)
-        if source_field:
-            self._db_column = source_field
-        elif isinstance(field_object, RelationalField):
-            # Default to tortoise convention: field_name + "_id"
-            self._db_column = f"{field_name}_id"
-        else:
-            self._db_column = field_name
+        self._db_column = field_db_column(field_object, field_name)
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a column."""
-        field_type = self.field_object.__class__.__name__
-        nullable = getattr(self.field_object, "null", False)
-        default = getattr(self.field_object, "default", None)
-        is_pk = getattr(self.field_object, "pk", False)
-        is_foreign_key = isinstance(self.field_object, RelationalField)
-
         # Handle foreign key fields
-        if is_foreign_key:
+        if isinstance(self.field_object, RelationalField):
             return self._generate_foreign_key_sql(state, dialect)
 
         # Handle regular fields
-        sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column}"
-
-        # Get SQL type using the get_for_dialect method
-        sql_type = self.field_object.get_for_dialect(dialect, "SQL_TYPE")
-
-        # Special case for primary keys
-        if is_pk:
-            if dialect == "sqlite" and field_type == "IntField":
-                # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                sql_type = "INTEGER"
-            elif field_type == "IntField" and dialect == "postgres":
-                sql_type = "SERIAL"
-
-        sql += f" {sql_type}"
-
-        if not nullable:
-            sql += " NOT NULL"
-
-        if default is not None and not callable(default):
-            default_val = default_to_sql(default, dialect)
-            sql += f" DEFAULT {default_val}"
-
-        return sql
+        column_def = field_definition_to_sql(self.field_object, dialect)
+        return f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column} {column_def}"
 
     def _generate_foreign_key_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a foreign key column."""
@@ -80,7 +47,7 @@ class AddField(Operation):
         # In Tortoise ORM, RelationalField has a model_name attribute that contains the full model reference
         related_app_model_name = getattr(field, "model_name", "")
         related_model_name = related_app_model_name.split(".")[-1]
-        model = state.get_models()[related_model_name]
+        model = state.get_model(related_model_name)
         related_table = model["table"]
         to_field = getattr(field, "to_field", None) or "id"
 

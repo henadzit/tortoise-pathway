@@ -24,6 +24,7 @@ from tortoise_pathway.operations import (
     AddConstraint,
     DropConstraint,
 )
+from tortoise_pathway.operations.field_ext import field_db_column
 
 
 class State:
@@ -39,7 +40,7 @@ class State:
         schema: Dictionary mapping model names to their schema representations.
     """
 
-    def __init__(self, app_name: str):
+    def __init__(self, app_name: str, schema: Optional[Dict[str, Dict[str, Any]]] = None):
         """
         Initialize an empty state for a specific app.
 
@@ -61,8 +62,8 @@ class State:
         #         }
         #     }
         # }
-        self.schema: Dict[str, Dict[str, Any]] = {"models": {}}
-        self.snapshots: List[Tuple[str, State]] = []
+        self._schema: Dict[str, Dict[str, Any]] = schema or {"models": {}}
+        self._snapshots: List[Tuple[str, State]] = []
 
     def apply_operation(self, operation: Operation) -> None:
         """
@@ -111,15 +112,15 @@ class State:
         Args:
             name: The name of the snapshot.
         """
-        self.snapshots.append((name, copy.deepcopy(self)))
+        self._snapshots.append((name, copy.deepcopy(self)))
 
     def prev(self) -> "State":
         """
         Get the previous state.
         """
-        if len(self.snapshots) == 1:
+        if len(self._snapshots) == 1:
             return State(self.app_name)
-        _, state = self.snapshots[-2]
+        _, state = self._snapshots[-2]
         return state
 
     def _apply_create_model(self, model_name: str, operation: CreateModel) -> None:
@@ -127,7 +128,7 @@ class State:
         table_name = operation.get_table_name(self)
 
         # Create a new model entry
-        self.schema["models"][model_name] = {
+        self._schema["models"][model_name] = {
             "table": table_name,
             "fields": {},
             "indexes": [],
@@ -135,81 +136,81 @@ class State:
 
         # Add fields directly from the operation
         for field_name, field_obj in operation.fields.items():
-            self.schema["models"][model_name]["fields"][field_name] = field_obj
+            self._schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_drop_model(self, model_name: str, operation: DropModel) -> None:
         """Apply a DropModel operation to the state."""
         # Remove the model if it exists
-        if model_name in self.schema["models"]:
-            del self.schema["models"][model_name]
+        if model_name in self._schema["models"]:
+            del self._schema["models"][model_name]
 
     def _apply_rename_model(self, model_name: str, operation: RenameModel) -> None:
         """Apply a RenameModel operation to the state."""
         new_table_name = operation.new_name
 
-        if not new_table_name or model_name not in self.schema["models"]:
+        if not new_table_name or model_name not in self._schema["models"]:
             return
 
         # Update the table name
-        self.schema["models"][model_name]["table"] = new_table_name
+        self._schema["models"][model_name]["table"] = new_table_name
 
     def _apply_add_field(self, model_name: str, operation: AddField) -> None:
         """Apply an AddField operation to the state."""
         field_obj = operation.field_object
         field_name = operation.field_name
 
-        if model_name not in self.schema["models"]:
+        if model_name not in self._schema["models"]:
             return
 
         # Add the field directly to the state
-        self.schema["models"][model_name]["fields"][field_name] = field_obj
+        self._schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_drop_field(self, model_name: str, operation: DropField) -> None:
         """Apply a DropField operation to the state."""
         field_name = operation.field_name
 
-        if model_name not in self.schema["models"]:
+        if model_name not in self._schema["models"]:
             return
 
         # Remove the field from the state
-        if field_name in self.schema["models"][model_name]["fields"]:
-            del self.schema["models"][model_name]["fields"][field_name]
+        if field_name in self._schema["models"][model_name]["fields"]:
+            del self._schema["models"][model_name]["fields"][field_name]
 
     def _apply_alter_field(self, model_name: str, operation: AlterField) -> None:
         """Apply an AlterField operation to the state."""
         field_name = operation.field_name
         field_obj = operation.field_object
 
-        if model_name not in self.schema["models"]:
+        if model_name not in self._schema["models"]:
             return
 
         # Verify the field exists
-        if field_name in self.schema["models"][model_name]["fields"]:
+        if field_name in self._schema["models"][model_name]["fields"]:
             # Replace with the new field object
-            self.schema["models"][model_name]["fields"][field_name] = field_obj
+            self._schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_rename_field(self, model_name: str, operation: RenameField) -> None:
         """Apply a RenameField operation to the state."""
         old_field_name = operation.field_name
         new_field_name = operation.new_name
 
-        if model_name not in self.schema["models"]:
+        if model_name not in self._schema["models"]:
             return
 
         # Verify the old field exists
-        if old_field_name in self.schema["models"][model_name]["fields"]:
+        if old_field_name in self._schema["models"][model_name]["fields"]:
             # Get the field object
-            field_obj = self.schema["models"][model_name]["fields"][old_field_name]
+            field_obj = self._schema["models"][model_name]["fields"][old_field_name]
 
             # Add the field with the new name
-            self.schema["models"][model_name]["fields"][new_field_name] = field_obj
+            self._schema["models"][model_name]["fields"][new_field_name] = field_obj
 
             # Remove the old field
-            del self.schema["models"][model_name]["fields"][old_field_name]
+            del self._schema["models"][model_name]["fields"][old_field_name]
 
     def _apply_add_index(self, model_name: str, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
-        if model_name not in self.schema["models"]:
+        if model_name not in self._schema["models"]:
             return
 
         # Get field names from operation
@@ -218,15 +219,13 @@ class State:
         # Get column names from the fields
         columns = []
         for field_name in fields:
-            if field_name in self.schema["models"][model_name]["fields"]:
-                field_obj = self.schema["models"][model_name]["fields"][field_name]
-                # Get the column name from the field object or use field name as default
-                column_name = getattr(field_obj, "source_field", field_name)
-                columns.append(column_name)
+            if field_name in self._schema["models"][model_name]["fields"]:
+                field_obj = self._schema["models"][model_name]["fields"][field_name]
+                columns.append(field_db_column(field_obj, field_name))
 
         # Add the index to the state
         if columns:
-            self.schema["models"][model_name]["indexes"].append(
+            self._schema["models"][model_name]["indexes"].append(
                 {
                     "name": operation.index_name,
                     "unique": operation.unique,
@@ -236,13 +235,13 @@ class State:
 
     def _apply_drop_index(self, model_name: str, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
-        if model_name not in self.schema["models"]:
+        if model_name not in self._schema["models"]:
             return
 
         # Find and remove the index by name
-        for i, index in enumerate(self.schema["models"][model_name]["indexes"]):
+        for i, index in enumerate(self._schema["models"][model_name]["indexes"]):
             if index["name"] == operation.index_name:
-                del self.schema["models"][model_name]["indexes"][i]
+                del self._schema["models"][model_name]["indexes"][i]
                 break
 
     def _apply_add_constraint(self, model_name: str, operation: AddConstraint) -> None:
@@ -259,18 +258,23 @@ class State:
 
     def get_schema(self) -> Dict[str, Any]:
         """Get the entire schema representation."""
-        return self.schema
+        return {
+            "models": {
+                model_name: self.get_model(model_name)
+                for model_name in self._schema["models"].keys()
+            }
+        }
 
-    def get_models(self) -> Dict[str, Any]:
+    def get_model(self, model_name: str) -> Dict[str, Any]:
         """
-        Get all models for this app.
+        Get a specific model for this app.
 
         Returns:
-            Dictionary of models for the app.
+            Dictionary of the model.
         """
-        return self.schema["models"]
+        return copy.copy(self._schema["models"][model_name])
 
-    def get_table_name(self, model: str) -> Optional[str]:
+    def get_table_name(self, model_name: str) -> Optional[str]:
         """
         Get the table name for a specific model.
 
@@ -281,7 +285,7 @@ class State:
             The table name, or None if not found.
         """
         try:
-            return self.schema["models"][model]["table"]
+            return self._schema["models"][model_name]["table"]
         except (KeyError, TypeError):
             return None
 
@@ -289,8 +293,11 @@ class State:
         """
         Get the field object for a specific field.
         """
-        if model in self.schema["models"] and field_name in self.schema["models"][model]["fields"]:
-            return self.schema["models"][model]["fields"][field_name]
+        if (
+            model in self._schema["models"]
+            and field_name in self._schema["models"][model]["fields"]
+        ):
+            return self._schema["models"][model]["fields"][field_name]
         return None
 
     def get_fields(self, model: str) -> Optional[Dict[str, Field]]:
@@ -303,8 +310,8 @@ class State:
         Returns:
             Dictionary mapping field names to Field objects, or None if model not found.
         """
-        if model in self.schema["models"]:
-            return self.schema["models"][model]["fields"]
+        if model in self._schema["models"]:
+            return copy.copy(self._schema["models"][model]["fields"])
         return None
 
     def get_column_name(self, model: str, field_name: str) -> Optional[str]:
@@ -320,10 +327,10 @@ class State:
         """
         try:
             if (
-                model in self.schema["models"]
-                and field_name in self.schema["models"][model]["fields"]
+                model in self._schema["models"]
+                and field_name in self._schema["models"][model]["fields"]
             ):
-                field_obj = self.schema["models"][model]["fields"][field_name]
+                field_obj = self._schema["models"][model]["fields"][field_name]
                 # Get source_field if available, otherwise use field_name as the column name
                 source_field = getattr(field_obj, "source_field", None)
                 return source_field if source_field is not None else field_name

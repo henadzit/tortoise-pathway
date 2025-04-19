@@ -12,11 +12,7 @@ class TestSqliteDialect:
 
     def test_add_regular_field(self):
         """Test SQL generation for adding a regular field."""
-        state = State("test")
-        state.schema["models"]["TestModel"] = {
-            "table": "test_table",
-            "app": "tests",
-        }
+        state = State("test", schema={"models": {"TestModel": {"table": "test_table"}}})
 
         # Test adding a text field
         operation = AddField(
@@ -42,18 +38,10 @@ class TestSqliteDialect:
 
     def test_add_foreign_key(self):
         """Test SQL generation for adding a foreign key field with SQLite."""
-        state = State("test")
-
-        # Set up models in the state
-        state.schema["models"]["TestModel"] = {
-            "table": "test_table",
-            "app": "tests",
-        }
-
-        state.schema["models"]["User"] = {
-            "table": "users",
-            "app": "tests",
-        }
+        state = State(
+            "test",
+            schema={"models": {"TestModel": {"table": "test_table"}, "User": {"table": "users"}}},
+        )
 
         # Test adding a foreign key field
         operation = AddField(
@@ -76,11 +64,7 @@ class TestPostgresDialect:
 
     def test_add_regular_field(self):
         """Test SQL generation for adding a regular field."""
-        state = State("test")
-        state.schema["models"]["TestModel"] = {
-            "table": "test_table",
-            "app": "tests",
-        }
+        state = State("test", schema={"models": {"TestModel": {"table": "test_table"}}})
 
         # Test adding a text field
         operation = AddField(
@@ -95,18 +79,15 @@ class TestPostgresDialect:
 
     def test_add_foreign_key(self):
         """Test SQL generation for adding a foreign key field with PostgreSQL."""
-        state = State("test")
-
-        # Set up models in the state
-        state.schema["models"]["TestModel"] = {
-            "table": "test_table",
-            "app": "tests",
-        }
-
-        state.schema["models"]["Category"] = {
-            "table": "categories",
-            "app": "tests",
-        }
+        state = State(
+            "test",
+            schema={
+                "models": {
+                    "TestModel": {"table": "test_table"},
+                    "Category": {"table": "categories"},
+                }
+            },
+        )
 
         # Test adding a foreign key field
         operation = AddField(

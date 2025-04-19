@@ -6,6 +6,7 @@ import pytest
 from pathlib import Path
 
 from tortoise import Tortoise
+from tortoise.exceptions import IntegrityError
 from tortoise_pathway.migration_manager import MigrationManager
 from tortoise_pathway.operations import (
     AddIndex,
@@ -77,6 +78,7 @@ async def test_model_changes(setup_test_db):
     assert isinstance(operations[2], AddField)
     assert operations[2].get_table_name(manager.migration_state) == "blogs"
     assert operations[2].field_name == "updated_at"
+    assert getattr(operations[2].field_object, "auto_now", False)
 
     assert isinstance(operations[3], DropField)
     assert operations[3].get_table_name(manager.migration_state) == "blogs"
@@ -132,41 +134,15 @@ async def test_model_changes(setup_test_db):
     # 1. Verify new table was created
     await conn.execute_query("SELECT * FROM comments")
 
-    if conn.capabilities.dialect != "sqlite":
-        # we need to figure out how to check it for all dialects
-        return
+    await conn.execute_query(
+        "INSERT INTO blogs (slug, title, summary) VALUES ('test-slug', 'Test Title', 'Test Summary')"
+    )
+    with pytest.raises(IntegrityError):
+        # This should raise an IntegrityError because the slug is now unique
+        await conn.execute_query(
+            "INSERT INTO blogs (slug, title) VALUES ('test-slug', 'Another Title')"
+        )
 
-    # 2. Verify new columns were added to existing tables
-    blog_columns = await conn.execute_query("PRAGMA table_info(blogs)")
-    blog_column_names = [column["name"] for column in blog_columns[1]]
-    assert "summary" in blog_column_names
-    assert "updated_at" in blog_column_names
-    # Verify deleted column is no longer present
-    assert "content" not in blog_column_names
-
-    tag_columns = await conn.execute_query("PRAGMA table_info(tags)")
-    tag_column_names = [column["name"] for column in tag_columns[1]]
-    assert "description" in tag_column_names
-
-    # Verify the unique index on the slug field
-    indexes = await conn.execute_query("PRAGMA index_list('blogs')")
-    index_names = [idx["name"] for idx in indexes[1]]
-
-    # Find any index that might be on the slug column
-    slug_index = None
-    for index_name in index_names:
-        index_info = await conn.execute_query(f"PRAGMA index_info('{index_name}')")
-        for column_info in index_info[1]:
-            if column_info["name"] == "slug":
-                slug_index = index_name
-                break
-        if slug_index:
-            break
-
-    assert slug_index is not None, "No index found for the slug column"
-
-    # Check if the index is unique
-    for idx in indexes[1]:
-        if idx["name"] == slug_index:
-            assert idx["unique"] == 1, "The index on slug is not unique"
-            break
+    res = await conn.execute_query("SELECT created_at, updated_at FROM blogs")
+    assert res[1][0]["created_at"] is not None
+    assert res[1][0]["updated_at"] is not None

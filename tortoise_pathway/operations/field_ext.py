@@ -1,12 +1,25 @@
 """
-Utility functions for operations.
+Utility functions for Tortoise Field objects.
 """
 
-from typing import Any
-from tortoise.converters import encoders
 from tortoise.fields import Field
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.relational import RelationalField
+
+
+def field_db_column(field: Field, field_name: str) -> str:
+    """
+    Get the database column name for a field. Usually you can get the column name from the Field object,
+    however, it requires to initialize the Tortoise models which is not always possible in a migration.
+    """
+    source_field = getattr(field, "source_field", None)
+    if source_field:
+        return source_field
+    elif isinstance(field, RelationalField):
+        # Default to tortoise convention: field_name + "_id"
+        return f"{field_name}_id"
+    else:
+        return field_name
 
 
 def field_to_migration(field: Field) -> str:
@@ -78,20 +91,13 @@ def field_to_migration(field: Field) -> str:
         params.append(f"source_field='{field.source_field}'")
 
     if isinstance(field, DatetimeField):
-        if getattr(field, "auto_now_add", False):
-            params.append("auto_now_add=True")
-        elif getattr(field, "auto_now", False):
+        # Tortoise will set both auto_now and auto_now_add to True if auto_now_add is True,
+        # even though you cannot pass both to the field constructor.
+        # The following code ensures that both of them aren't True at the same time.
+        if getattr(field, "auto_now", False):
             params.append("auto_now=True")
+        elif getattr(field, "auto_now_add", False):
+            params.append("auto_now_add=True")
 
     # Generate the final string representation
     return f"{field_type}({', '.join(params)})"
-
-
-def default_to_sql(default: Any, dialect: str) -> Any:
-    """
-    Convert a default value to its SQL representation.
-    """
-    if dialect == "postgres" and isinstance(default, bool):
-        return default
-
-    return encoders.get(type(default))(default)
