@@ -58,20 +58,21 @@ class CreateModel(Operation):
             # Handle ForeignKey fields
             if isinstance(field, RelationalField):
                 # For ForeignKeyField, use the actual db column name (typically field_name + "_id")
-                db_field_name = getattr(field, "model_field_name", field_name)
                 source_field = getattr(field, "source_field", None)
                 if source_field:
                     db_column = source_field
                 else:
                     # Default to tortoise convention: field_name + "_id"
-                    db_column = f"{db_field_name}_id"
+                    db_column = f"{field_name}_id"
 
-                # Add foreign key constraint if related table is known
-                _ = getattr(field, "model_name", None)
-                related_table = getattr(field, "related_table", None)
-
-                if related_table:
-                    constraints.append(f"FOREIGN KEY ({db_column}) REFERENCES {related_table} (id)")
+                related_app_model_name = field.model_name
+                related_model_name = related_app_model_name.split(".")[-1]
+                model = state.get_models()[related_model_name]
+                related_table = model["table"]
+                to_field = field.to_field or "id"
+                constraints.append(
+                    f'FOREIGN KEY ({db_column}) REFERENCES "{related_table}" ({to_field})'
+                )
 
                 # TODO: foreign keys might have a different type
                 sql_type = IntField().get_for_dialect(dialect, "SQL_TYPE")
