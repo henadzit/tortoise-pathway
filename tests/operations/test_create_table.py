@@ -70,7 +70,7 @@ class TestSqliteDialect:
     name VARCHAR(100) NOT NULL,
     description TEXT,
     is_active INT NOT NULL DEFAULT 1,
-    created_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     score REAL
 );"""
         )
