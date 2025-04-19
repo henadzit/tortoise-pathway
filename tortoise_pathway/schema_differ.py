@@ -175,6 +175,7 @@ class SchemaDiffer:
         )
 
         # Tables to create (in models but not in current schema)
+        retries = 0
         while len(models_to_create) > 0:
             model_name = models_to_create.pop(0)
             model_info = model_schema["models"][model_name]
@@ -197,6 +198,9 @@ class SchemaDiffer:
                         break
 
             if try_again:
+                retries += 1
+                if retries > 50:
+                    raise ValueError(f"Possible circular dependency to {models_to_create}")
                 continue
 
             model_ref = f"{self.app_name}.{model_name}"
