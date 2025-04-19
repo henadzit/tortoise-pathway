@@ -2,8 +2,6 @@
 Utility functions for operations.
 """
 
-from typing import Any
-from tortoise.converters import encoders
 from tortoise.fields import Field
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.relational import RelationalField
@@ -85,13 +83,3 @@ def field_to_migration(field: Field) -> str:
 
     # Generate the final string representation
     return f"{field_type}({', '.join(params)})"
-
-
-def default_to_sql(default: Any, dialect: str) -> Any:
-    """
-    Convert a default value to its SQL representation.
-    """
-    if dialect == "postgres" and isinstance(default, bool):
-        return default
-
-    return encoders.get(type(default))(default)

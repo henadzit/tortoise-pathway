@@ -8,7 +8,8 @@ from tortoise.fields import Field, IntField
 from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.utils import default_to_sql, field_to_migration
+from tortoise_pathway.operations.field_ext import field_to_migration
+from tortoise_pathway.operations.sql import default_value_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -117,7 +118,7 @@ class CreateModel(Operation):
                 column_def += " UNIQUE"
 
             if default is not None and not callable(default):
-                default_val = default_to_sql(default, dialect)
+                default_val = default_value_to_sql(default, dialect)
 
                 column_def += f" DEFAULT {default_val}"
 

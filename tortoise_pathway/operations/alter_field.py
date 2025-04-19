@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from tortoise.fields import Field
 
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.utils import field_to_migration
+from tortoise_pathway.operations.field_ext import field_to_migration
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
