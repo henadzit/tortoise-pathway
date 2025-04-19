@@ -4,6 +4,7 @@ AddField operation for Tortoise ORM migrations.
 
 from typing import TYPE_CHECKING
 from tortoise.fields import Field
+from tortoise.fields.relational import RelationalField
 
 
 from tortoise_pathway.operations.operation import Operation
@@ -25,10 +26,14 @@ class AddField(Operation):
         super().__init__(model)
         self.field_object = field_object
         self.field_name = field_name
-        # Determine column name from field object if available
         source_field = getattr(field_object, "source_field", None)
-        model_field_name = getattr(field_object, "model_field_name", None)
-        self.column_name = source_field or model_field_name or field_name
+        if source_field:
+            self._db_column = source_field
+        elif isinstance(field_object, RelationalField):
+            # Default to tortoise convention: field_name + "_id"
+            self._db_column = f"{field_name}_id"
+        else:
+            self._db_column = field_name
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding a column."""
@@ -36,8 +41,14 @@ class AddField(Operation):
         nullable = getattr(self.field_object, "null", False)
         default = getattr(self.field_object, "default", None)
         is_pk = getattr(self.field_object, "pk", False)
+        is_foreign_key = isinstance(self.field_object, RelationalField)
 
-        sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self.column_name}"
+        # Handle foreign key fields
+        if is_foreign_key:
+            return self._generate_foreign_key_sql(state, dialect)
+
+        # Handle regular fields
+        sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column}"
 
         # Get SQL type using the get_for_dialect method
         sql_type = self.field_object.get_for_dialect(dialect, "SQL_TYPE")
@@ -61,9 +72,54 @@ class AddField(Operation):
 
         return sql
 
+    def _generate_foreign_key_sql(self, state: "State", dialect: str = "sqlite") -> str:
+        """Generate SQL for adding a foreign key column."""
+        field = self.field_object
+
+        # Get related model information
+        # In Tortoise ORM, RelationalField has a model_name attribute that contains the full model reference
+        related_app_model_name = getattr(field, "model_name", "")
+        related_model_name = related_app_model_name.split(".")[-1]
+        model = state.get_models()[related_model_name]
+        related_table = model["table"]
+        to_field = getattr(field, "to_field", None) or "id"
+
+        # SQLite doesn't support adding foreign key constraints with ALTER TABLE
+        if dialect == "sqlite":
+            sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column} INT"
+
+            if not getattr(field, "null", False):
+                sql += " NOT NULL"
+
+            sql += f" REFERENCES {related_table}({to_field})"
+            return sql
+
+        # For other dialects like PostgreSQL, we can add the foreign key constraint
+        if dialect == "postgres":
+            # First add the column
+            sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column} INT"
+
+            if not getattr(field, "null", False):
+                sql += " NOT NULL"
+
+            # Then add the foreign key constraint
+            sql += f",\nADD CONSTRAINT fk_{self.get_table_name(state)}_{self._db_column} "
+            sql += f"FOREIGN KEY ({self._db_column}) REFERENCES {related_table}({to_field})"
+
+            return sql
+
+        # Default fallback for other dialects
+        sql = f"ALTER TABLE {self.get_table_name(state)} ADD COLUMN {self._db_column} INT"
+
+        if not getattr(field, "null", False):
+            sql += " NOT NULL"
+
+        return sql
+
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping a column."""
-        return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {self.column_name}"
+        # For foreign keys, use the DB column name (field_name + "_id")
+        return f"ALTER TABLE {self.get_table_name(state)} DROP COLUMN {self._db_column}"
 
     def to_migration(self) -> str:
         """Generate Python code to add a field in a migration."""
