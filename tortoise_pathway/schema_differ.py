@@ -8,6 +8,7 @@ Tortoise models and the actual database schema.
 from typing import Dict, List, Any, Optional
 
 from tortoise import Tortoise
+from tortoise.fields.relational import ForeignKeyFieldInstance
 from tortoise.models import Model
 
 from tortoise_pathway.state import State
@@ -153,33 +154,54 @@ class SchemaDiffer:
 
         return app_schema
 
-    async def detect_changes(self) -> List[Operation]:
+    async def _detect_create_models(
+        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
+    ) -> List[Operation]:
         """
-        Detect schema changes between models and state derived from migrations.
+        Detect models that need to be created (models in the model schema but not in the current schema).
+
+        Args:
+            current_schema: Schema from the current state
+            model_schema: Schema derived from Tortoise models
 
         Returns:
-            List of Operation objects representing the detected changes.
+            List of CreateModel operations
         """
-        current_schema = self.state.get_schema()
-        model_schema = self.get_model_schema()
         changes = []
 
-        # Create a map of table names to their model for easy lookup
-        current_tables = {}
-        model_tables = {}
-
-        for model_name, model_info in current_schema["models"].items():
-            current_tables[model_info["table"]] = model_name
-
-        for model_name, model_info in model_schema["models"].items():
-            model_tables[model_info["table"]] = model_name
+        processed_model_names = []
+        models_to_create = list(
+            set(model_schema["models"].keys()) - set(current_schema["models"].keys())
+        )
 
         # Tables to create (in models but not in current schema)
-        for table_name in sorted(set(model_tables.keys()) - set(current_tables.keys())):
-            model_name = model_tables[table_name]
-            # Get the model info and extract field objects
+        retries = 0
+        while len(models_to_create) > 0:
+            model_name = models_to_create.pop(0)
             model_info = model_schema["models"][model_name]
-            field_objects = model_info["fields"]  # Field objects are already stored directly
+            field_objects = model_info["fields"]
+
+            # The following code ensures that the referenced models are created before
+            # the model that references them. Otherwise, we won't be able to create
+            # foreign key constraints.
+            try_again = False
+            for field in field_objects.values():
+                if isinstance(field, ForeignKeyFieldInstance):
+                    referenced_model_name = field.model_name.split(".")[-1]
+                    if (
+                        referenced_model_name not in current_schema["models"]
+                        and referenced_model_name not in processed_model_names
+                    ):
+                        # The referenced model has not been created yet, so we need to try again later
+                        models_to_create.append(model_name)
+                        try_again = True
+                        break
+
+            if try_again:
+                retries += 1
+                if retries > 50:
+                    raise ValueError(f"Possible circular dependency to {models_to_create}")
+                continue
 
             model_ref = f"{self.app_name}.{model_name}"
             operation = CreateModel(
@@ -187,10 +209,29 @@ class SchemaDiffer:
                 fields=field_objects,
             )
             changes.append(operation)
+            processed_model_names.append(model_name)
+
+        return changes
+
+    async def _detect_drop_models(
+        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
+    ) -> List[Operation]:
+        """
+        Detect models that need to be dropped (models in the current schema but not in the model schema).
+
+        Args:
+            current_schema: Schema from the current state
+            model_schema: Schema derived from Tortoise models
+
+        Returns:
+            List of DropModel operations
+        """
+        changes = []
 
         # Tables to drop (in current schema but not in models)
-        for table_name in sorted(set(current_tables.keys()) - set(model_tables.keys())):
-            model_name = current_tables[table_name]
+        for model_name in sorted(
+            set(current_schema["models"].keys()) - set(model_schema["models"].keys())
+        ):
             model_ref = f"{self.app_name}.{model_name}"
             changes.append(
                 DropModel(
@@ -198,14 +239,30 @@ class SchemaDiffer:
                 )
             )
 
-        # For tables that exist in both
-        for table_name in sorted(set(current_tables.keys()) & set(model_tables.keys())):
-            current_model_name = current_tables[table_name]
-            model_model_name = model_tables[table_name]
+        return changes
 
+    async def _detect_field_changes(
+        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
+    ) -> List[Operation]:
+        """
+        Detect field and index changes for models that exist in both schemas.
+
+        Args:
+            current_schema: Schema from the current state
+            model_schema: Schema derived from Tortoise models
+
+        Returns:
+            List of field and index related operations
+        """
+        changes = []
+
+        # For tables that exist in both
+        for model_name in sorted(
+            set(current_schema["models"].keys()) & set(model_schema["models"].keys())
+        ):
             # Get the model info for both
-            current_model = current_schema["models"][current_model_name]
-            model_model = model_schema["models"][model_model_name]
+            current_model = current_schema["models"][model_name]
+            model_model = model_schema["models"][model_name]
 
             # Get field sets for comparison
             current_fields = current_model["fields"]
@@ -216,7 +273,7 @@ class SchemaDiffer:
             model_field_names = set(model_fields.keys())
 
             # Reference to the model
-            model_ref = f"{self.app_name}.{model_model_name}"
+            model_ref = f"{self.app_name}.{model_name}"
 
             # Fields to add (in model but not in current schema)
             for field_name in sorted(model_field_names - current_field_names):
@@ -350,6 +407,26 @@ class SchemaDiffer:
                                     )
                                 )
                                 break
+
+        return changes
+
+    async def detect_changes(self) -> List[Operation]:
+        """
+        Detect schema changes between models and state derived from migrations.
+
+        Returns:
+            List of Operation objects representing the detected changes.
+        """
+        current_schema = self.state.get_schema()
+        model_schema = self.get_model_schema()
+
+        # Collect changes from each detection method
+        create_model_changes = await self._detect_create_models(current_schema, model_schema)
+        drop_model_changes = await self._detect_drop_models(current_schema, model_schema)
+        field_changes = await self._detect_field_changes(current_schema, model_schema)
+
+        # Combine all changes
+        changes = create_model_changes + drop_model_changes + field_changes
 
         return changes
 
