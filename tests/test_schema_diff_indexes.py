@@ -71,18 +71,20 @@ async def test_detect_index_removals():
         "name": CharField(max_length=100),
         "created_at": DatetimeField(auto_now_add=True),
     }
-
-    create_model_op = CreateModel(
-        model="test.TestModel",
-        fields=fields,
+    state.apply_operation(
+        CreateModel(
+            model="test.TestModel",
+            fields=fields,
+        )
     )
-
-    state.apply_operation(create_model_op)
-
-    # Add index to the state model
-    state.schema["models"]["TestModel"]["indexes"] = [
-        {"name": "idx_test_model_created_at", "unique": False, "columns": ["created_at"]}
-    ]
+    state.apply_operation(
+        AddIndex(
+            model="test.TestModel",
+            field_name="created_at",
+            index_name="idx_test_model_created_at",
+            unique=False,
+        )
+    )
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
@@ -114,17 +116,20 @@ async def test_detect_index_modifications():
         "created_at": DatetimeField(auto_now_add=True),
     }
 
-    create_model_op = CreateModel(
-        model="test.TestModel",
-        fields=fields,
+    state.apply_operation(
+        CreateModel(
+            model="test.TestModel",
+            fields=fields,
+        )
     )
-
-    state.apply_operation(create_model_op)
-
-    # Add index to the state model
-    state.schema["models"]["TestModel"]["indexes"] = [
-        {"name": "idx_test_model_created_at", "unique": False, "columns": ["created_at"]}
-    ]
+    state.apply_operation(
+        AddIndex(
+            model="test.TestModel",
+            field_name="created_at",
+            index_name="idx_test_model_created_at",
+            unique=False,
+        )
+    )
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)

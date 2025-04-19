@@ -74,7 +74,7 @@ class AddField(Operation):
         # In Tortoise ORM, RelationalField has a model_name attribute that contains the full model reference
         related_app_model_name = getattr(field, "model_name", "")
         related_model_name = related_app_model_name.split(".")[-1]
-        model = state.get_models()[related_model_name]
+        model = state.get_model(related_model_name)
         related_table = model["table"]
         to_field = getattr(field, "to_field", None) or "id"
 

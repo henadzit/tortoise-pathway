@@ -62,7 +62,7 @@ class CreateModel(Operation):
             if isinstance(field, RelationalField):
                 related_app_model_name = field.model_name
                 related_model_name = related_app_model_name.split(".")[-1]
-                model = state.get_models()[related_model_name]
+                model = state.get_model(related_model_name)
                 related_table = model["table"]
                 to_field = field.to_field or "id"
                 constraints.append(

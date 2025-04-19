@@ -19,7 +19,7 @@ from tortoise_pathway.operations import (
 async def test_build_empty_state():
     """Test building an empty state."""
     state = State("test_app")
-    assert state.schema == {"models": {}}
+    assert state.get_schema() == {"models": {}}
 
 
 async def test_apply_create_model():
@@ -54,7 +54,7 @@ async def test_apply_create_model():
     }
 
     # Compare the entire state schema to the expected state
-    assert state.schema == expected_state
+    assert state.get_schema() == expected_state
 
 
 async def test_apply_add_field():
@@ -102,7 +102,7 @@ async def test_apply_add_field():
     }
 
     # Compare the entire state schema to the expected state
-    assert state.schema == expected_state
+    assert state.get_schema() == expected_state
 
 
 async def test_apply_drop_field():
@@ -148,7 +148,7 @@ async def test_apply_drop_field():
     }
 
     # Compare the entire state schema to the expected state
-    assert state.schema == expected_state
+    assert state.get_schema() == expected_state
 
 
 async def test_apply_alter_field():
@@ -197,7 +197,7 @@ async def test_apply_alter_field():
     }
 
     # Compare the entire state schema to the expected state
-    assert state.schema == expected_state
+    assert state.get_schema() == expected_state
 
 
 async def test_apply_rename_field():
@@ -245,7 +245,7 @@ async def test_apply_rename_field():
     }
 
     # Compare the entire state schema to the expected state
-    assert state.schema == expected_state
+    assert state.get_schema() == expected_state
 
 
 async def test_apply_rename_model():
@@ -285,7 +285,7 @@ async def test_apply_rename_model():
     }
 
     # Compare the entire state schema to the expected state
-    assert state.schema == expected_state
+    assert state.get_schema() == expected_state
 
 
 async def test_get_schema():
@@ -308,8 +308,8 @@ async def test_get_schema():
     # Get the schema
     schema = state.get_schema()
 
-    # Define the expected state
-    expected_state = {
+    # Compare the schema to the expected state
+    assert schema == {
         "models": {
             "TestModel": {
                 "table": "test_model",
@@ -319,11 +319,8 @@ async def test_get_schema():
         }
     }
 
-    # Compare the schema to the expected state
-    assert schema == expected_state
 
-
-async def test_get_models():
+async def test_get_model():
     """Test getting the models."""
     state = State("test_app")
 
@@ -340,20 +337,12 @@ async def test_get_models():
 
     state.apply_operation(create_model_op)
 
-    # Get the models
-    models = state.get_models()
-
-    # Define the expected models
-    expected_models = {
-        "TestModel": {
-            "table": "test_model",
-            "fields": fields,
-            "indexes": [],
-        },
+    # Compare the model to the expected model
+    assert state.get_model("TestModel") == {
+        "table": "test_model",
+        "fields": fields,
+        "indexes": [],
     }
-
-    # Compare the models to the expected models
-    assert models == expected_models
 
 
 async def test_get_table_name():
@@ -435,4 +424,4 @@ async def test_ignore_operations_for_different_app():
     state.apply_operation(create_model_op)
 
     # State should be empty as the operation was for a different app
-    assert state.schema == {"models": {}}
+    assert state.get_schema() == {"models": {}}

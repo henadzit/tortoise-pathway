@@ -108,13 +108,7 @@ class TestSqliteDialect:
 
     def test_forward_sql_foreign_key(self):
         """Test SQL generation with foreign key fields."""
-        state = State("test")
-
-        # First define the related model in the state
-        state.schema["models"]["User"] = {
-            "table": "users",
-            "app": "tests",
-        }
+        state = State("test", schema={"models": {"User": {"table": "users", "app": "tests"}}})
 
         # Create model with a foreign key
         fields_dict = {
