@@ -42,6 +42,7 @@ class AlterField(Operation):
             field_type = self.field_object.__class__.__name__
             is_pk = getattr(self.field_object, "pk", False)
             unique = getattr(self.field_object, "unique", False)
+            table_name = self.get_table_name(state)
 
             if is_pk and field_type == "IntField" and dialect == "postgres":
                 column_type = "SERIAL"
@@ -49,30 +50,39 @@ class AlterField(Operation):
             field_from_state = state.get_field(self.model_name, self.field_name)
             assert field_from_state is not None
 
-            # TODO: implement nullable change
-
             # Type change
             if column_type != field_from_state.get_for_dialect(dialect, "SQL_TYPE"):
                 statements.append(
-                    f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} TYPE {column_type};"
+                    f"ALTER TABLE {table_name} ALTER COLUMN {db_column} TYPE {column_type};"
                 )
+
+            # Nullability change
+            if self.field_object.null != field_from_state.null:
+                if self.field_object.null:
+                    statements.append(
+                        f"ALTER TABLE {table_name} ALTER COLUMN {db_column} DROP NOT NULL;"
+                    )
+                else:
+                    statements.append(
+                        f"ALTER TABLE {table_name} ALTER COLUMN {db_column} SET NOT NULL;"
+                    )
 
             # Default value change
             if self.field_object.default != field_from_state.default:
                 if not callable(self.field_object.default):
                     default_value = default_value_to_sql(self.field_object.default, dialect)
                     statements.append(
-                        f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} SET DEFAULT {default_value};"
+                        f"ALTER TABLE {table_name} ALTER COLUMN {db_column} SET DEFAULT {default_value};"
                     )
                 else:
                     statements.append(
-                        f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} DROP DEFAULT;"
+                        f"ALTER TABLE {table_name} ALTER COLUMN {db_column} DROP DEFAULT;"
                     )
 
             # Unique change
             if unique != field_from_state.unique:
                 statements.append(
-                    f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {db_column}_unique UNIQUE ({db_column});"
+                    f"ALTER TABLE {table_name} ADD CONSTRAINT {db_column}_unique UNIQUE ({db_column});"
                 )
 
             return "\n".join(statements)
