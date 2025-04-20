@@ -60,7 +60,7 @@ async def test_model_changes(setup_test_db):
 
     # Verify the exact operations and their order
     operations = migration.operations
-    assert len(operations) == 7
+    assert len(operations) == 8
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
@@ -99,6 +99,13 @@ async def test_model_changes(setup_test_db):
     assert isinstance(operations[6], AddField)
     assert operations[6].get_table_name(manager.migration_state) == "tags"
     assert operations[6].field_name == "description"
+
+    assert isinstance(operations[7], AlterField)
+    assert operations[7].get_table_name(manager.migration_state) == "tags"
+    assert operations[7].field_name == "color"
+    assert operations[7].field_object is not None
+    assert operations[7].field_object.null
+    assert operations[7].field_object.default == "red"
 
     # Verify field deletion operation
 
@@ -146,3 +153,15 @@ async def test_model_changes(setup_test_db):
     res = await conn.execute_query("SELECT created_at, updated_at FROM blogs")
     assert res[1][0]["created_at"] is not None
     assert res[1][0]["updated_at"] is not None
+
+    # Verify nullability change
+    await conn.execute_query("INSERT INTO tags (name, color) VALUES ('test-tag', null)")
+    res = await conn.execute_query("SELECT color FROM tags")
+    assert res[1][0]["color"] is None
+
+    await conn.execute_query("DELETE FROM tags")
+
+    # Verify default value change
+    await conn.execute_query("INSERT INTO tags (name) VALUES ('test-tag')")
+    res = await conn.execute_query("SELECT color FROM tags")
+    assert res[1][0]["color"] == "red"

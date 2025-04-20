@@ -33,6 +33,7 @@ class InitialMigration(Migration):
             fields={
                 "id": IntField(primary_key=True),
                 "name": CharField(max_length=50, unique=True),
+                "color": CharField(max_length=50),
                 # Note: description field is missing in the initial migration
             },
         ),
