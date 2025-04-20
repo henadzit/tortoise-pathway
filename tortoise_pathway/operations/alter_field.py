@@ -8,7 +8,7 @@ from tortoise.fields import Field
 
 from tortoise_pathway.operations.operation import Operation
 from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
-from tortoise_pathway.operations.sql import field_definition_to_sql
+from tortoise_pathway.operations.sql import default_value_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -32,57 +32,10 @@ class AlterField(Operation):
         db_column = field_db_column(self.field_object, self.field_name)
 
         if dialect == "sqlite":
-            table_name = self.get_table_name(state)
-            temp_table_name = f"__new__{table_name}"
-
-            # Step 1: Begin transaction
-            sql = "BEGIN TRANSACTION;\n\n"
-
-            # Step 2: Create a new table with the desired schema
-            # First, get all fields from the model
-            model_fields = state.get_fields(self.model_name)
-            if model_fields is None:
-                raise ValueError(f"Model {self.model_name} not found in state")
-
-            # Replace the altered field with the new field object
-            model_fields[self.field_name] = self.field_object
-
-            # Create temporary model with the updated fields
-            from tortoise_pathway.operations.create_model import CreateModel
-
-            temp_model = CreateModel(self.model, model_fields)
-            temp_model.set_table_name(temp_table_name)
-
-            # Generate CREATE TABLE statement for the new table
-            sql += temp_model.forward_sql(state, dialect) + ";\n\n"
-
-            # Step 3: Copy data from old table to new table
-            # Get all column names from the model
-            column_names = [
-                state.get_column_name(self.model_name, field_name) or field_name
-                for field_name in model_fields.keys()
-                if model_fields[field_name].__class__.__name__ != "BackwardFKRelation"
-            ]
-
-            # Create INSERT statement to copy data
-            source_columns = ", ".join(column_names)
-            target_columns = source_columns  # In SQLite rename, columns keep same names
-
-            sql += f"INSERT INTO {temp_table_name} ({target_columns})\n"
-            sql += f"SELECT {source_columns} FROM {table_name};\n\n"
-
-            # Step 4: Drop the old table
-            sql += f"DROP TABLE {table_name};\n\n"
-
-            # Step 5: Rename the new table to the original name
-            sql += f"ALTER TABLE {temp_table_name} RENAME TO {table_name};\n\n"
-
-            # Complete the transaction
-            sql += "COMMIT;"
-            return sql
+            return self._forward_sql_sqlite(state)
         elif dialect == "postgres":
+            statements = []
             # Get SQL type using the get_for_dialect method
-            sql = ""
             column_type = self.field_object.get_for_dialect(dialect, "SQL_TYPE")
 
             # Special case for primary keys
@@ -100,20 +53,83 @@ class AlterField(Operation):
 
             # Type change
             if column_type != field_from_state.get_for_dialect(dialect, "SQL_TYPE"):
-                sql += f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} TYPE {column_type};\n"
+                statements.append(
+                    f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} TYPE {column_type};"
+                )
 
             # Default value change
             if self.field_object.default != field_from_state.default:
-                default_def = field_definition_to_sql(self.field_object, dialect)
-                sql += f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} SET {default_def};\n"
+                if not callable(self.field_object.default):
+                    default_value = default_value_to_sql(self.field_object.default, dialect)
+                    statements.append(
+                        f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} SET DEFAULT {default_value};"
+                    )
+                else:
+                    statements.append(
+                        f"ALTER TABLE {self.get_table_name(state)} ALTER COLUMN {db_column} DROP DEFAULT;"
+                    )
 
             # Unique change
             if unique != field_from_state.unique:
-                sql += f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {db_column}_unique UNIQUE ({db_column});\n"
+                statements.append(
+                    f"ALTER TABLE {self.get_table_name(state)} ADD CONSTRAINT {db_column}_unique UNIQUE ({db_column});"
+                )
 
-            return sql
+            return "\n".join(statements)
         else:
             return f"-- Alter column not implemented for dialect: {dialect}"
+
+    def _forward_sql_sqlite(self, state: "State") -> str:
+        """Generate SQL for altering a column in SQLite. SQLite has a limited set of ALTER TABLE commands,
+        so we need to create a new table and copy the data over."""
+        table_name = self.get_table_name(state)
+        temp_table_name = f"__new__{table_name}"
+
+        # Step 1: Begin transaction
+        sql = "BEGIN TRANSACTION;\n"
+
+        # Step 2: Create a new table with the desired schema
+        # First, get all fields from the model
+        model_fields = state.get_fields(self.model_name)
+        if model_fields is None:
+            raise ValueError(f"Model {self.model_name} not found in state")
+
+        # Replace the altered field with the new field object
+        model_fields[self.field_name] = self.field_object
+
+        # Create temporary model with the updated fields
+        from tortoise_pathway.operations.create_model import CreateModel
+
+        temp_model = CreateModel(self.model, model_fields)
+        temp_model.set_table_name(temp_table_name)
+
+        # Generate CREATE TABLE statement for the new table
+        sql += temp_model.forward_sql(state, "sqlite") + ";\n"
+
+        # Step 3: Copy data from old table to new table
+        # Get all column names from the model
+        column_names = [
+            state.get_column_name(self.model_name, field_name) or field_name
+            for field_name in model_fields.keys()
+            if model_fields[field_name].__class__.__name__ != "BackwardFKRelation"
+        ]
+
+        # Create INSERT statement to copy data
+        source_columns = ", ".join(column_names)
+        target_columns = source_columns  # In SQLite rename, columns keep same names
+
+        sql += f"INSERT INTO {temp_table_name} ({target_columns})\n"
+        sql += f"SELECT {source_columns} FROM {table_name};\n"
+
+        # Step 4: Drop the old table
+        sql += f"DROP TABLE {table_name};\n"
+
+        # Step 5: Rename the new table to the original name
+        sql += f"ALTER TABLE {temp_table_name} RENAME TO {table_name};\n"
+
+        # Complete the transaction
+        sql += "COMMIT;"
+        return sql
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         prev_field = state.prev().get_field(self.model_name, self.field_name)

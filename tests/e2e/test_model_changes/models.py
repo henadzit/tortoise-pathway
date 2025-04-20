@@ -34,6 +34,8 @@ class Tag(models.Model):
 
     id = fields.IntField(primary_key=True)
     name = fields.CharField(max_length=50, unique=True)
+    # Changed: added null=True and default="red"
+    color = fields.CharField(max_length=50, null=True, default="red")
     # Changed from original: Added a new field
     description = fields.TextField(null=True)
 
