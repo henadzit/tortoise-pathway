@@ -86,7 +86,7 @@ COMMIT;"""
 class TestPostgresDialect:
     """Tests for AlterField operation with PostgreSQL dialect."""
 
-    def test_alter_field_type(self):
+    def test_change_type(self):
         """Test SQL generation for altering a field type in PostgreSQL."""
         # Create state with proper model and field
         state = State(
@@ -111,7 +111,7 @@ class TestPostgresDialect:
         sql = operation.forward_sql(state=state, dialect="postgres")
         assert sql == "ALTER TABLE test_table ALTER COLUMN count TYPE BIGINT;"
 
-    def test_alter_field_default(self):
+    def test_change_default(self):
         """Test SQL generation for altering a field's default value in PostgreSQL."""
         # Create state with proper model and field with default
         state = State(
@@ -136,7 +136,7 @@ class TestPostgresDialect:
         sql = operation.forward_sql(state=state, dialect="postgres")
         assert sql == "ALTER TABLE test_table ALTER COLUMN count SET DEFAULT 10;"
 
-    def test_alter_field_unique(self):
+    def test_add_unique(self):
         """Test SQL generation for making a field unique in PostgreSQL."""
         # Create state with non-unique field
         state = State(
@@ -159,9 +159,34 @@ class TestPostgresDialect:
         )
 
         sql = operation.forward_sql(state=state, dialect="postgres")
-        assert sql == "ALTER TABLE test_table ADD CONSTRAINT email_unique UNIQUE (email);"
+        assert sql == "ALTER TABLE test_table ADD CONSTRAINT email_key UNIQUE (email);"
 
-    def test_alter_field_default_unique(self):
+    def test_remove_unique(self):
+        """Test SQL generation for removing a unique constraint in PostgreSQL."""
+        # Create state with a unique field
+        state = State(
+            "tests",
+            {
+                "models": {
+                    "TestModel": {
+                        "table": "test_table",
+                        "fields": {"email": fields.CharField(max_length=255, unique=True)},
+                    }
+                }
+            },
+        )
+
+        # Remove the unique constraint
+        operation = AlterField(
+            model="tests.TestModel",
+            field_object=fields.CharField(max_length=255),
+            field_name="email",
+        )
+
+        sql = operation.forward_sql(state=state, dialect="postgres")
+        assert sql == "ALTER TABLE test_table DROP CONSTRAINT email_key;"
+
+    def test_default_unique_changed(self):
         """Test SQL generation for altering a field's default value in PostgreSQL."""
         # Create state with proper model and field with default
         state = State(
@@ -187,7 +212,7 @@ class TestPostgresDialect:
         assert (
             sql
             == """ALTER TABLE test_table ALTER COLUMN count SET DEFAULT 10;
-ALTER TABLE test_table ADD CONSTRAINT count_unique UNIQUE (count);"""
+ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         )
 
     def test_to_migration(self):

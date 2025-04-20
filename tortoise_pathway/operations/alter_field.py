@@ -81,9 +81,12 @@ class AlterField(Operation):
 
             # Unique change
             if unique != field_from_state.unique:
-                statements.append(
-                    f"ALTER TABLE {table_name} ADD CONSTRAINT {db_column}_unique UNIQUE ({db_column});"
-                )
+                if unique:
+                    statements.append(
+                        f"ALTER TABLE {table_name} ADD CONSTRAINT {db_column}_key UNIQUE ({db_column});"
+                    )
+                else:
+                    statements.append(f"ALTER TABLE {table_name} DROP CONSTRAINT {db_column}_key;")
 
             return "\n".join(statements)
         else:
