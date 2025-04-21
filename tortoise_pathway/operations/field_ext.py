@@ -53,6 +53,10 @@ def field_to_migration(field: Field) -> str:
     if hasattr(field, "unique") and field.unique:
         params.append("unique=True")
 
+    if hasattr(field, "enum_type"):
+        enum_type = getattr(field, "enum_type")
+        params.append(f"enum_type={enum_type.__name__}")
+
     if hasattr(field, "default") and field.default is not None and not callable(field.default):
         if isinstance(field.default, str):
             params.append(f"default='{field.default}'")

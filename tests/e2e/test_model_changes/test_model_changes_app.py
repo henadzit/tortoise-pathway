@@ -7,6 +7,8 @@ from pathlib import Path
 
 from tortoise import Tortoise
 from tortoise.exceptions import IntegrityError
+from tortoise.fields.data import CharEnumFieldInstance
+from tests.e2e.test_model_changes.models import TagStatus
 from tortoise_pathway.migration_manager import MigrationManager
 from tortoise_pathway.operations import (
     AddIndex,
@@ -60,7 +62,7 @@ async def test_model_changes(setup_test_db):
 
     # Verify the exact operations and their order
     operations = migration.operations
-    assert len(operations) == 8
+    assert len(operations) == 9
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
@@ -100,12 +102,18 @@ async def test_model_changes(setup_test_db):
     assert operations[6].get_table_name(manager.migration_state) == "tags"
     assert operations[6].field_name == "description"
 
-    assert isinstance(operations[7], AlterField)
+    assert isinstance(operations[7], AddField)
     assert operations[7].get_table_name(manager.migration_state) == "tags"
-    assert operations[7].field_name == "color"
-    assert operations[7].field_object is not None
-    assert operations[7].field_object.null
-    assert operations[7].field_object.default == "red"
+    assert operations[7].field_name == "status"
+    assert isinstance(operations[7].field_object, CharEnumFieldInstance)
+    assert getattr(operations[7].field_object, "enum_type", None) == TagStatus
+
+    assert isinstance(operations[8], AlterField)
+    assert operations[8].get_table_name(manager.migration_state) == "tags"
+    assert operations[8].field_name == "color"
+    assert operations[8].field_object is not None
+    assert operations[8].field_object.null
+    assert operations[8].field_object.default == "red"
 
     # Verify field deletion operation
 
@@ -155,13 +163,15 @@ async def test_model_changes(setup_test_db):
     assert res[1][0]["updated_at"] is not None
 
     # Verify nullability change
-    await conn.execute_query("INSERT INTO tags (name, color) VALUES ('test-tag', null)")
+    await conn.execute_query(
+        "INSERT INTO tags (name, color, status) VALUES ('test-tag', null, 'active')"
+    )
     res = await conn.execute_query("SELECT color FROM tags")
     assert res[1][0]["color"] is None
 
     await conn.execute_query("DELETE FROM tags")
 
     # Verify default value change
-    await conn.execute_query("INSERT INTO tags (name) VALUES ('test-tag')")
+    await conn.execute_query("INSERT INTO tags (name, status) VALUES ('test-tag', 'active')")
     res = await conn.execute_query("SELECT color FROM tags")
     assert res[1][0]["color"] == "red"

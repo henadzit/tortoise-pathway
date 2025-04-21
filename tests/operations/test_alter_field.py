@@ -2,9 +2,17 @@
 Tests for AlterField operation.
 """
 
+from enum import Enum
 from tortoise import fields
+from tortoise.fields.data import CharEnumFieldInstance
 from tortoise_pathway.operations import AlterField
 from tortoise_pathway.state import State
+
+
+class UserRole(Enum):
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
 
 
 class TestSqliteDialect:
@@ -81,7 +89,6 @@ DROP TABLE test_table;
 ALTER TABLE __new__test_table RENAME TO test_table;
 COMMIT;"""
         )
-
 
 class TestPostgresDialect:
     """Tests for AlterField operation with PostgreSQL dialect."""
@@ -232,3 +239,30 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
     field_name="name",
 )"""
         )
+
+    def test_char_to_enum(self):
+        """Test converting CharField to CharEnumField in PostgreSQL.
+
+        Since Tortoise does not create a type in the database schema, this should be no op.
+        """
+        # Create state with a CharField
+        state = State(
+            "tests",
+            {
+                "models": {
+                    "TestModel": {
+                        "table": "test_table",
+                        "fields": {"role": fields.CharField(max_length=20)},
+                    }
+                }
+            },
+        )
+
+        # Change to CharEnumField
+        operation = AlterField(
+            model="tests.TestModel",
+            field_object=CharEnumFieldInstance(enum_type=UserRole, max_length=20),
+            field_name="role",
+        )
+
+        assert operation.forward_sql(state=state, dialect="postgres") == ""
