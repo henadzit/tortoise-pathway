@@ -2,6 +2,7 @@
 Models for testing application with model changes after initial migration.
 """
 
+from enum import StrEnum
 from tortoise import fields, models
 
 
@@ -29,6 +30,11 @@ class Blog(models.Model):
         return self.title
 
 
+class TagStatus(StrEnum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
 class Tag(models.Model):
     """Existing model"""
 
@@ -38,6 +44,8 @@ class Tag(models.Model):
     color = fields.CharField(max_length=50, null=True, default="red")
     # Changed from original: Added a new field
     description = fields.TextField(null=True)
+    # Changed from original: Added a new field
+    status = fields.CharEnumField(max_length=50, enum_type=TagStatus)
 
     class Meta:
         table = "tags"

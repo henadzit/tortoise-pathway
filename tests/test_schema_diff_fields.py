@@ -2,11 +2,25 @@
 Tests for the SchemaDiffer's ability to detect field changes.
 """
 
-from tortoise.fields import IntField, CharField, DatetimeField, BooleanField
+from enum import IntEnum, Enum
+from tortoise.fields import (
+    IntField,
+    CharField,
+    DatetimeField,
+    BooleanField,
+    IntEnumField,
+    CharEnumField,
+)
+from tortoise.fields.data import IntEnumFieldInstance, CharEnumFieldInstance
 
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_differ import SchemaDiffer
-from tortoise_pathway.operations import AddField, AlterField, DropField, CreateModel
+from tortoise_pathway.operations import (
+    AddField,
+    AlterField,
+    DropField,
+    CreateModel,
+)
 
 
 async def test_detect_field_additions():
@@ -340,3 +354,87 @@ async def test_detect_multiple_field_changes():
 
     # Restore original method
     differ.get_model_schema = original_get_model_schema
+
+
+async def test_detect_enum_field_additions():
+    """Test detecting added enum fields."""
+
+    # Define enums for our fields
+    class Status(IntEnum):
+        ACTIVE = 1
+        INACTIVE = 0
+        PENDING = 2
+
+    class UserType(str, Enum):
+        ADMIN = "admin"
+        USER = "user"
+        GUEST = "guest"
+
+    # Initialize state with a model without the enum fields we'll add
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+    state = State(
+        "test",
+        {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": {"id": IntField(primary_key=True), "name": CharField(max_length=100)},
+                    "indexes": [],
+                }
+            }
+        },
+    )
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer("test", state)
+
+    # Mock the get_model_schema method to return a schema with additional enum fields
+    def mock_get_model_schema():
+        # Add new enum fields to the fields dictionary
+        updated_fields = fields.copy()
+        updated_fields["status"] = IntEnumField(Status, default=Status.INACTIVE)
+        updated_fields["user_type"] = CharEnumField(UserType, default=UserType.USER)
+
+        return {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": updated_fields,
+                    "indexes": [],
+                }
+            }
+        }
+
+    # Replace the method with our mock
+    differ.get_model_schema = mock_get_model_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be two changes: AddField for each enum field
+    assert len(changes) == 2
+
+    # Find the changes for each field
+    status_changes = [c for c in changes if isinstance(c, AddField) and c.field_name == "status"]
+    user_type_changes = [
+        c for c in changes if isinstance(c, AddField) and c.field_name == "user_type"
+    ]
+
+    # Check for status field addition
+    assert len(status_changes) == 1
+    status_change = status_changes[0]
+    assert status_change.model == "test.TestModel"
+    assert isinstance(status_change.field_object, IntEnumFieldInstance)
+    assert status_change.field_object.default == Status.INACTIVE
+    assert getattr(status_change.field_object, "enum_type", None) == Status
+
+    # Check for user_type field addition
+    assert len(user_type_changes) == 1
+    user_type_change = user_type_changes[0]
+    assert user_type_change.model == "test.TestModel"
+    assert isinstance(user_type_change.field_object, CharEnumFieldInstance)
+    assert user_type_change.field_object.default == UserType.USER
+    assert getattr(user_type_change.field_object, "enum_type", None) == UserType

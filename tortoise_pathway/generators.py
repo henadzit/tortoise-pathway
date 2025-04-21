@@ -110,16 +110,13 @@ def generate_auto_migration(
         # Add the change class name to imports
         schema_changes_used.add(change.__class__.__name__)
 
-        # If we're generating a reverse operation as a different class type, add that too
         if isinstance(change, CreateModel):
-            schema_changes_used.add("DropModel")
-
             # Add field type imports if using fields dictionary
             if hasattr(change, "fields") and change.fields:
                 for field_obj in change.fields.values():
-                    field_imports.add(field_to_import(field_obj))
+                    field_imports.update(field_to_imports(field_obj))
         elif isinstance(change, AddField) or isinstance(change, AlterField):
-            field_imports.add(field_to_import(change.field_object))
+            field_imports.update(field_to_imports(change.field_object))
 
     schema_imports = ", ".join(sorted(schema_changes_used))
     model_imports_str = "\n".join(sorted(model_imports))
@@ -181,8 +178,11 @@ class {class_name}(Migration):
 '''
 
 
-def field_to_import(field: Field) -> str:
+def field_to_imports(field: Field) -> List[str]:
     """
     Convert a field object to an import string.
     """
-    return f"from {field.__class__.__module__} import {field.__class__.__name__}"
+    imports = [f"from {field.__class__.__module__} import {field.__class__.__name__}"]
+    if hasattr(field, "enum_type"):
+        imports.append(f"from {field.enum_type.__module__} import {field.enum_type.__name__}")
+    return imports
