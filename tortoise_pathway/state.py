@@ -6,9 +6,10 @@ on applied migrations, rather than the actual database state.
 """
 
 import copy
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, cast
 
 from tortoise.fields import Field
+from tortoise.fields.relational import ManyToManyFieldInstance
 
 from tortoise_pathway.operations import (
     Operation,
@@ -164,6 +165,19 @@ class State:
 
         # Add the field directly to the state
         self._schema["models"][model_name]["fields"][field_name] = field_obj
+
+        # m2m fields are bidirectional, so we need to add the field to the referred model
+        if isinstance(field_obj, ManyToManyFieldInstance):
+            m2m_field = cast(ManyToManyFieldInstance, field_obj)
+            referred_model_name = m2m_field.model_name.split(".")[1]
+            self._schema["models"][referred_model_name]["fields"][m2m_field.related_name] = (
+                ManyToManyFieldInstance(
+                    model_name=f"{self.app_name}.{model_name}",
+                    through=m2m_field.through,
+                    related_name=field_name,
+                    on_delete=m2m_field.on_delete,
+                )
+            )
 
     def _apply_drop_field(self, model_name: str, operation: DropField) -> None:
         """Apply a DropField operation to the state."""

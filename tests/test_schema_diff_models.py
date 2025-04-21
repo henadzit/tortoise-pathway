@@ -8,11 +8,11 @@ from tortoise.fields import (
     CharField,
     DatetimeField,
 )
-from tortoise.fields.relational import ForeignKeyFieldInstance
+from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
 
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_differ import SchemaDiffer
-from tortoise_pathway.operations import CreateModel
+from tortoise_pathway.operations import CreateModel, AddField
 
 
 async def test_detect_basic_model_creation():
@@ -56,6 +56,13 @@ async def test_detect_basic_model_creation():
     assert isinstance(create_model_op.fields["id"], IntField)
     assert isinstance(create_model_op.fields["name"], CharField)
     assert isinstance(create_model_op.fields["created_at"], DatetimeField)
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_single_relation_model_creation():
@@ -120,6 +127,13 @@ async def test_detect_single_relation_model_creation():
     post_model = cast(CreateModel, changes[1])
     assert len(post_model.fields) == 4  # id, title, content, and user FK
     assert isinstance(post_model.fields["user"], ForeignKeyFieldInstance)
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_multiple_relations_model_creation():
@@ -189,6 +203,13 @@ async def test_detect_multiple_relations_model_creation():
     comment_model = cast(CreateModel, [m for m in changes if m.model == "test.Comment"][0])
     assert isinstance(comment_model.fields["user"], ForeignKeyFieldInstance)
     assert isinstance(comment_model.fields["post"], ForeignKeyFieldInstance)
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_circular_reference_model_creation():
@@ -316,3 +337,151 @@ async def test_detect_circular_reference_model_creation():
 
     # Course should be created before StudentCourse
     assert_model_created_before("StudentCourse", "Course")
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
+
+
+async def test_detect_both_m2m_models_created():
+    """Test detecting M2M relationship when both models are being created."""
+    # Initialize state with no models
+    state = State("test")
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer("test", state)
+
+    # Mock the get_model_schema method to return a schema with M2M relationship
+    def mock_get_model_schema():
+        return {
+            "models": {
+                "Student": {
+                    "table": "student",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                        "courses": ManyToManyFieldInstance(
+                            "test.Course", related_name="students", through="student_course"
+                        ),
+                    },
+                    "indexes": [],
+                },
+                "Course": {
+                    "table": "course",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                        "students": ManyToManyFieldInstance(
+                            "test.Student", related_name="courses", through="student_course"
+                        ),
+                    },
+                    "indexes": [],
+                },
+            }
+        }
+
+    # Replace the method with our mock
+    differ.get_model_schema = mock_get_model_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be 3 changes: CreateModel for Student, CreateModel for Course,
+    # and one AddField for the M2M relation
+    assert len(changes) == 3
+
+    assert isinstance(changes[0], CreateModel)
+    assert changes[0].model == "test.Course"
+    assert isinstance(changes[1], CreateModel)
+    assert changes[1].model == "test.Student"
+    assert isinstance(changes[2], AddField)
+    assert changes[2].field_name == "students"
+    assert isinstance(changes[2].field_object, ManyToManyFieldInstance)
+    assert changes[2].field_object.model_name == "test.Student"
+    assert changes[2].field_object.through == "student_course"
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
+
+
+async def test_detect_one_m2m_model_exists():
+    """Test detecting M2M relationship when one model exists and another is being added."""
+    # Initialize state with one of the M2M models already existing
+    state = State(
+        "test",
+        {
+            "models": {
+                "Course": {
+                    "table": "course",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                    },
+                    "indexes": [],
+                }
+            }
+        },
+    )
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer("test", state)
+
+    # Mock the get_model_schema method to return a schema with both models including M2M relationship
+    def mock_get_model_schema():
+        return {
+            "models": {
+                "Student": {
+                    "table": "student",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                        "courses": ManyToManyFieldInstance(
+                            "test.Course", related_name="students", through="student_course"
+                        ),
+                    },
+                    "indexes": [],
+                },
+                "Course": {
+                    "table": "course",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                        "students": ManyToManyFieldInstance(
+                            "test.Student", related_name="courses", through="student_course"
+                        ),
+                    },
+                    "indexes": [],
+                },
+            }
+        }
+
+    # Replace the method with our mock
+    differ.get_model_schema = mock_get_model_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be 2 changes: CreateModel for Student and one AddField for m2m relation
+    assert len(changes) == 2
+
+    assert isinstance(changes[0], CreateModel)
+    assert changes[0].model == "test.Student"
+    assert isinstance(changes[1], AddField)
+    assert changes[1].field_name == "courses"
+    assert isinstance(changes[1].field_object, ManyToManyFieldInstance)
+    assert changes[1].field_object.model_name == "test.Course"
+    assert changes[1].field_object.through == "student_course"
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
