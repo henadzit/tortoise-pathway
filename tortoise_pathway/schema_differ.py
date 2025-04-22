@@ -217,7 +217,7 @@ class SchemaDiffer:
             processed_model_names.append(model_name)
 
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
-        # a signle opeation to setup the M2M relation, hence we need to skip one side of the relation.
+        # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
         for model_name in processed_model_names:
             model_info = model_schema["models"][model_name]
             for field_name, field_object in model_info["fields"].items():
