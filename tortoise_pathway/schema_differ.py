@@ -5,10 +5,10 @@ This module provides the SchemaDiffer class that detects differences between
 Tortoise models and the actual database schema.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 
 from tortoise import Tortoise
-from tortoise.fields.relational import ForeignKeyFieldInstance
+from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
 from tortoise.models import Model
 
 from tortoise_pathway.state import State
@@ -39,6 +39,7 @@ class SchemaDiffer:
         self.app_name = app_name
         self.connection = connection
         self.state = state or State(app_name)
+        self._changes = []
 
     def _convert_to_models_format(self, db_schema: Dict[str, Any]) -> Dict[str, Any]:
         """Convert database schema to the models format for a single app."""
@@ -156,7 +157,7 @@ class SchemaDiffer:
 
     async def _detect_create_models(
         self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
-    ) -> List[Operation]:
+    ):
         """
         Detect models that need to be created (models in the model schema but not in the current schema).
 
@@ -167,11 +168,9 @@ class SchemaDiffer:
         Returns:
             List of CreateModel operations
         """
-        changes = []
-
         processed_model_names = []
-        models_to_create = list(
-            set(model_schema["models"].keys()) - set(current_schema["models"].keys())
+        models_to_create = sorted(
+            list(set(model_schema["models"].keys()) - set(current_schema["models"].keys()))
         )
 
         # Tables to create (in models but not in current schema)
@@ -179,7 +178,12 @@ class SchemaDiffer:
         while len(models_to_create) > 0:
             model_name = models_to_create.pop(0)
             model_info = model_schema["models"][model_name]
-            field_objects = model_info["fields"]
+            # filtering out ManyToManyFieldInstance to add them after table creation
+            field_objects = {
+                n: f
+                for n, f in model_info["fields"].items()
+                if not isinstance(f, ManyToManyFieldInstance)
+            }
 
             # The following code ensures that the referenced models are created before
             # the model that references them. Otherwise, we won't be able to create
@@ -204,18 +208,42 @@ class SchemaDiffer:
                 continue
 
             model_ref = f"{self.app_name}.{model_name}"
-            operation = CreateModel(
-                model=model_ref,
-                fields=field_objects,
+            self._changes.append(
+                CreateModel(
+                    model=model_ref,
+                    fields=field_objects,
+                )
             )
-            changes.append(operation)
             processed_model_names.append(model_name)
 
-        return changes
+        # When Tortoise initialized, the M2M field is present on the both models. We need to add just
+        # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
+        for model_name in processed_model_names:
+            model_info = model_schema["models"][model_name]
+            for field_name, field_object in model_info["fields"].items():
+                if not isinstance(field_object, ManyToManyFieldInstance):
+                    continue
+
+                field = cast(ManyToManyFieldInstance, field_object)
+
+                if self._is_m2m_processed_from_the_other_side(
+                    f"{self.app_name}.{model_name}", field.model_name, field.through
+                ):
+                    continue
+
+                self._changes.append(
+                    AddField(
+                        model=f"{self.app_name}.{model_name}",
+                        field_object=field,
+                        field_name=field_name,
+                    )
+                )
 
     async def _detect_drop_models(
-        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
-    ) -> List[Operation]:
+        self,
+        current_schema: Dict[str, Any],
+        model_schema: Dict[str, Any],
+    ):
         """
         Detect models that need to be dropped (models in the current schema but not in the model schema).
 
@@ -226,24 +254,22 @@ class SchemaDiffer:
         Returns:
             List of DropModel operations
         """
-        changes = []
-
         # Tables to drop (in current schema but not in models)
         for model_name in sorted(
             set(current_schema["models"].keys()) - set(model_schema["models"].keys())
         ):
             model_ref = f"{self.app_name}.{model_name}"
-            changes.append(
+            self._changes.append(
                 DropModel(
                     model=model_ref,
                 )
             )
 
-        return changes
-
     async def _detect_field_changes(
-        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
-    ) -> List[Operation]:
+        self,
+        current_schema: Dict[str, Any],
+        model_schema: Dict[str, Any],
+    ):
         """
         Detect field and index changes for models that exist in both schemas.
 
@@ -254,8 +280,6 @@ class SchemaDiffer:
         Returns:
             List of field and index related operations
         """
-        changes = []
-
         # For tables that exist in both
         for model_name in sorted(
             set(current_schema["models"].keys()) & set(model_schema["models"].keys())
@@ -278,7 +302,15 @@ class SchemaDiffer:
             # Fields to add (in model but not in current schema)
             for field_name in sorted(model_field_names - current_field_names):
                 field_obj = model_fields[field_name]
-                changes.append(
+
+                if isinstance(field_obj, ManyToManyFieldInstance):
+                    m2m_field = cast(ManyToManyFieldInstance, field_obj)
+                    if self._is_m2m_processed_from_the_other_side(
+                        model_ref, m2m_field.model_name, m2m_field.through
+                    ):
+                        continue
+
+                self._changes.append(
                     AddField(
                         model=model_ref,
                         field_object=field_obj,
@@ -288,7 +320,7 @@ class SchemaDiffer:
 
             # Fields to drop (in current schema but not in model)
             for field_name in sorted(current_field_names - model_field_names):
-                changes.append(
+                self._changes.append(
                     DropField(
                         model=model_ref,
                         field_name=field_name,
@@ -302,7 +334,7 @@ class SchemaDiffer:
 
                 # Check if fields are different
                 if self._are_fields_different(current_field, model_field):
-                    changes.append(
+                    self._changes.append(
                         AlterField(
                             model=model_ref,
                             field_object=model_field,
@@ -330,7 +362,7 @@ class SchemaDiffer:
                     for field_name, field_obj in model_fields.items():
                         source_field = getattr(field_obj, "source_field", None)
                         if source_field == primary_field_name or field_name == primary_field_name:
-                            changes.append(
+                            self._changes.append(
                                 AddIndex(
                                     model=model_ref,
                                     field_name=field_name,
@@ -351,7 +383,7 @@ class SchemaDiffer:
                     for field_name, field_obj in current_fields.items():
                         source_field = getattr(field_obj, "source_field", None)
                         if source_field == primary_field_name or field_name == primary_field_name:
-                            changes.append(
+                            self._changes.append(
                                 DropIndex(
                                     model=model_ref,
                                     field_name=field_name,
@@ -379,7 +411,7 @@ class SchemaDiffer:
                                 source_field == primary_field_name
                                 or field_name == primary_field_name
                             ):
-                                changes.append(
+                                self._changes.append(
                                     DropIndex(
                                         model=model_ref,
                                         field_name=field_name,
@@ -397,7 +429,7 @@ class SchemaDiffer:
                                 source_field == primary_field_name
                                 or field_name == primary_field_name
                             ):
-                                changes.append(
+                                self._changes.append(
                                     AddIndex(
                                         model=model_ref,
                                         field_name=field_name,
@@ -408,8 +440,6 @@ class SchemaDiffer:
                                 )
                                 break
 
-        return changes
-
     async def detect_changes(self) -> List[Operation]:
         """
         Detect schema changes between models and state derived from migrations.
@@ -417,18 +447,16 @@ class SchemaDiffer:
         Returns:
             List of Operation objects representing the detected changes.
         """
+        self._changes = []
         current_schema = self.state.get_schema()
         model_schema = self.get_model_schema()
 
         # Collect changes from each detection method
-        create_model_changes = await self._detect_create_models(current_schema, model_schema)
-        drop_model_changes = await self._detect_drop_models(current_schema, model_schema)
-        field_changes = await self._detect_field_changes(current_schema, model_schema)
+        await self._detect_create_models(current_schema, model_schema)
+        await self._detect_drop_models(current_schema, model_schema)
+        await self._detect_field_changes(current_schema, model_schema)
 
-        # Combine all changes
-        changes = create_model_changes + drop_model_changes + field_changes
-
-        return changes
+        return self._changes
 
     def _are_fields_different(self, field1, field2) -> bool:
         """
@@ -489,8 +517,29 @@ class SchemaDiffer:
         # Fields are effectively the same for migration purposes
         return False
 
-    def _get_table_centric_schema(self, app_schema: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert app-models schema to table-centric schema for comparison. DEPRECATED."""
-        # This method is kept for backward compatibility but should not be used
-        # in the new model-centric approach.
-        return app_schema
+    def _is_m2m_processed_from_the_other_side(
+        self,
+        referring_model_ref: str,
+        referred_model_ref: str,
+        through_table: str,
+    ) -> bool:
+        """
+        Check if the M2M relation has been processed from the other side.
+        This is to avoid adding the same M2M relation twice.
+        """
+        for change in self._changes:
+            if not isinstance(change, AddField):
+                continue
+
+            if not isinstance(change.field_object, ManyToManyFieldInstance):
+                continue
+
+            field = cast(ManyToManyFieldInstance, change.field_object)
+
+            if (
+                change.model == referred_model_ref
+                and field.model_name == referring_model_ref
+                and field.through == through_table
+            ):
+                return True
+        return False

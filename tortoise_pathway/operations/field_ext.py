@@ -2,8 +2,7 @@
 Utility functions for Tortoise Field objects.
 """
 
-from tortoise.fields import Field
-from tortoise.fields.data import DatetimeField
+from tortoise.fields import Field, CharField, DatetimeField
 from tortoise.fields.relational import RelationalField
 
 
@@ -65,8 +64,11 @@ def field_to_migration(field: Field) -> str:
         else:
             params.append(f"default={field.default}")
 
+    if hasattr(field, "source_field") and field.source_field is not None:
+        params.append(f"source_field='{field.source_field}'")
+
     # Handle field-specific attributes
-    if field_type == "CharField" and hasattr(field, "max_length"):
+    if isinstance(field, CharField) and hasattr(field, "max_length"):
         # The hasattr check ensures the attribute exists before accessing
         max_length = getattr(field, "max_length")
         params.append(f"max_length={max_length}")
@@ -81,7 +83,7 @@ def field_to_migration(field: Field) -> str:
 
     if isinstance(field, RelationalField):
         related_model = getattr(field, "model_name")
-        params.append(f"'{related_model}'")
+        params.append(f"model_name='{related_model}'")
 
         if hasattr(field, "related_name"):
             related_name = getattr(field, "related_name")
@@ -91,8 +93,6 @@ def field_to_migration(field: Field) -> str:
         if hasattr(field, "on_delete"):
             on_delete = getattr(field, "on_delete")
             params.append(f"on_delete='{on_delete}'")
-
-        params.append(f"source_field='{field.source_field}'")
 
     if isinstance(field, DatetimeField):
         # Tortoise will set both auto_now and auto_now_add to True if auto_now_add is True,

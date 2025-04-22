@@ -12,6 +12,7 @@ from tortoise.fields import (
     CharEnumField,
 )
 from tortoise.fields.data import IntEnumFieldInstance, CharEnumFieldInstance
+from tortoise.fields.relational import ManyToManyFieldInstance
 
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_differ import SchemaDiffer
@@ -43,9 +44,6 @@ async def test_detect_field_additions():
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
 
-    # Store the original method
-    original_get_model_schema = differ.get_model_schema
-
     # Mock the get_model_schema method to return a schema with an additional field
     def mock_get_model_schema():
         # Add a new field to the fields dictionary
@@ -76,8 +74,12 @@ async def test_detect_field_additions():
     assert isinstance(changes[0].field_object, DatetimeField)
     assert changes[0].field_object.auto_now_add is True
 
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_field_removals():
@@ -100,9 +102,6 @@ async def test_detect_field_removals():
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
-
-    # Store the original method
-    original_get_model_schema = differ.get_model_schema
 
     # Mock the get_model_schema method to return a schema without the created_at field
     def mock_get_model_schema():
@@ -134,8 +133,12 @@ async def test_detect_field_removals():
     assert changes[0].model == "test.TestModel"
     assert changes[0].field_name == "created_at"
 
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_field_alterations():
@@ -158,9 +161,6 @@ async def test_detect_field_alterations():
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
-
-    # Store the original method
-    original_get_model_schema = differ.get_model_schema
 
     # Mock the get_model_schema method to return a schema with altered field properties
     def mock_get_model_schema():
@@ -210,8 +210,12 @@ async def test_detect_field_alterations():
     assert isinstance(active_change.field_object, BooleanField)
     assert active_change.field_object.default is False
 
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_field_type_changes():
@@ -234,9 +238,6 @@ async def test_detect_field_type_changes():
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
-
-    # Store the original method
-    original_get_model_schema = differ.get_model_schema
 
     # Mock the get_model_schema method to return a schema with changed field type
     def mock_get_model_schema():
@@ -271,8 +272,12 @@ async def test_detect_field_type_changes():
     assert isinstance(changes[0].field_object, BooleanField)
     assert changes[0].field_object.default is False
 
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_multiple_field_changes():
@@ -296,9 +301,6 @@ async def test_detect_multiple_field_changes():
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
-
-    # Store the original method
-    original_get_model_schema = differ.get_model_schema
 
     # Mock the get_model_schema method to return a schema with multiple changes
     def mock_get_model_schema():
@@ -352,8 +354,12 @@ async def test_detect_multiple_field_changes():
     assert isinstance(alter_field.field_object, CharField)
     assert alter_field.field_object.max_length == 200
 
-    # Restore original method
-    differ.get_model_schema = original_get_model_schema
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_enum_field_additions():
@@ -438,3 +444,95 @@ async def test_detect_enum_field_additions():
     assert isinstance(user_type_change.field_object, CharEnumFieldInstance)
     assert user_type_change.field_object.default == UserType.USER
     assert getattr(user_type_change.field_object, "enum_type", None) == UserType
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
+
+
+async def test_detect_m2m_field_additions_to_existing_models():
+    """Test detecting added m2m fields to two existing models."""
+    # Initialize state with two models that don't have m2m relationship
+    state = State(
+        "test",
+        {
+            "models": {
+                "User": {
+                    "table": "user",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                    },
+                    "indexes": [],
+                },
+                "Project": {
+                    "table": "project",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                    },
+                    "indexes": [],
+                },
+            }
+        },
+    )
+
+    # Create a schema differ with our state
+    differ = SchemaDiffer("test", state)
+
+    # Define a schema with the same models but with m2m relationship added
+    model_schema = {
+        "models": {
+            "User": {
+                "table": "user",
+                "fields": {
+                    "id": IntField(primary_key=True),
+                    "name": CharField(max_length=100),
+                    "projects": ManyToManyFieldInstance(
+                        "test.Project", related_name="users", through="user_project"
+                    ),
+                },
+                "indexes": [],
+            },
+            "Project": {
+                "table": "project",
+                "fields": {
+                    "id": IntField(primary_key=True),
+                    "name": CharField(max_length=100),
+                    "users": ManyToManyFieldInstance(
+                        "test.User", related_name="projects", through="user_project"
+                    ),
+                },
+                "indexes": [],
+            },
+        }
+    }
+
+    # Replace the get_model_schema method to return our schema
+    differ.get_model_schema = lambda: model_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be one change: AddField for the m2m relationship
+    assert len(changes) == 1
+    assert isinstance(changes[0], AddField)
+
+    # Check the field was added correctly
+    change = changes[0]
+    assert change.model == "test.Project"
+    assert change.field_name == "users"
+    assert isinstance(change.field_object, ManyToManyFieldInstance)
+    assert change.field_object.model_name == "test.User"
+    assert change.field_object.related_name == "projects"
+    assert change.field_object.through == "user_project"
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
