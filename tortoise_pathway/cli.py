@@ -53,20 +53,22 @@ async def init_tortoise(config_path: str) -> Dict[str, Any]:
         config_var_name = path_parts[-1]
 
         # Import the module
-        module = importlib.import_module(module_path)
-        # Get the configuration variable
-        tortoise_config = getattr(module, config_var_name, None)
+        try:
+            module = importlib.import_module(module_path)
+        except ImportError:
+            print(f"Error: Could not import {module_path}")
+            raise
 
-        if not tortoise_config:
+        # Get the configuration variable
+        try:
+            tortoise_config = getattr(module, config_var_name)
+        except AttributeError:
             print(f"Error: Could not find {config_var_name} in {module_path}")
-            sys.exit(1)
+            raise
 
         await Tortoise.init(config=tortoise_config)
         return tortoise_config
 
-    except ImportError:
-        print(f"Error: Could not import {module_path}")
-        raise
     except Exception as e:
         print(f"Error initializing Tortoise: {e}")
         sys.exit(1)
