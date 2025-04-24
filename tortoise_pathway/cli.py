@@ -7,7 +7,7 @@ This module provides a command-line interface for managing migrations.
 import asyncio
 import importlib
 import functools
-from typing import Dict, Any, Callable, TypeVar, Coroutine
+from typing import Dict, Any, Callable, Sequence, TypeVar, Coroutine
 
 import click
 from tortoise import Tortoise
@@ -16,30 +16,6 @@ from tortoise_pathway.migration_manager import MigrationManager
 
 
 T = TypeVar("T")
-
-
-@click.group()
-@click.option(
-    "--config",
-    required=True,
-    help="Path to the Tortoise ORM configuration variable in dot notation (e.g., 'myapp.config.TORTOISE_ORM')",
-    envvar="TORTOISE_ORM_CONFIG",
-    type=str,
-    metavar="CONFIG",
-)
-@click.pass_context
-def cli(ctx: click.Context, config: str) -> None:
-    """Command-line interface for Tortoise ORM migrations."""
-    ctx.ensure_object(dict)
-    ctx.obj["config"] = config
-
-    click.secho(
-        "Warning! This project is in VERY early development"
-        " and not yet ready for production use."
-        " Most things are broken and they will break again,"
-        " and APIs will change.",
-        fg="yellow",
-    )
 
 
 def asyncio_run(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]:
@@ -56,59 +32,54 @@ def asyncio_run(func: Callable[..., Coroutine[Any, Any, T]]) -> Callable[..., T]
     return wrapper
 
 
-def close_connections_after(
+def with_tortoise(
     func: Callable[..., Coroutine[Any, Any, T]],
 ) -> Callable[..., Coroutine[Any, Any, T]]:
-    """Decorator that ensures Tortoise connections are closed after the function completes."""
+    """Decorator that initializes and finalizes Tortoise connections around a function."""
 
     @functools.wraps(func)
-    async def wrapper(*args: Any, **kwargs: Any) -> T:
+    async def wrapper(ctx: click.Context, *args: Any, **kwargs: Any) -> T:
         try:
-            return await func(*args, **kwargs)
+            # Get the config path from the context
+            config_path = ctx.obj["config_path"]
+
+            # Split the path to separate module path from variable name
+            path_parts = config_path.split(".")
+            if len(path_parts) < 2:
+                click.secho(
+                    f"Error: Invalid config path '{config_path}'. "
+                    "Format should be 'module.path.CONFIG_VAR'",
+                    fg="red",
+                )
+                raise click.Abort()
+
+            module_path = ".".join(path_parts[:-1])
+            config_var_name = path_parts[-1]
+
+            # Import the module
+            module = importlib.import_module(module_path)
+            # Get the configuration variable
+            tortoise_config = getattr(module, config_var_name, None)
+
+            if not tortoise_config:
+                click.secho(f"Error: Could not find {config_var_name} in {module_path}", fg="red")
+                raise click.Abort()
+
+            await Tortoise.init(config=tortoise_config)
+            ctx.obj["tortoise_config"] = tortoise_config
+            ctx.obj["app"] = get_app_name(ctx.obj["app_name"] or None, tortoise_config)
+        except ImportError:
+            click.secho(f"Error: Could not import {module_path}", fg="red")
+            raise click.Abort()
+        except Exception as e:
+            click.secho(f"Error initializing Tortoise: {e}", fg="red")
+            raise click.Abort()
+        try:
+            return await func(ctx, *args, **kwargs)
         finally:
             await Tortoise.close_connections()
 
     return wrapper
-
-
-async def init_tortoise(config_path: str) -> Dict[str, Any]:
-    """Initialize Tortoise ORM with configuration from a module variable.
-
-    Args:
-        config_path: Path to the config variable in dot notation (e.g., 'myapp.config.TORTOISE_ORM')
-    """
-    try:
-        # Split the path to separate module path from variable name
-        path_parts = config_path.split(".")
-        if len(path_parts) < 2:
-            click.secho(
-                f"Error: Invalid config path '{config_path}'. "
-                "Format should be 'module.path.CONFIG_VAR'",
-                fg="red",
-            )
-            raise click.Abort()
-
-        module_path = ".".join(path_parts[:-1])
-        config_var_name = path_parts[-1]
-
-        # Import the module
-        module = importlib.import_module(module_path)
-        # Get the configuration variable
-        tortoise_config = getattr(module, config_var_name, None)
-
-        if not tortoise_config:
-            click.secho(f"Error: Could not find {config_var_name} in {module_path}", fg="red")
-            raise click.Abort()
-
-        await Tortoise.init(config=tortoise_config)
-        return tortoise_config
-
-    except ImportError:
-        click.secho(f"Error: Could not import {module_path}", fg="red")
-        raise click.Abort()
-    except Exception as e:
-        click.secho(f"Error initializing Tortoise: {e}", fg="red")
-        raise click.Abort()
 
 
 def get_app_name(app: str | None, config: Dict[str, Any]) -> str:
@@ -134,12 +105,49 @@ def get_app_name(app: str | None, config: Dict[str, Any]) -> str:
     raise click.Abort()
 
 
-@cli.command()
+@click.group()
+@click.option(
+    "--config",
+    required=True,
+    help="Path to the Tortoise ORM configuration variable in dot notation (e.g., 'myapp.config.TORTOISE_ORM')",
+    envvar="TORTOISE_ORM_CONFIG",
+    type=str,
+    metavar="CONFIG",
+)
 @click.option(
     "--app",
     help="App name (optional if config has only one app)",
     metavar="APP_NAME",
 )
+@click.option(
+    "--directory",
+    help="Base migrations directory (default: 'migrations')",
+    metavar="DIR",
+    default="migrations",
+)
+@click.pass_context
+def cli(
+    ctx: click.Context,
+    config: str,
+    app: str,
+    directory: str,
+) -> None:
+    """Command-line interface for Tortoise ORM migrations."""
+    ctx.ensure_object(dict)
+    ctx.obj["config_path"] = config
+    ctx.obj["app_name"] = app
+    ctx.obj["migrations_dir"] = directory
+
+    click.secho(
+        "Warning! This project is in VERY early development"
+        " and not yet ready for production use."
+        " Most things are broken and they will break again,"
+        " and APIs will change.",
+        fg="yellow",
+    )
+
+
+@cli.command()
 @click.option(
     "--name",
     help="Migration name (default: 'auto')",
@@ -150,29 +158,18 @@ def get_app_name(app: str | None, config: Dict[str, Any]) -> str:
     is_flag=True,
     help="Create an empty migration",
 )
-@click.option(
-    "--directory",
-    help="Base migrations directory (default: 'migrations')",
-    metavar="DIR",
-)
 @click.pass_context
 @asyncio_run
-@close_connections_after
+@with_tortoise
 async def make(
     ctx: click.Context,
-    app: str,
     name: str,
     empty: bool,
-    directory: str,
 ) -> None:
     """Create new migration(s) based on model changes."""
-    config = await init_tortoise(ctx.obj["config"])
-    app = get_app_name(app or None, config)
 
-    # The migrations directory is now the base directory, no need to join with app name
-    migration_dir = directory or "migrations"
-
-    manager = MigrationManager(app, migration_dir)
+    app = ctx.obj["app"]
+    manager = MigrationManager(app, ctx.obj["migrations_dir"])
     await manager.initialize()
 
     if not name:
@@ -192,32 +189,15 @@ async def make(
 
 
 @cli.command()
-@click.option(
-    "--app",
-    help="App name (optional if config has only one app)",
-    metavar="APP_NAME",
-)
-@click.option(
-    "--directory",
-    help="Base migrations directory (default: 'migrations')",
-    metavar="DIR",
-)
 @click.pass_context
 @asyncio_run
-@close_connections_after
+@with_tortoise
 async def migrate(
     ctx: click.Context,
-    app: str,
-    directory: str,
 ) -> None:
     """Apply migrations to the database."""
-    config = await init_tortoise(ctx.obj["config"])
-    app = get_app_name(app or None, config)
-
-    # The migrations directory is now the base directory, no need to join with app name
-    migration_dir = directory or "migrations"
-
-    manager = MigrationManager(app, migration_dir)
+    app = ctx.obj["app"]
+    manager = MigrationManager(app, ctx.obj["migrations_dir"])
     await manager.initialize()
 
     pending = manager.get_pending_migrations()
@@ -240,37 +220,20 @@ async def migrate(
 
 @cli.command()
 @click.option(
-    "--app",
-    help="App name (optional if config has only one app)",
-    metavar="APP_NAME",
-)
-@click.option(
     "--migration",
     help="Specific migration to revert",
     metavar="MIGRATION_NAME",
 )
-@click.option(
-    "--directory",
-    help="Base migrations directory (default: 'migrations')",
-    metavar="DIR",
-)
 @click.pass_context
 @asyncio_run
-@close_connections_after
+@with_tortoise
 async def rollback(
     ctx: click.Context,
-    app: str,
     migration: str,
-    directory: str,
 ) -> None:
     """Revert the most recent migration."""
-    config = await init_tortoise(ctx.obj["config"])
-    app = get_app_name(app or None, config)
-
-    # The migrations directory is now the base directory, no need to join with app name
-    migration_dir = directory or "migrations"
-
-    manager = MigrationManager(app, migration_dir)
+    app = ctx.obj["app"]
+    manager = MigrationManager(app, ctx.obj["migrations_dir"])
     await manager.initialize()
 
     reverted = await manager.revert_migration(migration or None)
@@ -282,32 +245,15 @@ async def rollback(
 
 
 @cli.command()
-@click.option(
-    "--app",
-    help="App name (optional if config has only one app)",
-    metavar="APP_NAME",
-)
-@click.option(
-    "--directory",
-    help="Base migrations directory (default: 'migrations')",
-    metavar="DIR",
-)
 @click.pass_context
 @asyncio_run
-@close_connections_after
+@with_tortoise
 async def showmigrations(
     ctx: click.Context,
-    app: str,
-    directory: str,
 ) -> None:
     """Show migration status."""
-    config = await init_tortoise(ctx.obj["config"])
-    app = get_app_name(app or None, config)
-
-    # The migrations directory is now the base directory, no need to join with app name
-    migration_dir = directory or "migrations"
-
-    manager = MigrationManager(app, migration_dir)
+    app = ctx.obj["app"]
+    manager = MigrationManager(app, ctx.obj["migrations_dir"])
     await manager.initialize()
 
     applied = manager.get_applied_migrations()
@@ -329,8 +275,12 @@ async def showmigrations(
         click.echo(" (none)")
 
 
-def main() -> None:
-    cli()
+def main(args: Sequence[str] | None = None) -> int:
+    try:
+        cli.main(args)
+    except SystemExit as e:
+        return e.code
+    return 0
 
 
 if __name__ == "__main__":
