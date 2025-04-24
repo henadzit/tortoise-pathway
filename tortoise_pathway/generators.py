@@ -151,11 +151,11 @@ def generate_auto_migration(
 
         if operation_lines:
             # Join back and ensure trailing comma
-            operation_def = "\n    ".join(operation_lines)
+            operation_def = "\n        ".join(operation_lines)
             if not operation_def.endswith(","):
                 operation_def += ","
 
-            operations.append(f"    {operation_def}")
+            operations.append(f"        {operation_def}")
 
     operations_str = "\n".join(operations)
 
