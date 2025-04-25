@@ -24,6 +24,10 @@ async def tortoise_config(tortoise_config, request) -> Dict[str, Any]:
             "models": [models_module],
             "default_connection": "default",
         },
+        "tortoise_pathway": {
+            "models": ["tortoise_pathway.models"],
+            "default_connection": "default",
+        },
     }
 
     return tortoise_config
