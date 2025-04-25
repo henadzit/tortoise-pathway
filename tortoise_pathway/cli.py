@@ -12,6 +12,7 @@ import functools
 from typing import Dict, Any, Callable, TypeVar, Coroutine
 
 from tortoise import Tortoise
+from tortoise.exceptions import ConfigurationError
 
 from tortoise_pathway.migration_manager import MigrationManager
 
@@ -29,7 +30,11 @@ def close_connections_after(
         try:
             return await func(*args, **kwargs)
         finally:
-            await Tortoise.close_connections()
+            try:
+                await Tortoise.close_connections()
+            except ConfigurationError:
+                # If Tortoise is not initialized, we can ignore this error
+                pass
 
     return wrapper
 
