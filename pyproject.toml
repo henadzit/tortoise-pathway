@@ -5,7 +5,6 @@ description = "A schema migration tool for Tortoise ORM"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "click>=8.1.8",
     "tortoise-orm>=0.24.2",
 ]
 authors = [
