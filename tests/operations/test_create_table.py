@@ -21,10 +21,9 @@ async def test_create_table(setup_test_db):
     # Create and apply operation
     operation = CreateModel(
         model="tests.models.TestModel",
+        table="test_create",
         fields=fields_dict,
     )
-    # Set table name manually to override automatic name derivation
-    operation.set_table_name("test_create")
     await operation.apply(state=state)
 
     # Verify table was created
@@ -56,9 +55,9 @@ class TestSqliteDialect:
 
         operation = CreateModel(
             model="tests.models.TestModel",
+            table="test_table",
             fields=fields_dict,
         )
-        operation.set_table_name("test_table")
 
         # Test SQLite dialect
         sql = operation.forward_sql(state=state, dialect="sqlite")
@@ -89,9 +88,9 @@ class TestSqliteDialect:
 
         operation = CreateModel(
             model="tests.models.TestModel",
+            table="test_constraints",
             fields=fields_dict,
         )
-        operation.set_table_name("test_constraints")
 
         sql = operation.forward_sql(state=state)
 
@@ -119,9 +118,9 @@ class TestSqliteDialect:
 
         operation = CreateModel(
             model="tests.models.Post",
+            table="posts",
             fields=fields_dict,
         )
-        operation.set_table_name("posts")
 
         sql = operation.forward_sql(state=state)
 
@@ -149,9 +148,9 @@ class TestPostgresDialect:
 
         operation = CreateModel(
             model="tests.models.TestModel",
+            table="test_postgres",
             fields=fields_dict,
         )
-        operation.set_table_name("test_postgres")
 
         sql = operation.forward_sql(state=state, dialect="postgres")
 

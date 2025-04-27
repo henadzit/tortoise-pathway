@@ -9,31 +9,26 @@ from tortoise_pathway.state import State
 
 async def test_add_column(setup_test_db):
     """Test AddField operation."""
-    state = State("test")
-
-    # First create a table
-    fields_dict = {
-        "id": fields.IntField(primary_key=True),
-        "name": fields.CharField(max_length=100),
-    }
+    state = State("tests")
 
     create_op = CreateModel(
-        model="tests.models.TestModel",
-        fields=fields_dict,
+        model="tests.TestModel",
+        table="test_add_column",
+        fields={
+            "id": fields.IntField(primary_key=True),
+            "name": fields.CharField(max_length=100),
+        },
     )
-    # Set table name manually for test
-    create_op.set_table_name("test_add_column")
     await create_op.apply(state=state)
+    state.apply_operation(create_op)
 
     # Add a column
     field = fields.IntField(default=0)
     operation = AddField(
-        model="tests.models.TestModel",
+        model="tests.TestModel",
         field_object=field,
         field_name="int_field",
     )
-    # Set table name manually for test
-    operation.set_table_name("test_add_column")
     await operation.apply(state=state)
 
     # Verify column was added

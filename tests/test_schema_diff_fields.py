@@ -36,6 +36,7 @@ async def test_detect_field_additions():
 
     create_model_op = CreateModel(
         model="test.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -95,6 +96,7 @@ async def test_detect_field_removals():
 
     create_model_op = CreateModel(
         model="test.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -154,6 +156,7 @@ async def test_detect_field_alterations():
 
     create_model_op = CreateModel(
         model="test.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -231,6 +234,7 @@ async def test_detect_field_type_changes():
 
     create_model_op = CreateModel(
         model="test.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -294,6 +298,7 @@ async def test_detect_multiple_field_changes():
 
     create_model_op = CreateModel(
         model="test.TestModel",
+        table="test_model",
         fields=fields,
     )
 

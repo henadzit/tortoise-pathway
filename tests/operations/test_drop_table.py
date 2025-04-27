@@ -7,7 +7,7 @@ from tortoise_pathway.state import State
 
 async def test_drop_table(setup_test_db):
     """Test DropModel operation."""
-    state = State("test")
+    state = State("tests")
 
     # First create a table
     fields_dict = {
@@ -16,21 +16,19 @@ async def test_drop_table(setup_test_db):
     }
 
     create_op = CreateModel(
-        model="tests.models.TestModel",
+        model="tests.TestModel",
+        table="test_drop",
         fields=fields_dict,
     )
-    # Set table name manually for test
-    create_op.set_table_name("test_drop")
     await create_op.apply(state=state)
+    state.apply_operation(create_op)
 
     # Verify table exists
     conn = Tortoise.get_connection("default")
     await conn.execute_query("SELECT * FROM test_drop")
 
     # Drop the table
-    operation = DropModel(model="tests.models.TestModel")
-    # Set table name manually for test
-    operation.set_table_name("test_drop")
+    operation = DropModel(model="tests.TestModel")
     await operation.apply(state=state)
 
     # Verify table was dropped

@@ -37,7 +37,6 @@ class Operation:
     ):
         self.model = model
         self.app_name, self.model_name = self._split_model_reference(model)
-        self._override_table_name = None
 
     def _split_model_reference(self, model_ref: str) -> tuple:
         """Split model reference into app and model name."""
@@ -56,11 +55,7 @@ class Operation:
         Returns:
             The table name for the model.
         """
-        # First check if there's an override
-        if self._override_table_name:
-            return self._override_table_name
-
-            # Use the state's get_table_name method
+        # Use the state's get_table_name method
         table_name = state.get_table_name(self.model_name)
         if table_name:
             return table_name
@@ -85,15 +80,6 @@ class Operation:
 
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
         return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-
-    def set_table_name(self, table_name: str) -> None:
-        """
-        Override the table name for testing or specific use cases.
-
-        Args:
-            table_name: The table name to use.
-        """
-        self._override_table_name = table_name
 
     async def apply(self, state: "State", connection_name: str = "default") -> None:
         """

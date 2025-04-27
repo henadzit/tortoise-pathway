@@ -19,6 +19,7 @@ class InitialMigration(Migration):
     operations = [
         CreateModel(
             model="test_model_changes.Blog",
+            table="blogs",
             fields={
                 "id": IntField(primary_key=True),
                 "slug": CharField(max_length=255),
@@ -30,6 +31,7 @@ class InitialMigration(Migration):
         ),
         CreateModel(
             model="test_model_changes.Tag",
+            table="tags",
             fields={
                 "id": IntField(primary_key=True),
                 "name": CharField(max_length=50, unique=True),

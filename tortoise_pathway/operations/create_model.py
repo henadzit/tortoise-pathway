@@ -21,9 +21,11 @@ class CreateModel(Operation):
     def __init__(
         self,
         model: str,
+        table: str,
         fields: Dict[str, Field],
     ):
         super().__init__(model)
+        self.table = table
         self.fields = fields
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
@@ -32,7 +34,7 @@ class CreateModel(Operation):
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping the table."""
-        return f"DROP TABLE {self.get_table_name(state)}"
+        return f"DROP TABLE {self.table}"
 
     def _generate_sql_from_fields(self, state: "State", dialect: str = "sqlite") -> str:
         """
@@ -73,7 +75,7 @@ class CreateModel(Operation):
             columns.append(f"{db_column} {column_def}")
 
         # Build the CREATE TABLE statement
-        sql = f'CREATE TABLE "{self.get_table_name(state)}" (\n'
+        sql = f'CREATE TABLE "{self.table}" (\n'
         sql += ",\n".join(["    " + col for col in columns])
 
         if constraints:
@@ -88,6 +90,7 @@ class CreateModel(Operation):
         lines = []
         lines.append("CreateModel(")
         lines.append(f'    model="{self.model}",')
+        lines.append(f'    table="{self.table}",')
 
         # Include fields
         lines.append("    fields={")

@@ -9,7 +9,7 @@ from tortoise_pathway.state import State
 
 async def test_add_index(setup_test_db):
     """Test AddIndex operation."""
-    state = State("test")
+    state = State("tests")
 
     # First create a table
     fields_dict = {
@@ -18,20 +18,18 @@ async def test_add_index(setup_test_db):
     }
 
     create_op = CreateModel(
-        model="tests.models.TestModel",
+        model="tests.TestModel",
+        table="test_add_index",
         fields=fields_dict,
     )
-    # Set table name manually for test
-    create_op.set_table_name("test_add_index")
     await create_op.apply(state=state)
+    state.apply_operation(create_op)
 
     # Add an index
     operation = AddIndex(
-        model="tests.models.TestModel",
+        model="tests.TestModel",
         field_name="name",
     )
-    # Set table name manually for test
-    operation.set_table_name("test_add_index")
     await operation.apply(state=state)
 
     # Verify index was added (for SQLite)
