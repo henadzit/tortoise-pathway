@@ -6,7 +6,7 @@ on applied migrations, rather than the actual database state.
 """
 
 import copy
-from typing import Dict, Any, List, Optional, Tuple, cast
+from typing import Dict, Any, List, Optional, Tuple, TypedDict, cast
 
 from tortoise.fields import Field
 from tortoise.fields.relational import ManyToManyFieldInstance
@@ -28,6 +28,16 @@ from tortoise_pathway.operations import (
 from tortoise_pathway.operations.field_ext import field_db_column
 
 
+class ModelSchema(TypedDict):
+    table: str
+    fields: Dict[str, Field]
+    indexes: List[Dict[str, Any]]
+
+
+class Schema(TypedDict):
+    models: Dict[str, ModelSchema]
+
+
 class State:
     """
     Represents the state of the models based on applied migrations.
@@ -41,7 +51,7 @@ class State:
         schema: Dictionary mapping model names to their schema representations.
     """
 
-    def __init__(self, app_name: str, schema: Optional[Dict[str, Dict[str, Any]]] = None):
+    def __init__(self, app_name: str, schema: Optional[Schema] = None):
         """
         Initialize an empty state for a specific app.
 
@@ -63,7 +73,7 @@ class State:
         #         }
         #     }
         # }
-        self._schema: Dict[str, Dict[str, Any]] = schema or {"models": {}}
+        self._schema: Schema = schema or {"models": {}}
         self._snapshots: List[Tuple[str, State]] = []
 
     def apply_operation(self, operation: Operation) -> None:
@@ -73,14 +83,11 @@ class State:
         Args:
             operation: The Operation object to apply.
         """
-        # Extract app_name and model_name from the model reference (format: "app_name.ModelName")
-        parts = operation.model.split(".")
-        app_name = parts[0]
-        model_name = parts[1] if len(parts) > 1 else ""
-
         # Verify this operation is for the app this state represents
-        if app_name != self.app_name:
-            return
+        if operation.app_name != self.app_name:
+            raise ValueError(f"Operation for {operation.model} is not for app {self.app_name}")
+
+        model_name = operation.model_name
 
         # Handle each type of operation
         if isinstance(operation, CreateModel):
@@ -126,11 +133,9 @@ class State:
 
     def _apply_create_model(self, model_name: str, operation: CreateModel) -> None:
         """Apply a CreateModel operation to the state."""
-        table_name = operation.get_table_name(self)
-
         # Create a new model entry
         self._schema["models"][model_name] = {
-            "table": table_name,
+            "table": operation.table,
             "fields": {},
             "indexes": [],
         }
@@ -270,7 +275,7 @@ class State:
         # This is a simplified implementation
         pass
 
-    def get_schema(self) -> Dict[str, Any]:
+    def get_schema(self) -> Schema:
         """Get the entire schema representation."""
         return {
             "models": {
@@ -279,7 +284,7 @@ class State:
             }
         }
 
-    def get_model(self, model_name: str) -> Dict[str, Any]:
+    def get_model(self, model_name: str) -> ModelSchema:
         """
         Get a specific model for this app.
 

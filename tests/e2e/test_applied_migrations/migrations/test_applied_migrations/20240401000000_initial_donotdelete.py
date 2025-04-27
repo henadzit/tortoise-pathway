@@ -21,6 +21,7 @@ class InitialMigration(Migration):
     operations = [
         CreateModel(
             model="test_applied_migrations.Product",
+            table="products",
             fields={
                 "id": IntField(primary_key=True),
                 "name": CharField(max_length=255),
@@ -32,6 +33,7 @@ class InitialMigration(Migration):
         ),
         CreateModel(
             model="test_applied_migrations.Category",
+            table="categories",
             fields={
                 "id": IntField(primary_key=True),
                 "name": CharField(max_length=100),

@@ -9,7 +9,7 @@ from tortoise_pathway.state import State
 
 async def test_drop_index(setup_test_db):
     """Test DropIndex operation."""
-    state = State("test")
+    state = State("tests")
 
     # First create a table
     fields_dict = {
@@ -18,20 +18,18 @@ async def test_drop_index(setup_test_db):
     }
 
     create_op = CreateModel(
-        model="tests.models.TestModel",
+        model="tests.TestModel",
+        table="test_drop_index",
         fields=fields_dict,
     )
-    # Set table name manually for test
-    create_op.set_table_name("test_drop_index")
     await create_op.apply(state=state)
+    state.apply_operation(create_op)
 
     # Add an index
     add_index_op = AddIndex(
-        model="tests.models.TestModel",
+        model="tests.TestModel",
         field_name="name",
     )
-    # Set table name manually for test
-    add_index_op.set_table_name("test_drop_index")
     await add_index_op.apply(state=state)
 
     # Verify index exists
@@ -48,8 +46,6 @@ async def test_drop_index(setup_test_db):
         model="tests.models.TestModel",
         field_name="name",
     )
-    # Set table name manually for test
-    operation.set_table_name("test_drop_index")
     await operation.apply(state=state)
 
     # Verify index was dropped

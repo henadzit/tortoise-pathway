@@ -113,8 +113,7 @@ class AlterField(Operation):
         # Create temporary model with the updated fields
         from tortoise_pathway.operations.create_model import CreateModel
 
-        temp_model = CreateModel(self.model, model_fields)
-        temp_model.set_table_name(temp_table_name)
+        temp_model = CreateModel(self.model, temp_table_name, model_fields)
 
         # Generate CREATE TABLE statement for the new table
         sql += temp_model.forward_sql(state, "sqlite") + ";\n"

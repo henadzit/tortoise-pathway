@@ -22,6 +22,7 @@ async def test_detect_index_additions():
 
     create_model_op = CreateModel(
         model="test.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -74,6 +75,7 @@ async def test_detect_index_removals():
     state.apply_operation(
         CreateModel(
             model="test.TestModel",
+            table="test_model",
             fields=fields,
         )
     )
@@ -119,6 +121,7 @@ async def test_detect_index_modifications():
     state.apply_operation(
         CreateModel(
             model="test.TestModel",
+            table="test_model",
             fields=fields,
         )
     )

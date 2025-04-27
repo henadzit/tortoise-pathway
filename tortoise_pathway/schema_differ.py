@@ -211,6 +211,7 @@ class SchemaDiffer:
             self._changes.append(
                 CreateModel(
                     model=model_ref,
+                    table=model_info["table"],
                     fields=field_objects,
                 )
             )

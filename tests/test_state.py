@@ -3,6 +3,7 @@ Tests for the State class.
 """
 
 
+import pytest
 from tortoise.fields import IntField, CharField, TextField, DatetimeField
 
 from tortoise_pathway.state import State
@@ -36,6 +37,7 @@ async def test_apply_create_model():
     # Create a migration operation
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -69,6 +71,7 @@ async def test_apply_add_field():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -118,6 +121,7 @@ async def test_apply_drop_field():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -164,6 +168,7 @@ async def test_apply_alter_field():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -213,6 +218,7 @@ async def test_apply_rename_field():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -260,6 +266,7 @@ async def test_apply_rename_model():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -300,6 +307,7 @@ async def test_get_schema():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -332,6 +340,7 @@ async def test_get_model():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -357,6 +366,7 @@ async def test_get_table_name():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -389,6 +399,7 @@ async def test_get_column_name():
 
     create_model_op = CreateModel(
         model="test_app.TestModel",
+        table="test_model",
         fields=fields,
     )
 
@@ -405,23 +416,18 @@ async def test_get_column_name():
     assert custom_column == "custom_column"  # Custom column name from source_field
 
 
-async def test_ignore_operations_for_different_app():
-    """Test that operations for different app are ignored."""
+async def test_app_validation():
     state = State("test_app")
-
-    # Create a model for a different app
-    fields = {
-        "id": IntField(primary_key=True),
-        "name": CharField(max_length=100),
-    }
 
     create_model_op = CreateModel(
         model="other_app.TestModel",
-        fields=fields,
+        table="test_model",
+        fields={
+            "id": IntField(primary_key=True),
+            "name": CharField(max_length=100),
+        },
     )
 
     # Apply the operation to the state
-    state.apply_operation(create_model_op)
-
-    # State should be empty as the operation was for a different app
-    assert state.get_schema() == {"models": {}}
+    with pytest.raises(ValueError):
+        state.apply_operation(create_model_op)
