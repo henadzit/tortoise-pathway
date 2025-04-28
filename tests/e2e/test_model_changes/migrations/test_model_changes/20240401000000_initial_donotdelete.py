@@ -8,7 +8,7 @@ from tortoise.fields.data import CharField
 from tortoise.fields.data import DatetimeField
 from tortoise.fields.data import IntField
 from tortoise.fields.data import TextField
-
+from tortoise.fields.relational import ForeignKeyField
 
 class InitialMigration(Migration):
     """
@@ -34,8 +34,11 @@ class InitialMigration(Migration):
             table="tags",
             fields={
                 "id": IntField(primary_key=True),
-                "name": CharField(max_length=50, unique=True),
+                "name": CharField(max_length=50),
                 "color": CharField(max_length=50),
+                "blog": ForeignKeyField(
+                    "test_model_changes.Blog", related_name="tags", source_field="blog_id"
+                ),
                 # Note: description field is missing in the initial migration
             },
         ),

@@ -3,6 +3,7 @@ Tests for AddIndex operation.
 """
 
 from tortoise import Tortoise, fields
+from tortoise.indexes import Index
 from tortoise_pathway.operations import CreateModel, AddIndex
 from tortoise_pathway.state import State
 
@@ -28,7 +29,7 @@ async def test_add_index(setup_test_db):
     # Add an index
     operation = AddIndex(
         model="tests.TestModel",
-        field_name="name",
+        index=Index(name="idx_test_model_name", fields=["name"]),
     )
     await operation.apply(state=state)
 

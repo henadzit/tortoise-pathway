@@ -6,10 +6,11 @@ on applied migrations, rather than the actual database state.
 """
 
 import copy
-from typing import Dict, Any, List, Optional, Tuple, TypedDict, cast
+from typing import Dict, List, Optional, Tuple, TypedDict, cast
 
 from tortoise.fields import Field
 from tortoise.fields.relational import ManyToManyFieldInstance
+from tortoise.indexes import Index
 
 from tortoise_pathway.operations import (
     Operation,
@@ -25,13 +26,12 @@ from tortoise_pathway.operations import (
     AddConstraint,
     DropConstraint,
 )
-from tortoise_pathway.operations.field_ext import field_db_column
 
 
 class ModelSchema(TypedDict):
     table: str
     fields: Dict[str, Field]
-    indexes: List[Dict[str, Any]]
+    indexes: List[Index]
 
 
 class Schema(TypedDict):
@@ -68,7 +68,10 @@ class State:
         #                 'field_name': field_object,  # The actual Field instance
         #             },
         #             'indexes': [
-        #                 {'name': 'index_name', 'unique': True/False, 'columns': ['col1', 'col2']},
+        #                 Index(
+        #                     name='index_name',
+        #                     fields=['col1', 'col2'],
+        #                 ),
         #             ],
         #         }
         #     }
@@ -136,13 +139,9 @@ class State:
         # Create a new model entry
         self._schema["models"][model_name] = {
             "table": operation.table,
-            "fields": {},
-            "indexes": [],
+            "fields": operation.fields.copy(),
+            "indexes": operation.indexes.copy(),
         }
-
-        # Add fields directly from the operation
-        for field_name, field_obj in operation.fields.items():
-            self._schema["models"][model_name]["fields"][field_name] = field_obj
 
     def _apply_drop_model(self, model_name: str, operation: DropModel) -> None:
         """Apply a DropModel operation to the state."""
@@ -154,9 +153,6 @@ class State:
         """Apply a RenameModel operation to the state."""
         new_table_name = operation.new_name
 
-        if not new_table_name or model_name not in self._schema["models"]:
-            return
-
         # Update the table name
         self._schema["models"][model_name]["table"] = new_table_name
 
@@ -164,10 +160,6 @@ class State:
         """Apply an AddField operation to the state."""
         field_obj = operation.field_object
         field_name = operation.field_name
-
-        if model_name not in self._schema["models"]:
-            return
-
         # Add the field directly to the state
         self._schema["models"][model_name]["fields"][field_name] = field_obj
 
@@ -188,9 +180,6 @@ class State:
         """Apply a DropField operation to the state."""
         field_name = operation.field_name
 
-        if model_name not in self._schema["models"]:
-            return
-
         # Remove the field from the state
         if field_name in self._schema["models"][model_name]["fields"]:
             del self._schema["models"][model_name]["fields"][field_name]
@@ -199,9 +188,6 @@ class State:
         """Apply an AlterField operation to the state."""
         field_name = operation.field_name
         field_obj = operation.field_object
-
-        if model_name not in self._schema["models"]:
-            return
 
         # Verify the field exists
         if field_name in self._schema["models"][model_name]["fields"]:
@@ -212,10 +198,6 @@ class State:
         """Apply a RenameField operation to the state."""
         old_field_name = operation.field_name
         new_field_name = operation.new_name
-
-        if model_name not in self._schema["models"]:
-            return
-
         # Verify the old field exists
         if old_field_name in self._schema["models"][model_name]["fields"]:
             # Get the field object
@@ -229,39 +211,16 @@ class State:
 
     def _apply_add_index(self, model_name: str, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
-        if model_name not in self._schema["models"]:
-            return
-
-        # Get field names from operation
-        fields = operation.fields if hasattr(operation, "fields") else [operation.field_name]
-
-        # Get column names from the fields
-        columns = []
-        for field_name in fields:
-            if field_name in self._schema["models"][model_name]["fields"]:
-                field_obj = self._schema["models"][model_name]["fields"][field_name]
-                columns.append(field_db_column(field_obj, field_name))
-
-        # Add the index to the state
-        if columns:
-            self._schema["models"][model_name]["indexes"].append(
-                {
-                    "name": operation.index_name,
-                    "unique": operation.unique,
-                    "columns": columns,
-                }
-            )
+        self._schema["models"][model_name]["indexes"].append(operation.index)
 
     def _apply_drop_index(self, model_name: str, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
-        if model_name not in self._schema["models"]:
-            return
-
-        # Find and remove the index by name
         for i, index in enumerate(self._schema["models"][model_name]["indexes"]):
-            if index["name"] == operation.index_name:
+            if index.name == operation.index_name:
                 del self._schema["models"][model_name]["indexes"][i]
-                break
+                return
+
+        raise ValueError(f"Index {operation.index_name} not found in {model_name}")
 
     def _apply_add_constraint(self, model_name: str, operation: AddConstraint) -> None:
         """Apply an AddConstraint operation to the state."""

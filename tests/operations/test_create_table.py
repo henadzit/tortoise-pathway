@@ -3,6 +3,7 @@ Tests for CreateModel operation.
 """
 
 from tortoise import Tortoise, fields
+from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.operations import CreateModel
 from tortoise_pathway.state import State
 
@@ -105,6 +106,42 @@ class TestSqliteDialect:
 );"""
         )
 
+    def test_forward_sql_unique_together(self):
+        """Test SQL generation with unique together constraint."""
+        state = State("test")
+
+        fields_dict = {
+            "id": fields.IntField(primary_key=True),
+            "first_name": fields.CharField(max_length=50),
+            "last_name": fields.CharField(max_length=50),
+            "email": fields.CharField(max_length=100),
+        }
+
+        operation = CreateModel(
+            model="tests.models.TestModel",
+            table="test_unique_together",
+            fields=fields_dict,
+            indexes=[
+                UniqueIndex(
+                    name="unique_first_name_last_name",
+                    fields=["first_name", "last_name"],
+                )
+            ],
+        )
+
+        sql = operation.forward_sql(state=state)
+
+        assert (
+            sql
+            == """CREATE TABLE "test_unique_together" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    CONSTRAINT unique_first_name_last_name UNIQUE (first_name, last_name)
+);"""
+        )
+
     def test_forward_sql_foreign_key(self):
         """Test SQL generation with foreign key fields."""
         state = State("test", schema={"models": {"User": {"table": "users", "app": "tests"}}})
@@ -160,5 +197,41 @@ class TestPostgresDialect:
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     data JSONB NOT NULL
+);"""
+        )
+
+    def test_forward_sql_unique_together(self):
+        """Test SQL generation with unique together constraint in PostgreSQL."""
+        state = State("test")
+
+        fields_dict = {
+            "id": fields.IntField(primary_key=True),
+            "first_name": fields.CharField(max_length=50),
+            "last_name": fields.CharField(max_length=50),
+            "email": fields.CharField(max_length=100),
+        }
+
+        operation = CreateModel(
+            model="tests.models.TestModel",
+            table="test_unique_together",
+            fields=fields_dict,
+            indexes=[
+                UniqueIndex(
+                    name="unique_first_name_last_name",
+                    fields=["first_name", "last_name"],
+                )
+            ],
+        )
+
+        sql = operation.forward_sql(state=state, dialect="postgres")
+
+        assert (
+            sql
+            == """CREATE TABLE "test_unique_together" (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) NOT NULL,
+    CONSTRAINT unique_first_name_last_name UNIQUE (first_name, last_name)
 );"""
         )

@@ -5,7 +5,9 @@ Tests for application with no migrations.
 import pytest
 from pathlib import Path
 
+from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.migration_manager import MigrationManager
+from tortoise_pathway.operations.create_model import CreateModel
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_no_migrations"], indirect=True)
@@ -43,3 +45,29 @@ async def test_create_initial_migration(setup_test_db):
         assert "CreateModel" in content
         assert 'model="test_no_migrations.User"' in content
         assert 'model="test_no_migrations.Note"' in content
+
+    operations = migration.operations
+    assert len(operations) == 2
+
+    create_user_op = operations[0]
+    assert isinstance(create_user_op, CreateModel)
+    assert create_user_op.model == "test_no_migrations.User"
+
+    create_note_op = operations[1]
+    assert isinstance(create_note_op, CreateModel)
+    assert create_note_op.model == "test_no_migrations.Note"
+    assert create_note_op.indexes == [
+        UniqueIndex(
+            fields=("user", "title"),
+            name="uniq_notes_user_ti_70d5aa",
+        )
+    ]
+
+    applied = await manager.apply_migrations()
+    assert len(applied) == 1
+
+    # Verify all migrations are now applied
+    assert len(manager.get_applied_migrations()) == 1
+    assert len(manager.get_pending_migrations()) == 0
+
+    assert await manager.create_migration("no_changes", auto=True) is None

@@ -33,5 +33,7 @@ class Note(models.Model):
     class Meta:
         table = "notes"
 
+        unique_together = ("user", "title")
+
     def __str__(self):
         return self.title
