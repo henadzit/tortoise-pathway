@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING
 from tortoise.fields import Field
 from tortoise.fields.relational import RelationalField
 
-
+from tortoise_pathway.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.operations.sql import field_definition_to_sql
 
 if TYPE_CHECKING:

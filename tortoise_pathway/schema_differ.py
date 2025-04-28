@@ -5,13 +5,15 @@ This module provides the SchemaDiffer class that detects differences between
 Tortoise models and the actual database schema.
 """
 
-from typing import Dict, List, Any, Optional, cast
+from typing import List, Optional, cast
 
 from tortoise import Tortoise
 from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
 from tortoise.models import Model
+from tortoise.indexes import Index
 
-from tortoise_pathway.state import State
+from tortoise_pathway.index_ext import gen_index_name, UniqueIndex
+from tortoise_pathway.state import Schema, State
 from tortoise_pathway.operations import (
     Operation,
     CreateModel,
@@ -41,27 +43,7 @@ class SchemaDiffer:
         self.state = state or State(app_name)
         self._changes = []
 
-    def _convert_to_models_format(self, db_schema: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert database schema to the models format for a single app."""
-        app_schema = {"models": {}}
-
-        for table_name, table_info in db_schema.items():
-            # Extract model name from table name, assuming it follows conventions
-            model_name = "".join(part.capitalize() for part in table_name.split("_"))
-
-            # Create model entry
-            app_schema["models"][model_name] = {
-                "table": table_name,
-                "fields": {},
-                "indexes": table_info["indexes"],
-            }
-
-            # This conversion is incomplete as we don't have actual Field objects from the database
-            # In a real implementation, we would need to create Field objects from the column info
-
-        return app_schema
-
-    def get_model_schema(self) -> Dict[str, Any]:
+    def get_model_schema(self) -> Schema:
         """Get schema representation from Tortoise models for this app."""
         app_schema = {"models": {}}
 
@@ -118,11 +100,10 @@ class SchemaDiffer:
 
                         if index_columns:
                             app_schema["models"][model_name]["indexes"].append(
-                                {
-                                    "name": f"idx_{'_'.join(index_columns)}",
-                                    "unique": False,
-                                    "columns": index_columns,
-                                }
+                                Index(
+                                    fields=index_columns,
+                                    name=gen_index_name("idx", model._meta.db_table, index_columns),
+                                )
                             )
 
                 # Get unique constraints
@@ -146,18 +127,17 @@ class SchemaDiffer:
 
                         if unique_columns:
                             app_schema["models"][model_name]["indexes"].append(
-                                {
-                                    "name": f"uniq_{'_'.join(unique_columns)}",
-                                    "unique": True,
-                                    "columns": unique_columns,
-                                }
+                                UniqueIndex(
+                                    fields=unique_columns,
+                                    name=gen_index_name(
+                                        "uniq", model._meta.db_table, unique_columns
+                                    ),
+                                )
                             )
 
         return app_schema
 
-    async def _detect_create_models(
-        self, current_schema: Dict[str, Any], model_schema: Dict[str, Any]
-    ):
+    async def _detect_create_models(self, current_schema: Schema, model_schema: Schema):
         """
         Detect models that need to be created (models in the model schema but not in the current schema).
 
@@ -242,8 +222,8 @@ class SchemaDiffer:
 
     async def _detect_drop_models(
         self,
-        current_schema: Dict[str, Any],
-        model_schema: Dict[str, Any],
+        current_schema: Schema,
+        model_schema: Schema,
     ):
         """
         Detect models that need to be dropped (models in the current schema but not in the model schema).
@@ -268,8 +248,8 @@ class SchemaDiffer:
 
     async def _detect_field_changes(
         self,
-        current_schema: Dict[str, Any],
-        model_schema: Dict[str, Any],
+        current_schema: Schema,
+        model_schema: Schema,
     ):
         """
         Detect field and index changes for models that exist in both schemas.
@@ -349,49 +329,29 @@ class SchemaDiffer:
             model_indexes = model_model.get("indexes", [])
 
             # Create maps of index names for easier comparison
-            current_index_map = {idx["name"]: idx for idx in current_indexes}
-            model_index_map = {idx["name"]: idx for idx in model_indexes}
+            current_index_map = {idx.name: idx for idx in current_indexes}
+            model_index_map = {idx.name: idx for idx in model_indexes}
 
             # Indexes to add (in model but not in current schema)
             for index_name in set(model_index_map.keys()) - set(current_index_map.keys()):
                 index = model_index_map[index_name]
-                # Use the first column as the primary field name for the AddIndex operation
-                # The other columns will be included in the 'fields' parameter
-                if index["columns"]:
-                    primary_field_name = index["columns"][0]
-                    # Find the corresponding field name from column name
-                    for field_name, field_obj in model_fields.items():
-                        source_field = getattr(field_obj, "source_field", None)
-                        if source_field == primary_field_name or field_name == primary_field_name:
-                            self._changes.append(
-                                AddIndex(
-                                    model=model_ref,
-                                    field_name=field_name,
-                                    index_name=index_name,
-                                    unique=index["unique"],
-                                    fields=index["columns"],
-                                )
-                            )
-                            break
+                self._changes.append(
+                    AddIndex(
+                        model=model_ref,
+                        index=index,
+                    )
+                )
 
             # Indexes to drop (in current schema but not in model)
             for index_name in set(current_index_map.keys()) - set(model_index_map.keys()):
                 index = current_index_map[index_name]
-                # Use the first column as the primary field name for the DropIndex operation
-                if index["columns"]:
-                    primary_field_name = index["columns"][0]
-                    # Find the corresponding field name from column name
-                    for field_name, field_obj in current_fields.items():
-                        source_field = getattr(field_obj, "source_field", None)
-                        if source_field == primary_field_name or field_name == primary_field_name:
-                            self._changes.append(
-                                DropIndex(
-                                    model=model_ref,
-                                    field_name=field_name,
-                                    index_name=index_name,
-                                )
-                            )
-                            break
+                self._changes.append(
+                    DropIndex(
+                        model=model_ref,
+                        field_name=index.fields[0] if index.fields else "",
+                        index_name=index_name,
+                    )
+                )
 
             # Indexes to alter (in both, but different)
             for index_name in set(current_index_map.keys()) & set(model_index_map.keys()):
@@ -400,46 +360,25 @@ class SchemaDiffer:
 
                 # Check if indexes are different
                 if (
-                    current_index["unique"] != model_index["unique"]
-                    or current_index["columns"] != model_index["columns"]
+                    isinstance(current_index, UniqueIndex) != isinstance(model_index, UniqueIndex)
+                    or current_index.fields != model_index.fields
                 ):
                     # First drop the old index
-                    if current_index["columns"]:
-                        primary_field_name = current_index["columns"][0]
-                        for field_name, field_obj in current_fields.items():
-                            source_field = getattr(field_obj, "source_field", None)
-                            if (
-                                source_field == primary_field_name
-                                or field_name == primary_field_name
-                            ):
-                                self._changes.append(
-                                    DropIndex(
-                                        model=model_ref,
-                                        field_name=field_name,
-                                        index_name=index_name,
-                                    )
-                                )
-                                break
+                    self._changes.append(
+                        DropIndex(
+                            model=model_ref,
+                            field_name=current_index.fields[0] if current_index.fields else "",
+                            index_name=index_name,
+                        )
+                    )
 
                     # Then add the new index
-                    if model_index["columns"]:
-                        primary_field_name = model_index["columns"][0]
-                        for field_name, field_obj in model_fields.items():
-                            source_field = getattr(field_obj, "source_field", None)
-                            if (
-                                source_field == primary_field_name
-                                or field_name == primary_field_name
-                            ):
-                                self._changes.append(
-                                    AddIndex(
-                                        model=model_ref,
-                                        field_name=field_name,
-                                        index_name=index_name,
-                                        unique=model_index["unique"],
-                                        fields=model_index["columns"],
-                                    )
-                                )
-                                break
+                    self._changes.append(
+                        AddIndex(
+                            model=model_ref,
+                            index=model_index,
+                        )
+                    )
 
     async def detect_changes(self) -> List[Operation]:
         """

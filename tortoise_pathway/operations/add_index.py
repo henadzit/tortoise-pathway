@@ -2,8 +2,10 @@
 AddIndex operation for Tortoise ORM migrations.
 """
 
-import re
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
+from tortoise.indexes import Index
+from tortoise_pathway.index_ext import UniqueIndex
 
 from tortoise_pathway.operations.operation import Operation
 
@@ -17,19 +19,16 @@ class AddIndex(Operation):
     def __init__(
         self,
         model: str,
-        field_name: str,
-        index_name: Optional[str] = None,
-        unique: bool = False,
-        fields: Optional[List[str]] = None,
+        index: Index,
     ):
+        if not index.name:
+            raise ValueError("Index name is required")
+
         super().__init__(model)
-        self.field_name = field_name
-        # Convert model name from CamelCase to snake_case
-        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
-        table_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        self.index_name = index_name or f"idx_{table_name}_{field_name}"
-        self.unique = unique
-        self.fields = fields or [field_name]
+        self.index = index
+        self.index_name = index.name
+        self.unique = isinstance(index, UniqueIndex)
+        self.fields = index.fields
 
     def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for adding an index."""
@@ -55,22 +54,15 @@ class AddIndex(Operation):
         lines = []
         lines.append("AddIndex(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    field_name="{self.field_name}",')
+        lines.append(f"    index={self.index.__class__.__name__}(")
 
-        # Convert model name to snake_case for default index name
-        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", self.model_name)
-        table_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        default_index_name = f"idx_{table_name}_{self.field_name}"
+        if self.index.fields:
+            fields_repr = "[" + ", ".join([f'"{field}"' for field in self.index.fields]) + "]"
+            lines.append(f"        fields={fields_repr},")
 
-        if self.index_name != default_index_name:
-            lines.append(f'    index_name="{self.index_name}",')
+        if self.index.name:
+            lines.append(f'        name="{self.index.name}",')
 
-        if self.unique:
-            lines.append("    unique=True,")
-
-        if self.fields != [self.field_name]:
-            fields_repr = "[" + ", ".join([f'"{field}"' for field in self.fields]) + "]"
-            lines.append(f"    fields={fields_repr},")
-
+        lines.append("    ),")
         lines.append(")")
         return "\n".join(lines)

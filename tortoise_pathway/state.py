@@ -6,11 +6,13 @@ on applied migrations, rather than the actual database state.
 """
 
 import copy
-from typing import Dict, Any, List, Optional, Tuple, TypedDict, cast
+from typing import Dict, List, Optional, Tuple, TypedDict, cast
 
 from tortoise.fields import Field
 from tortoise.fields.relational import ManyToManyFieldInstance
+from tortoise.indexes import Index
 
+from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.operations import (
     Operation,
     CreateModel,
@@ -25,13 +27,13 @@ from tortoise_pathway.operations import (
     AddConstraint,
     DropConstraint,
 )
-from tortoise_pathway.operations.field_ext import field_db_column
+from tortoise_pathway.field_ext import field_db_column
 
 
 class ModelSchema(TypedDict):
     table: str
     fields: Dict[str, Field]
-    indexes: List[Dict[str, Any]]
+    indexes: List[Index]
 
 
 class Schema(TypedDict):
@@ -244,12 +246,12 @@ class State:
 
         # Add the index to the state
         if columns:
+            index_class = UniqueIndex if operation.unique else Index
             self._schema["models"][model_name]["indexes"].append(
-                {
-                    "name": operation.index_name,
-                    "unique": operation.unique,
-                    "columns": columns,
-                }
+                index_class(
+                    fields=columns,
+                    name=operation.index_name,
+                )
             )
 
     def _apply_drop_index(self, model_name: str, operation: DropIndex) -> None:
@@ -259,7 +261,7 @@ class State:
 
         # Find and remove the index by name
         for i, index in enumerate(self._schema["models"][model_name]["indexes"]):
-            if index["name"] == operation.index_name:
+            if index.name == operation.index_name:
                 del self._schema["models"][model_name]["indexes"][i]
                 break
 

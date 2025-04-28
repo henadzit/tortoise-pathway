@@ -10,11 +10,14 @@ from typing import List
 import re
 
 from tortoise.fields import Field
+from tortoise.indexes import Index
 
 from tortoise_pathway.operations import (
     AddField,
     Operation,
     CreateModel,
+    AddIndex,
+    DropIndex,
 )
 from tortoise_pathway.operations.alter_field import AlterField
 
@@ -104,7 +107,8 @@ def generate_auto_migration(
     # Prepare imports for schema change classes and models
     schema_changes_used = set()
     model_imports = set()
-    field_imports = set()  # For field types when using fields dict
+    field_imports = set()
+    index_imports = set()
 
     for change in changes:
         # Add the change class name to imports
@@ -115,12 +119,19 @@ def generate_auto_migration(
             if hasattr(change, "fields") and change.fields:
                 for field_obj in change.fields.values():
                     field_imports.update(field_to_imports(field_obj))
+
+            if hasattr(change, "indexes") and change.indexes:
+                for index in change.indexes:
+                    index_imports.update(index_to_imports(index))
         elif isinstance(change, AddField) or isinstance(change, AlterField):
             field_imports.update(field_to_imports(change.field_object))
+        elif isinstance(change, AddIndex) or isinstance(change, DropIndex):
+            index_imports.update(index_to_imports(change.index))
 
     schema_imports = ", ".join(sorted(schema_changes_used))
     model_imports_str = "\n".join(sorted(model_imports))
     field_imports_str = "\n".join(sorted(field_imports))
+    index_imports_str = "\n".join(sorted(index_imports))
 
     # Complete import section
     imports = []
@@ -132,6 +143,9 @@ def generate_auto_migration(
 
     if field_imports_str:
         imports.append(field_imports_str)
+
+    if index_imports_str:
+        imports.append(index_imports_str)
 
     all_imports = "\n".join(imports)
 
@@ -186,3 +200,10 @@ def field_to_imports(field: Field) -> List[str]:
     if hasattr(field, "enum_type"):
         imports.append(f"from {field.enum_type.__module__} import {field.enum_type.__name__}")
     return imports
+
+
+def index_to_imports(index: Index) -> List[str]:
+    """
+    Convert an index object to an import string.
+    """
+    return [f"from {index.__class__.__module__} import {index.__class__.__name__}"]
