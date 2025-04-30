@@ -3,7 +3,7 @@ import importlib
 import inspect
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Type, cast
+from typing import Dict, List, Optional, Set, Type
 
 from tortoise import Tortoise
 
@@ -11,6 +11,7 @@ from tortoise_pathway.migration import Migration
 from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.state import State
 from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
+from tortoise_pathway.models import MigrationDBModel
 
 
 class MigrationManager:
@@ -47,24 +48,22 @@ class MigrationManager:
     async def _ensure_migration_table_exists(self, connection=None) -> None:
         """Create migration history table if it doesn't exist."""
         conn = connection or Tortoise.get_connection("default")
+        generator = conn.schema_generator(conn)
+        sql = generator._get_table_sql(MigrationDBModel, safe=True)["table_creation_string"]
 
-        await conn.execute_script("""
-        CREATE TABLE IF NOT EXISTS tortoise_migrations (
-            app VARCHAR(100) NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            applied_at TIMESTAMP NOT NULL
-        )
-        """)
+        await conn.execute_script(sql)
 
     async def _load_applied_migrations(self, connection=None) -> None:
         """Load list of applied migrations from the database."""
         conn = connection or Tortoise.get_connection("default")
 
-        records = await conn.execute_query(
-            f"SELECT name FROM tortoise_migrations WHERE app = '{self.app_name}'"
+        records = (
+            await MigrationDBModel.filter(app=self.app_name)
+            .using_db(conn)
+            .values_list("name", flat=True)
         )
 
-        self.applied_migrations = {record["name"] for record in records[1]}
+        self.applied_migrations = set(records)
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory and sort them based on dependencies."""
@@ -160,11 +159,10 @@ class MigrationManager:
                     self.applied_state.apply_operation(operation)
 
                 # Record that migration was applied
-                now = datetime.datetime.now().isoformat()
-                # inlining the values helps to avoid the complexity of choosing the correct placeholders
-                # for the backend. The probability of SQL injection here is close to 0.
-                await conn.execute_query(
-                    f"INSERT INTO tortoise_migrations (app, name, applied_at) VALUES ('{self.app_name}', '{migration_name}', '{now}')",
+                await MigrationDBModel.create(
+                    using_db=conn,
+                    name=migration_name,
+                    app=self.app_name,
                 )
 
                 self.applied_migrations.add(migration_name)
@@ -195,16 +193,18 @@ class MigrationManager:
 
         if not migration_name:
             # Get the last applied migration
-            records = await conn.execute_query(
-                "SELECT name FROM tortoise_migrations WHERE app = ? ORDER BY id DESC LIMIT 1",
-                [self.app_name],
+            last = (
+                await MigrationDBModel.filter(app=self.app_name)
+                .using_db(conn)
+                .order_by("-applied_at")
+                .first()
             )
 
-            if not records[1]:
+            if not last:
                 print("No migrations to revert")
                 return None
 
-            migration_name = cast(str, records[1][0]["name"])
+            migration_name = last.name
 
         if migration_name not in [m.name() for m in self.migrations]:
             raise ValueError(f"Migration {migration_name} not found")
@@ -221,11 +221,11 @@ class MigrationManager:
                 # TODO: should be reverting, not applying
                 self.applied_state.apply_operation(operation)
             # Remove migration record
-            await conn.execute_query(
-                "DELETE FROM tortoise_migrations WHERE app = ? AND name = ?",
-                [self.app_name, migration_name],
+            await (
+                MigrationDBModel.filter(app=self.app_name, name=migration_name)
+                .using_db(conn)
+                .delete()
             )
-
             self.applied_migrations.remove(migration_name)
 
             # Rebuild state from remaining applied migrations
