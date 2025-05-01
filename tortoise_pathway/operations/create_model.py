@@ -10,6 +10,7 @@ from tortoise.indexes import Index
 
 from tortoise_pathway.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.index_ext import index_to_migration, UniqueIndex
+from tortoise_pathway.operations.add_index import AddIndex
 from tortoise_pathway.operations.operation import Operation
 from tortoise_pathway.operations.sql import field_definition_to_sql
 
@@ -53,6 +54,7 @@ class CreateModel(Operation):
         """
         columns = []
         constraints = []
+        create_index_ops = []
 
         # Process each field
         for field_name, field in self.fields.items():
@@ -78,20 +80,18 @@ class CreateModel(Operation):
             column_def = field_definition_to_sql(field, dialect)
             columns.append(f"{db_column} {column_def}")
 
-        # unique indexes
-        for unique_together in self.indexes:
-            if not isinstance(unique_together, UniqueIndex):
-                continue
-
-            unique_columns = []
-            for field_name in unique_together.fields:
+        # Process indexes
+        for index in self.indexes:
+            index_columns = []
+            for field_name in index.fields:
                 field = self.fields[field_name]
                 db_column = field_db_column(field, field_name)
-                unique_columns.append(db_column)
+                index_columns.append(db_column)
 
-            constraints.append(
-                f"CONSTRAINT {unique_together.name} UNIQUE ({', '.join(unique_columns)})"
-            )
+            if isinstance(index, UniqueIndex):
+                constraints.append(f"CONSTRAINT {index.name} UNIQUE ({', '.join(index_columns)})")
+            else:
+                create_index_ops.append(AddIndex(self.model, index).forward_sql(state, dialect))
 
         # Build the CREATE TABLE statement
         sql = f'CREATE TABLE "{self.table}" (\n'
@@ -101,6 +101,9 @@ class CreateModel(Operation):
             sql += ",\n" + ",\n".join(["    " + constraint for constraint in constraints])
 
         sql += "\n);"
+
+        for op in create_index_ops:
+            sql += f"\n{op}"
 
         return sql
 

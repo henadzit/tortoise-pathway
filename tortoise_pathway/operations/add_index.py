@@ -43,7 +43,9 @@ class AddIndex(Operation):
 
         unique_prefix = "UNIQUE " if self.unique else ""
         columns_str = ", ".join(column_names)
-        return f"CREATE {unique_prefix}INDEX {self.index_name} ON {self.get_table_name(state)} ({columns_str})"
+        index_type = getattr(self.index, "INDEX_TYPE", "")
+        index_type_str = f"USING {index_type}" if index_type else ""
+        return f"CREATE {unique_prefix}INDEX {self.index_name} ON {self.get_table_name(state)} ({columns_str}) {index_type_str}".strip()
 
     def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
         """Generate SQL for dropping an index."""

@@ -3,6 +3,7 @@ Models for testing application with no migrations.
 """
 
 from tortoise import fields, models
+from tortoise.indexes import Index
 
 
 class User(models.Model):
@@ -15,6 +16,10 @@ class User(models.Model):
 
     class Meta:
         table = "users"
+
+        indexes = [
+            Index(fields=["name"]),
+        ]
 
     def __str__(self):
         return f"{self.name} <{self.email}>"

@@ -83,15 +83,24 @@ class SchemaDiffer:
                 if hasattr(model._meta, "indexes") and isinstance(
                     model._meta.indexes, (list, tuple)
                 ):
-                    for index_fields in model._meta.indexes:
-                        if isinstance(index_fields, Index):
-                            app_schema["models"][model_name]["indexes"].append(index_fields)
-                        else:
+                    for index in model._meta.indexes:
+                        if isinstance(index, Index):
+                            if not index.name:
+                                # generate index name if not provided
+                                index.name = gen_index_name(
+                                    "idx", model._meta.db_table, index.fields
+                                )
+                            app_schema["models"][model_name]["indexes"].append(index)
+                        elif isinstance(index, (list, tuple)):
                             app_schema["models"][model_name]["indexes"].append(
                                 Index(
-                                    fields=index_fields,
-                                    name=gen_index_name("idx", model._meta.db_table, index_fields),
+                                    fields=index,
+                                    name=gen_index_name("idx", model._meta.db_table, index),
                                 )
+                            )
+                        else:
+                            raise ValueError(
+                                f"Unknown index type {type(index)} for model {model_name}"
                             )
 
                 # Get unique constraints

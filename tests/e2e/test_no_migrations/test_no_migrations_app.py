@@ -5,6 +5,8 @@ Tests for application with no migrations.
 import pytest
 from pathlib import Path
 
+from tortoise.indexes import Index
+
 from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.migration_manager import MigrationManager
 from tortoise_pathway.operations.create_model import CreateModel
@@ -52,6 +54,12 @@ async def test_create_initial_migration(setup_test_db):
     create_user_op = operations[0]
     assert isinstance(create_user_op, CreateModel)
     assert create_user_op.model == "test_no_migrations.User"
+    assert create_user_op.indexes == [
+        Index(
+            fields=("name",),
+            name="idx_users_name_6aafa3",
+        )
+    ]
 
     create_note_op = operations[1]
     assert isinstance(create_note_op, CreateModel)

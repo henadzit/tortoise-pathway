@@ -3,6 +3,7 @@ Tests for CreateModel operation.
 """
 
 from tortoise import Tortoise, fields
+from tortoise.indexes import Index
 from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.operations import CreateModel
 from tortoise_pathway.state import State
@@ -140,6 +141,75 @@ class TestSqliteDialect:
     email VARCHAR(100) NOT NULL,
     CONSTRAINT unique_first_name_last_name UNIQUE (first_name, last_name)
 );"""
+        )
+
+    def test_forward_sql_regular_index(self):
+        """Test SQL generation with regular index."""
+        state = State("test")
+
+        fields_dict = {
+            "id": fields.IntField(primary_key=True),
+            "name": fields.CharField(max_length=100),
+            "description": fields.TextField(),
+        }
+
+        operation = CreateModel(
+            model="tests.models.TestModel",
+            table="test_regular_index",
+            fields=fields_dict,
+            indexes=[
+                Index(
+                    name="idx_name",
+                    fields=["name"],
+                )
+            ],
+        )
+
+        sql = operation.forward_sql(state=state)
+
+        assert (
+            sql
+            == """CREATE TABLE "test_regular_index" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NOT NULL
+);
+CREATE INDEX idx_name ON test_model (name)"""
+        )
+
+    def test_forward_sql_custom_index_type(self):
+        """Test SQL generation with custom index type."""
+        state = State("test")
+
+        fields_dict = {
+            "id": fields.IntField(primary_key=True),
+            "data": fields.JSONField(),
+        }
+
+        class CustomIndex(Index):
+            INDEX_TYPE = "GIN"
+
+        operation = CreateModel(
+            model="tests.models.TestModel",
+            table="test_custom_index",
+            fields=fields_dict,
+            indexes=[
+                CustomIndex(
+                    name="idx_data",
+                    fields=["data"],
+                )
+            ],
+        )
+
+        sql = operation.forward_sql(state=state)
+
+        assert (
+            sql
+            == """CREATE TABLE "test_custom_index" (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data JSON NOT NULL
+);
+CREATE INDEX idx_data ON test_model (data) USING GIN"""
         )
 
     def test_forward_sql_foreign_key(self):
