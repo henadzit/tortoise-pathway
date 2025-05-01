@@ -278,7 +278,18 @@ class State:
             return self._schema["models"][model]["fields"][field_name]
         return None
 
-    def get_fields(self, model: str) -> Optional[Dict[str, Field]]:
+    def get_index(self, model_name: str, index_name: str) -> Optional[Index]:
+        """
+        Get the Index object by name.
+        """
+        if model_name not in self._schema["models"]:
+            return None
+        for index in self._schema["models"][model_name]["indexes"]:
+            if index.name == index_name:
+                return index
+        return None
+
+    def get_fields(self, model_name: str) -> Optional[Dict[str, Field]]:
         """
         Get all fields for a specific model.
 
@@ -288,16 +299,16 @@ class State:
         Returns:
             Dictionary mapping field names to Field objects, or None if model not found.
         """
-        if model in self._schema["models"]:
-            return copy.copy(self._schema["models"][model]["fields"])
+        if model_name in self._schema["models"]:
+            return copy.copy(self._schema["models"][model_name]["fields"])
         return None
 
-    def get_column_name(self, model: str, field_name: str) -> Optional[str]:
+    def get_column_name(self, model_name: str, field_name: str) -> Optional[str]:
         """
         Get the column name for a specific field.
 
         Args:
-            model: The model name.
+            model_name: The model name.
             field_name: The field name.
 
         Returns:
@@ -305,10 +316,10 @@ class State:
         """
         try:
             if (
-                model in self._schema["models"]
-                and field_name in self._schema["models"][model]["fields"]
+                model_name in self._schema["models"]
+                and field_name in self._schema["models"][model_name]["fields"]
             ):
-                field_obj = self._schema["models"][model]["fields"][field_name]
+                field_obj = self._schema["models"][model_name]["fields"][field_name]
                 # Get source_field if available, otherwise use field_name as the column name
                 source_field = getattr(field_obj, "source_field", None)
                 return source_field if source_field is not None else field_name

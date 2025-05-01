@@ -111,7 +111,6 @@ async def test_detect_index_removals():
     assert len(changes) == 1
     assert isinstance(changes[0], DropIndex)
     assert changes[0].model == "test.TestModel"
-    assert changes[0].field_name == "created_at"
     assert changes[0].index_name == "idx_test_model_created_at"
 
     # check that the detected changes lead to a stable state
@@ -177,7 +176,6 @@ async def test_detect_change_to_unique():
     assert len(changes) == 2
     assert isinstance(changes[0], DropIndex)
     assert changes[0].model == "test.TestModel"
-    assert changes[0].field_name == "created_at"
     assert changes[0].index_name == "idx_test_model_created_at"
 
     assert isinstance(changes[1], AddIndex)

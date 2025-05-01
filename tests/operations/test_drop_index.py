@@ -32,6 +32,9 @@ async def test_drop_index(setup_test_db):
         index=Index(name="idx_test_model_name", fields=["name"]),
     )
     await add_index_op.apply(state=state)
+    state.apply_operation(add_index_op)
+
+    state.snapshot("index_added")
 
     # Verify index exists
     conn = Tortoise.get_connection("default")
@@ -44,10 +47,21 @@ async def test_drop_index(setup_test_db):
 
     # Drop the index
     operation = DropIndex(
-        model="tests.models.TestModel",
-        field_name="name",
+        model="tests.TestModel",
+        index_name="idx_test_model_name",
     )
+
+    # Test SQL generation
+    forward_sql = operation.forward_sql(state=state)
+    assert "DROP INDEX" in forward_sql
+
     await operation.apply(state=state)
+    state.apply_operation(operation)
+
+    state.snapshot("index_dropped")
+
+    backward_sql = operation.backward_sql(state=state)
+    assert "CREATE INDEX" in backward_sql
 
     # Verify index was dropped
     if conn.capabilities.dialect == "sqlite":
@@ -57,9 +71,3 @@ async def test_drop_index(setup_test_db):
         index_names = [index["name"] for index in indices[1]]
         assert "idx_test_model_name" not in index_names
 
-    # Test SQL generation
-    forward_sql = operation.forward_sql(state=state)
-    assert "DROP INDEX" in forward_sql
-
-    backward_sql = operation.backward_sql(state=state)
-    assert "CREATE INDEX" in backward_sql

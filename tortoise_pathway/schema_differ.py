@@ -340,7 +340,6 @@ class SchemaDiffer:
                 self._changes.append(
                     DropIndex(
                         model=model_ref,
-                        field_name=index.fields[0] if index.fields else "",
                         index_name=index_name,
                     )
                 )
@@ -359,7 +358,6 @@ class SchemaDiffer:
                     self._changes.append(
                         DropIndex(
                             model=model_ref,
-                            field_name=current_index.fields[0] if current_index.fields else "",
                             index_name=index_name,
                         )
                     )
