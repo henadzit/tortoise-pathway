@@ -140,7 +140,7 @@ class State:
         self._schema["models"][model_name] = {
             "table": operation.table,
             "fields": operation.fields.copy(),
-            "indexes": operation.indexes.copy(),
+            "indexes": [],
         }
 
     def _apply_drop_model(self, model_name: str, operation: DropModel) -> None:

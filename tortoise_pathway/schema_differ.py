@@ -171,9 +171,18 @@ class SchemaDiffer:
                     model=model_ref,
                     table=model_info["table"],
                     fields=field_objects,
-                    indexes=model_info["indexes"],
                 )
             )
+
+            # Add separate AddIndex operations for each index
+            for index in model_info["indexes"]:
+                self._changes.append(
+                    AddIndex(
+                        model=model_ref,
+                        index=index,
+                    )
+                )
+
             processed_model_names.append(model_name)
 
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
@@ -336,7 +345,6 @@ class SchemaDiffer:
 
             # Indexes to drop (in current schema but not in model)
             for index_name in set(current_index_map.keys()) - set(model_index_map.keys()):
-                index = current_index_map[index_name]
                 self._changes.append(
                     DropIndex(
                         model=model_ref,

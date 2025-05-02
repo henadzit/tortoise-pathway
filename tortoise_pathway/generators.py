@@ -120,9 +120,6 @@ def generate_auto_migration(
                 for field_obj in change.fields.values():
                     field_imports.update(field_to_imports(field_obj))
 
-            if change.indexes:
-                for index in change.indexes:
-                    index_imports.update(index_to_imports(index))
         elif isinstance(change, AddField) or isinstance(change, AlterField):
             field_imports.update(field_to_imports(change.field_object))
         elif isinstance(change, AddIndex) or isinstance(change, DropIndex):

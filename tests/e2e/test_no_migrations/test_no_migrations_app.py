@@ -9,6 +9,7 @@ from tortoise.indexes import Index
 
 from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.migration_manager import MigrationManager
+from tortoise_pathway.operations.add_index import AddIndex
 from tortoise_pathway.operations.create_model import CreateModel
 
 
@@ -32,6 +33,7 @@ async def test_create_initial_migration(setup_test_db):
 
     # Create an initial migration
     migration = await manager.create_migration("initial", auto=True)
+    assert migration is not None
     assert migration.path().exists()
 
     # Re-discover migrations and verify the new migration is found
@@ -49,27 +51,27 @@ async def test_create_initial_migration(setup_test_db):
         assert 'model="test_no_migrations.Note"' in content
 
     operations = migration.operations
-    assert len(operations) == 2
+    assert len(operations) == 4
 
     create_user_op = operations[0]
     assert isinstance(create_user_op, CreateModel)
     assert create_user_op.model == "test_no_migrations.User"
-    assert create_user_op.indexes == [
-        Index(
-            fields=("name",),
-            name="idx_users_name_6aafa3",
-        )
-    ]
 
-    create_note_op = operations[1]
+    assert isinstance(operations[1], AddIndex)
+    assert operations[1].model == "test_no_migrations.User"
+    assert isinstance(operations[1].index, Index)
+    assert operations[1].index.name == "idx_users_name_6aafa3"
+    assert operations[1].index.fields == ["name"]
+
+    create_note_op = operations[2]
     assert isinstance(create_note_op, CreateModel)
     assert create_note_op.model == "test_no_migrations.Note"
-    assert create_note_op.indexes == [
-        UniqueIndex(
-            fields=("user", "title"),
-            name="uniq_notes_user_ti_70d5aa",
-        )
-    ]
+
+    assert isinstance(operations[3], AddIndex)
+    assert operations[3].model == "test_no_migrations.Note"
+    assert isinstance(operations[3].index, UniqueIndex)
+    assert operations[3].index.name == "uniq_notes_user_ti_70d5aa"
+    assert operations[3].index.fields == ["user", "title"]
 
     applied = await manager.apply_migrations()
     assert len(applied) == 1
