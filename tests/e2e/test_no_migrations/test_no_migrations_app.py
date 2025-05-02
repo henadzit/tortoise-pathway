@@ -5,7 +5,12 @@ Tests for application with no migrations.
 import pytest
 from pathlib import Path
 
+from tortoise.indexes import Index
+
+from tortoise_pathway.index_ext import UniqueIndex
 from tortoise_pathway.migration_manager import MigrationManager
+from tortoise_pathway.operations.add_index import AddIndex
+from tortoise_pathway.operations.create_model import CreateModel
 
 
 @pytest.mark.parametrize("tortoise_config", ["test_no_migrations"], indirect=True)
@@ -28,6 +33,7 @@ async def test_create_initial_migration(setup_test_db):
 
     # Create an initial migration
     migration = await manager.create_migration("initial", auto=True)
+    assert migration is not None
     assert migration.path().exists()
 
     # Re-discover migrations and verify the new migration is found
@@ -43,3 +49,35 @@ async def test_create_initial_migration(setup_test_db):
         assert "CreateModel" in content
         assert 'model="test_no_migrations.User"' in content
         assert 'model="test_no_migrations.Note"' in content
+
+    operations = migration.operations
+    assert len(operations) == 4
+
+    create_user_op = operations[0]
+    assert isinstance(create_user_op, CreateModel)
+    assert create_user_op.model == "test_no_migrations.User"
+
+    assert isinstance(operations[1], AddIndex)
+    assert operations[1].model == "test_no_migrations.User"
+    assert isinstance(operations[1].index, Index)
+    assert operations[1].index.name == "idx_users_name_6aafa3"
+    assert operations[1].index.fields == ["name"]
+
+    create_note_op = operations[2]
+    assert isinstance(create_note_op, CreateModel)
+    assert create_note_op.model == "test_no_migrations.Note"
+
+    assert isinstance(operations[3], AddIndex)
+    assert operations[3].model == "test_no_migrations.Note"
+    assert isinstance(operations[3].index, UniqueIndex)
+    assert operations[3].index.name == "uniq_notes_user_ti_70d5aa"
+    assert operations[3].index.fields == ["user", "title"]
+
+    applied = await manager.apply_migrations()
+    assert len(applied) == 1
+
+    # Verify all migrations are now applied
+    assert len(manager.get_applied_migrations()) == 1
+    assert len(manager.get_pending_migrations()) == 0
+
+    assert await manager.create_migration("no_changes", auto=True) is None

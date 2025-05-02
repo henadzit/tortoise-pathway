@@ -62,7 +62,7 @@ async def test_model_changes(setup_test_db):
 
     # Verify the exact operations and their order
     operations = migration.operations
-    assert len(operations) == 9
+    assert len(operations) == 10
 
     comments_table_op = operations[0]
     assert isinstance(comments_table_op, CreateModel)
@@ -92,28 +92,34 @@ async def test_model_changes(setup_test_db):
     assert operations[4].field_object is not None
     assert operations[4].field_object.unique
 
-    assert isinstance(operations[5], AddIndex)
-    assert operations[5].get_table_name(manager.migration_state) == "blogs"
-    assert operations[5].field_name == "created_at"
-    assert operations[5].index_name == "idx_created_at"
-    assert not operations[5].unique
+    assert isinstance(operations[5], AddField)
+    assert operations[5].get_table_name(manager.migration_state) == "tags"
+    assert operations[5].field_name == "description"
 
     assert isinstance(operations[6], AddField)
     assert operations[6].get_table_name(manager.migration_state) == "tags"
-    assert operations[6].field_name == "description"
+    assert operations[6].field_name == "status"
+    assert isinstance(operations[6].field_object, CharEnumFieldInstance)
+    assert getattr(operations[6].field_object, "enum_type", None) == TagStatus
 
-    assert isinstance(operations[7], AddField)
+    assert isinstance(operations[7], AlterField)
     assert operations[7].get_table_name(manager.migration_state) == "tags"
-    assert operations[7].field_name == "status"
-    assert isinstance(operations[7].field_object, CharEnumFieldInstance)
-    assert getattr(operations[7].field_object, "enum_type", None) == TagStatus
+    assert operations[7].field_name == "color"
+    assert operations[7].field_object is not None
+    assert operations[7].field_object.null
+    assert operations[7].field_object.default == "red"
 
-    assert isinstance(operations[8], AlterField)
-    assert operations[8].get_table_name(manager.migration_state) == "tags"
-    assert operations[8].field_name == "color"
-    assert operations[8].field_object is not None
-    assert operations[8].field_object.null
-    assert operations[8].field_object.default == "red"
+    assert isinstance(operations[8], AddIndex)
+    assert operations[8].get_table_name(manager.migration_state) == "blogs"
+    assert operations[8].index.fields == ["created_at"]
+    assert operations[8].index_name == "idx_blogs_created_5b8c34"
+    assert not operations[8].unique
+
+    assert isinstance(operations[9], AddIndex)
+    assert operations[9].get_table_name(manager.migration_state) == "tags"
+    assert operations[9].fields == ["blog", "name"]
+    assert operations[9].index_name == "uniq_tags_blog_na_086dc5"
+    assert operations[9].unique
 
     # Verify field deletion operation
 
@@ -158,20 +164,40 @@ async def test_model_changes(setup_test_db):
             "INSERT INTO blogs (slug, title) VALUES ('test-slug', 'Another Title')"
         )
 
-    res = await conn.execute_query("SELECT created_at, updated_at FROM blogs")
+    res = await conn.execute_query("SELECT id, created_at, updated_at FROM blogs")
+    blog_id = res[1][0]["id"]
+    assert blog_id is not None
     assert res[1][0]["created_at"] is not None
     assert res[1][0]["updated_at"] is not None
 
     # Verify nullability change
     await conn.execute_query(
-        "INSERT INTO tags (name, color, status) VALUES ('test-tag', null, 'active')"
+        f"INSERT INTO tags (name, color, status, blog_id) VALUES ('test-tag', null, 'active', {blog_id})"
     )
     res = await conn.execute_query("SELECT color FROM tags")
     assert res[1][0]["color"] is None
 
+    # Verify unique_together
+    with pytest.raises(IntegrityError):
+        await conn.execute_query(
+            f"INSERT INTO tags (name, color, status, blog_id) VALUES ('test-tag', null, 'active', {blog_id})"
+        )
+    # Verify unique_together with different blog
+    await conn.execute_query(
+        "INSERT INTO blogs (slug, title, summary) VALUES ('test-slug-2', 'Test Title 2', 'Test Summary 2')"
+    )
+    res = await conn.execute_query("SELECT id FROM blogs where slug = 'test-slug-2'")
+    blog_id_2 = res[1][0]["id"]
+    assert blog_id_2 is not None
+    await conn.execute_query(
+        f"INSERT INTO tags (name, color, status, blog_id) VALUES ('test-tag', null, 'active', {blog_id_2})"
+    )
+
     await conn.execute_query("DELETE FROM tags")
 
     # Verify default value change
-    await conn.execute_query("INSERT INTO tags (name, status) VALUES ('test-tag', 'active')")
+    await conn.execute_query(
+        f"INSERT INTO tags (name, status, blog_id) VALUES ('test-tag', 'active', {blog_id})"
+    )
     res = await conn.execute_query("SELECT color FROM tags")
     assert res[1][0]["color"] == "red"

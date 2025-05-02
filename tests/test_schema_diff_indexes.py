@@ -3,8 +3,10 @@ Tests for the SchemaDiffer's ability to detect index changes.
 """
 
 from tortoise.fields import IntField, CharField, DatetimeField
+from tortoise.indexes import Index
+from tortoise_pathway.index_ext import UniqueIndex
 
-from tortoise_pathway.state import State
+from tortoise_pathway.state import State, Schema
 from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.operations import AddIndex, DropIndex, CreateModel
 
@@ -31,18 +33,17 @@ async def test_detect_index_additions():
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
 
-    def mock_get_model_schema():
+    def mock_get_model_schema() -> Schema:
         return {
             "models": {
                 "TestModel": {
                     "table": "test_model",
                     "fields": fields,
                     "indexes": [
-                        {
-                            "name": "idx_test_model_created_at",
-                            "unique": False,
-                            "columns": ["created_at"],
-                        }
+                        Index(
+                            fields=["created_at"],
+                            name="idx_test_model_created_at",
+                        )
                     ],
                 }
             }
@@ -57,9 +58,15 @@ async def test_detect_index_additions():
     assert len(changes) == 1
     assert isinstance(changes[0], AddIndex)
     assert changes[0].model == "test.TestModel"
-    assert changes[0].field_name == "created_at"
-    assert changes[0].index_name == "idx_test_model_created_at"
-    assert changes[0].fields == ["created_at"]
+    assert changes[0].index.fields == ["created_at"]
+    assert changes[0].index.name == "idx_test_model_created_at"
+    assert not isinstance(changes[0].index, UniqueIndex)
+
+    # check that the detected changes lead to a stable state
+    state.apply_operation(changes[0])
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
 
 
 async def test_detect_index_removals():
@@ -82,16 +89,17 @@ async def test_detect_index_removals():
     state.apply_operation(
         AddIndex(
             model="test.TestModel",
-            field_name="created_at",
-            index_name="idx_test_model_created_at",
-            unique=False,
+            index=Index(
+                fields=["created_at"],
+                name="idx_test_model_created_at",
+            ),
         )
     )
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
 
-    def mock_get_model_schema():
+    def mock_get_model_schema() -> Schema:
         return {"models": {"TestModel": {"table": "test_model", "fields": fields, "indexes": []}}}
 
     differ.get_model_schema = mock_get_model_schema
@@ -103,11 +111,16 @@ async def test_detect_index_removals():
     assert len(changes) == 1
     assert isinstance(changes[0], DropIndex)
     assert changes[0].model == "test.TestModel"
-    assert changes[0].field_name == "created_at"
     assert changes[0].index_name == "idx_test_model_created_at"
 
+    # check that the detected changes lead to a stable state
+    state.apply_operation(changes[0])
 
-async def test_detect_index_modifications():
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
+
+
+async def test_detect_change_to_unique():
     """Test detecting modified indexes (changing unique constraint)."""
     # Initialize state with a model with a non-unique index
     state = State("test")
@@ -128,27 +141,27 @@ async def test_detect_index_modifications():
     state.apply_operation(
         AddIndex(
             model="test.TestModel",
-            field_name="created_at",
-            index_name="idx_test_model_created_at",
-            unique=False,
+            index=Index(
+                fields=["created_at"],
+                name="idx_test_model_created_at",
+            ),
         )
     )
 
     # Create a SchemaDiffer with our state
     differ = SchemaDiffer("test", state)
 
-    def mock_get_model_schema():
+    def mock_get_model_schema() -> Schema:
         return {
             "models": {
                 "TestModel": {
                     "table": "test_model",
                     "fields": fields,
                     "indexes": [
-                        {
-                            "name": "idx_test_model_created_at",
-                            "unique": True,  # Changed to unique
-                            "columns": ["created_at"],
-                        }
+                        UniqueIndex(
+                            fields=["created_at"],
+                            name="idx_test_model_created_at",
+                        )
                     ],
                 }
             }
@@ -163,11 +176,17 @@ async def test_detect_index_modifications():
     assert len(changes) == 2
     assert isinstance(changes[0], DropIndex)
     assert changes[0].model == "test.TestModel"
-    assert changes[0].field_name == "created_at"
     assert changes[0].index_name == "idx_test_model_created_at"
 
     assert isinstance(changes[1], AddIndex)
     assert changes[1].model == "test.TestModel"
-    assert changes[1].field_name == "created_at"
-    assert changes[1].index_name == "idx_test_model_created_at"
-    assert changes[1].unique is True
+    assert changes[1].index.fields == ["created_at"]
+    assert changes[1].index.name == "idx_test_model_created_at"
+    assert isinstance(changes[1].index, UniqueIndex)
+
+    # check that the detected changes lead to a stable state
+    state.apply_operation(changes[0])
+    state.apply_operation(changes[1])
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0

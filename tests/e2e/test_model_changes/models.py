@@ -39,7 +39,8 @@ class Tag(models.Model):
     """Existing model"""
 
     id = fields.IntField(primary_key=True)
-    name = fields.CharField(max_length=50, unique=True)
+    name = fields.CharField(max_length=50)
+    blog = fields.ForeignKeyField("test_model_changes.Blog", related_name="tags")
     # Changed: added null=True and default="red"
     color = fields.CharField(max_length=50, null=True, default="red")
     # Changed from original: Added a new field
@@ -49,6 +50,9 @@ class Tag(models.Model):
 
     class Meta:
         table = "tags"
+
+        # Changed: Added a new unique_together constraint
+        unique_together = [("blog", "name")]
 
     def __str__(self):
         return self.name
