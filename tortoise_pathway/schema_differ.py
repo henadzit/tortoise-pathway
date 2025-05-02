@@ -67,7 +67,6 @@ class SchemaDiffer:
 
                 # Get fields
                 for field_name, field_object in model._meta.fields_map.items():
-
                     # Skip reverse relations
                     if field_object.__class__.__name__ == "BackwardFKRelation":
                         continue

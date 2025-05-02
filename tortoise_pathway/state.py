@@ -294,7 +294,7 @@ class State:
         Get all fields for a specific model.
 
         Args:
-            model: The model name.
+            model_name: The model name.
 
         Returns:
             Dictionary mapping field names to Field objects, or None if model not found.
