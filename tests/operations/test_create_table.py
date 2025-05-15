@@ -4,6 +4,8 @@ Tests for CreateModel operation.
 
 from tortoise import Tortoise, fields
 from tortoise_pathway.operations import CreateModel
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
+from tortoise_pathway.schema.sqlite import SqliteSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -31,11 +33,11 @@ async def test_create_table(setup_test_db):
     await conn.execute_query("SELECT id, name, description FROM test_create")
 
     # Test forward_sql and backward_sql methods
-    forward_sql = operation.forward_sql(state=state)
+    forward_sql = operation.forward_sql(state, PostgresSchemaManager())
     assert "CREATE TABLE" in forward_sql
     assert "test_create" in forward_sql
 
-    backward_sql = operation.backward_sql(state=state)
+    backward_sql = operation.backward_sql(state=state, schema_manager=PostgresSchemaManager())
     assert "DROP TABLE test_create" in backward_sql
 
 
@@ -60,7 +62,7 @@ class TestSqliteDialect:
         )
 
         # Test SQLite dialect
-        sql = operation.forward_sql(state=state, dialect="sqlite")
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
 
         assert (
             sql
@@ -92,7 +94,7 @@ class TestSqliteDialect:
             fields=fields_dict,
         )
 
-        sql = operation.forward_sql(state=state)
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
 
         assert (
             sql
@@ -122,7 +124,7 @@ class TestSqliteDialect:
             fields=fields_dict,
         )
 
-        sql = operation.forward_sql(state=state)
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
 
         assert (
             sql
@@ -152,7 +154,7 @@ class TestPostgresDialect:
             fields=fields_dict,
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
 
         assert (
             sql

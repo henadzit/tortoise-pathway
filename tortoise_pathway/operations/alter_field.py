@@ -8,7 +8,6 @@ from tortoise.fields import Field
 
 from tortoise_pathway.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.sql import default_value_to_sql
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State

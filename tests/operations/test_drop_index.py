@@ -5,6 +5,7 @@ Tests for DropIndex operation.
 from tortoise import Tortoise, fields
 from tortoise.indexes import Index
 from tortoise_pathway.operations import CreateModel, AddIndex, DropIndex
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -52,7 +53,7 @@ async def test_drop_index(setup_test_db):
     )
 
     # Test SQL generation
-    forward_sql = operation.forward_sql(state=state)
+    forward_sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
     assert "DROP INDEX" in forward_sql
 
     await operation.apply(state=state)
@@ -60,7 +61,7 @@ async def test_drop_index(setup_test_db):
 
     state.snapshot("index_dropped")
 
-    backward_sql = operation.backward_sql(state=state)
+    backward_sql = operation.backward_sql(state=state, schema_manager=PostgresSchemaManager())
     assert "CREATE INDEX" in backward_sql
 
     # Verify index was dropped

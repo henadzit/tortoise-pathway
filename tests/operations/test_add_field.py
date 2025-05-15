@@ -4,6 +4,8 @@ Tests for AddField operation.
 
 from tortoise import fields
 from tortoise_pathway.operations import AddField
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
+from tortoise_pathway.schema.sqlite import SqliteSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -21,7 +23,7 @@ class TestSqliteDialect:
             field_name="description",
         )
 
-        sql = operation.forward_sql(state=state, dialect="sqlite")
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
 
         assert sql == "ALTER TABLE test_table ADD COLUMN description TEXT"
 
@@ -32,7 +34,7 @@ class TestSqliteDialect:
             field_name="count",
         )
 
-        sql = operation.forward_sql(state=state, dialect="sqlite")
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
 
         assert sql == "ALTER TABLE test_table ADD COLUMN count INT NOT NULL DEFAULT 0"
 
@@ -50,12 +52,12 @@ class TestSqliteDialect:
             field_name="user",
         )
 
-        sql = operation.forward_sql(state=state, dialect="sqlite")
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
 
         assert sql == "ALTER TABLE test_table ADD COLUMN user_id INT NOT NULL REFERENCES users(id)"
 
         # Test backward operation
-        backward_sql = operation.backward_sql(state=state)
+        backward_sql = operation.backward_sql(state=state, schema_manager=SqliteSchemaManager())
         assert "DROP COLUMN user_id" in backward_sql
 
 
@@ -73,7 +75,7 @@ class TestPostgresDialect:
             field_name="description",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
 
         assert sql == "ALTER TABLE test_table ADD COLUMN description TEXT"
 
@@ -96,7 +98,7 @@ class TestPostgresDialect:
             field_name="category",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
 
         expected_sql = (
             "ALTER TABLE test_table ADD COLUMN category_id INT NOT NULL,\n"

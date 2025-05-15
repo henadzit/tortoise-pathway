@@ -5,6 +5,7 @@ Tests for AddIndex operation.
 from tortoise import Tortoise, fields
 from tortoise.indexes import Index
 from tortoise_pathway.operations import CreateModel, AddIndex
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -44,10 +45,10 @@ async def test_add_index(setup_test_db):
         assert "idx_test_model_name" in index_names
 
     # Test SQL generation
-    forward_sql = operation.forward_sql(state=state)
+    forward_sql = operation.forward_sql(state, PostgresSchemaManager())
     assert forward_sql == "CREATE INDEX idx_test_model_name ON test_add_index (name)"
 
-    backward_sql = operation.backward_sql(state=state)
+    backward_sql = operation.backward_sql(state, PostgresSchemaManager())
     assert backward_sql == "DROP INDEX idx_test_model_name"
 
 
@@ -77,7 +78,7 @@ def test_forward_sql_with_custom_index_type():
     )
 
     # Test SQL generation
-    forward_sql = operation.forward_sql(state=state)
+    forward_sql = operation.forward_sql(state, PostgresSchemaManager())
     assert (
         forward_sql
         == "CREATE INDEX idx_test_model_name_description ON test_index_type (name, description) USING BLOOM"

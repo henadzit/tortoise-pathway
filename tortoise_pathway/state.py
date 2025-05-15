@@ -252,7 +252,7 @@ class State:
         """
         return copy.copy(self._schema["models"][model_name])
 
-    def get_table_name(self, model_name: str) -> Optional[str]:
+    def get_table_name(self, model_name: str) -> str:
         """
         Get the table name for a specific model.
 
@@ -262,10 +262,7 @@ class State:
         Returns:
             The table name, or None if not found.
         """
-        try:
-            return self._schema["models"][model_name]["table"]
-        except (KeyError, TypeError):
-            return None
+        return self._schema["models"][model_name]["table"]
 
     def get_field(self, model: str, field_name: str) -> Optional[Field]:
         """
