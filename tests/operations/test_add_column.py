@@ -4,6 +4,7 @@ Tests for AddField operation.
 
 from tortoise import Tortoise, fields
 from tortoise_pathway.operations import CreateModel, AddField
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -36,5 +37,5 @@ async def test_add_column(setup_test_db):
     await conn.execute_query("SELECT int_field from test_add_column")
 
     # Test SQL generation
-    forward_sql = operation.forward_sql(state=state)
+    forward_sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
     assert "ALTER TABLE test_add_column ADD COLUMN int_field" in forward_sql

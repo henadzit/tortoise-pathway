@@ -5,6 +5,7 @@ RenameField operation for Tortoise ORM migrations.
 from typing import TYPE_CHECKING
 
 from tortoise_pathway.operations.operation import Operation
+from tortoise_pathway.schema.base import BaseSchemaManager
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -23,19 +24,17 @@ class RenameField(Operation):
         self.field_name = field_name
         self.new_name = new_name
 
-    def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for renaming a column."""
         column_name = state.get_column_name(self.model_name, self.field_name)
 
-        return f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {column_name} TO {self.new_name}"
+        return schema_manager.rename_column(self.get_table_name(state), column_name, self.new_name)
 
-    def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for reverting a column rename."""
         old_name = state.prev().get_column_name(self.model_name, self.field_name)
 
-        return (
-            f"ALTER TABLE {self.get_table_name(state)} RENAME COLUMN {self.new_name} TO {old_name}"
-        )
+        return schema_manager.rename_column(self.get_table_name(state), self.new_name, old_name)
 
     def to_migration(self) -> str:
         """Generate Python code to rename a field in a migration."""

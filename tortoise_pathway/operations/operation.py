@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING
 
 from tortoise import connections
 
+from tortoise_pathway.schema import get_schema_manager
+from tortoise_pathway.schema.base import BaseSchemaManager
+
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
 
@@ -90,7 +93,8 @@ class Operation:
             connection_name: The database connection name to use.
         """
         connection = connections.get(connection_name)
-        sql = self.forward_sql(state=state, dialect=get_dialect(connection))
+        schema_manager = get_schema_manager(get_dialect(connection))
+        sql = self.forward_sql(state=state, schema_manager=schema_manager)
         await connection.execute_script(sql)
 
     async def revert(self, state: "State", connection_name: str = "default") -> None:
@@ -102,23 +106,24 @@ class Operation:
             connection_name: The database connection name to use.
         """
         connection = connections.get(connection_name)
-        sql = self.backward_sql(state=state, dialect=get_dialect(connection))
+        schema_manager = get_schema_manager(get_dialect(connection))
+        sql = self.backward_sql(state=state, schema_manager=schema_manager)
         await connection.execute_script(sql)
 
-    def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """
         Generate SQL for applying this change forward.
 
         Args:
             state: State object that contains schema information.
-            dialect: SQL dialect (default: "sqlite").
+            schema_manager: Schema manager object that contains schema information.
 
         Returns:
             SQL string for applying the change.
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """
         Generate SQL for reverting this change.
 

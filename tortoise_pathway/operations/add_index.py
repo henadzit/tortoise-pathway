@@ -8,6 +8,7 @@ from tortoise.indexes import Index
 from tortoise_pathway.index_ext import UniqueIndex
 
 from tortoise_pathway.operations.operation import Operation
+from tortoise_pathway.schema.base import BaseSchemaManager
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -30,26 +31,23 @@ class AddIndex(Operation):
         self.unique = isinstance(index, UniqueIndex)
         self.fields = index.fields
 
-    def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for adding an index."""
-        # Get actual column names from field names
+        table_name = state.get_table_name(self.model_name)
         column_names = []
-        for field_name in self.fields:
+        for field_name in self.index.fields:
             column_name = state.get_column_name(self.model_name, field_name)
             # Fall back to field name if column name is None
             if column_name is None:
                 column_name = field_name
-            column_names.append(column_name)
+            column_names.append(column_name)  # Get actual column names from field names
+        return schema_manager.add_index(
+            table_name, self.index_name, column_names, self.unique, self.index.INDEX_TYPE
+        )
 
-        unique_prefix = "UNIQUE " if self.unique else ""
-        columns_str = ", ".join(column_names)
-        index_type = getattr(self.index, "INDEX_TYPE", "")
-        index_type_str = f"USING {index_type}" if index_type else ""
-        return f"CREATE {unique_prefix}INDEX {self.index_name} ON {self.get_table_name(state)} ({columns_str}) {index_type_str}".strip()
-
-    def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for dropping an index."""
-        return f"DROP INDEX {self.index_name}"
+        return schema_manager.drop_index(self.index_name)
 
     def to_migration(self) -> str:
         """Generate Python code to add an index in a migration."""

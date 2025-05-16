@@ -5,6 +5,7 @@ DropModel operation for Tortoise ORM migrations.
 from typing import TYPE_CHECKING
 
 from tortoise_pathway.operations.operation import Operation
+from tortoise_pathway.schema.base import BaseSchemaManager
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -19,11 +20,11 @@ class DropModel(Operation):
     ):
         super().__init__(model)
 
-    def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for dropping the table."""
-        return f"DROP TABLE {self.get_table_name(state)}"
+        return schema_manager.drop_table(self.get_table_name(state))
 
-    def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for recreating the table."""
 
         # Since model is now a string instead of a Model class,

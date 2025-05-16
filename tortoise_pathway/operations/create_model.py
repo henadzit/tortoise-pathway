@@ -9,7 +9,7 @@ from tortoise.fields.relational import RelationalField
 
 from tortoise_pathway.field_ext import field_db_column, field_to_migration
 from tortoise_pathway.operations.operation import Operation
-from tortoise_pathway.operations.sql import field_definition_to_sql
+from tortoise_pathway.schema.base import BaseSchemaManager
 
 if TYPE_CHECKING:
     from tortoise_pathway.state import State
@@ -28,27 +28,10 @@ class CreateModel(Operation):
         self.table = table
         self.fields = fields
 
-    def forward_sql(self, state: "State", dialect: str = "sqlite") -> str:
+    def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for creating the table."""
-        return self._generate_sql_from_fields(state, dialect)
-
-    def backward_sql(self, state: "State", dialect: str = "sqlite") -> str:
-        """Generate SQL for dropping the table."""
-        return f"DROP TABLE {self.table}"
-
-    def _generate_sql_from_fields(self, state: "State", dialect: str = "sqlite") -> str:
-        """
-        Generate SQL to create a table from the fields dictionary.
-
-        Args:
-            state: State object that contains schema information.
-            dialect: SQL dialect to use (default: "sqlite").
-
-        Returns:
-            SQL string for table creation.
-        """
-        columns = []
-        constraints = []
+        columns = {}
+        foreign_keys = []
 
         # Process each field
         for field_name, field in self.fields.items():
@@ -59,6 +42,7 @@ class CreateModel(Operation):
                 continue
 
             db_column = field_db_column(field, field_name)
+            columns[db_column] = field
 
             # Handle ForeignKey fields
             if isinstance(field, RelationalField):
@@ -67,23 +51,12 @@ class CreateModel(Operation):
                 model = state.get_model(related_model_name)
                 related_table = model["table"]
                 to_field = field.to_field or "id"
-                constraints.append(
-                    f'FOREIGN KEY ({db_column}) REFERENCES "{related_table}" ({to_field})'
-                )
+                foreign_keys.append((db_column, related_table, to_field))
+        return schema_manager.create_table(self.table, columns, foreign_keys)
 
-            column_def = field_definition_to_sql(field, dialect)
-            columns.append(f"{db_column} {column_def}")
-
-        # Build the CREATE TABLE statement
-        sql = f'CREATE TABLE "{self.table}" (\n'
-        sql += ",\n".join(["    " + col for col in columns])
-
-        if constraints:
-            sql += ",\n" + ",\n".join(["    " + constraint for constraint in constraints])
-
-        sql += "\n);"
-
-        return sql
+    def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
+        """Generate SQL for dropping the table."""
+        return schema_manager.drop_table(self.table)
 
     def to_migration(self) -> str:
         """Generate Python code to create a model in a migration."""

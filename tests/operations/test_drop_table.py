@@ -2,6 +2,7 @@ import pytest
 from tortoise import Tortoise, fields
 
 from tortoise_pathway.operations import CreateModel, DropModel
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -36,5 +37,5 @@ async def test_drop_table(setup_test_db):
         await conn.execute_query("SELECT * FROM test_drop")
 
     # Test SQL generation
-    forward_sql = operation.forward_sql(state=state)
+    forward_sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
     assert "DROP TABLE test_drop" in forward_sql
