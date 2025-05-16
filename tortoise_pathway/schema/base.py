@@ -5,6 +5,17 @@ from tortoise.converters import encoders
 
 
 class BaseSchemaManager:
+    """A base class for managing database schema operations across different database dialects.
+
+    This class provides methods to generate SQL statements for various schema operations
+    such as creating tables, adding/removing columns, managing foreign keys, and handling
+    indexes. It serves as a foundation for dialect-specific schema managers.
+
+    Attributes:
+        dialect (str): The database dialect being used (e.g., 'postgres', 'sqlite', 'mysql').
+
+    Create a subclass for each dialect and override the methods as needed.
+    """
     def __init__(self, dialect: str):
         self.dialect = dialect
 
