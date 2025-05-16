@@ -1,3 +1,4 @@
+from tortoise.fields import Field
 
 from tortoise_pathway.schema.base import BaseSchemaManager
 
@@ -16,6 +17,15 @@ class SqliteSchemaManager(BaseSchemaManager):
 
         sql += f" REFERENCES {related_table}({to_column})"
         return sql
+
+    def alter_column(
+        self,
+        table_name: str,
+        column_name: str,
+        prev_field: Field,
+        new_field: Field,
+    ) -> str:
+        raise NotImplementedError("ALTER COLUMN is not supported in SQLite")
 
 
 schema_manager = SqliteSchemaManager()

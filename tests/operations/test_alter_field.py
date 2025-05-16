@@ -6,6 +6,8 @@ from enum import Enum
 from tortoise import fields
 from tortoise.fields.data import CharEnumFieldInstance
 from tortoise_pathway.operations import AlterField
+from tortoise_pathway.schema.postgres import PostgresSchemaManager
+from tortoise_pathway.schema.sqlite import SqliteSchemaManager
 from tortoise_pathway.state import State
 
 
@@ -40,7 +42,7 @@ class TestSqliteDialect:
             field_name="name",
         )
 
-        sql = operation.forward_sql(state=state, dialect="sqlite")
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
         assert (
             sql
             == """BEGIN TRANSACTION;
@@ -76,7 +78,7 @@ COMMIT;"""
             field_name="count",
         )
 
-        sql = operation.forward_sql(state=state, dialect="sqlite")
+        sql = operation.forward_sql(state=state, schema_manager=SqliteSchemaManager())
         assert (
             sql
             == """BEGIN TRANSACTION;
@@ -115,7 +117,7 @@ class TestPostgresDialect:
             field_name="count",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
         assert sql == "ALTER TABLE test_table ALTER COLUMN count TYPE BIGINT;"
 
     def test_change_default(self):
@@ -140,7 +142,7 @@ class TestPostgresDialect:
             field_name="count",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
         assert sql == "ALTER TABLE test_table ALTER COLUMN count SET DEFAULT 10;"
 
     def test_add_unique(self):
@@ -165,7 +167,7 @@ class TestPostgresDialect:
             field_name="email",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
         assert sql == "ALTER TABLE test_table ADD CONSTRAINT email_key UNIQUE (email);"
 
     def test_remove_unique(self):
@@ -190,7 +192,7 @@ class TestPostgresDialect:
             field_name="email",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
         assert sql == "ALTER TABLE test_table DROP CONSTRAINT email_key;"
 
     def test_default_unique_changed(self):
@@ -215,7 +217,7 @@ class TestPostgresDialect:
             field_name="count",
         )
 
-        sql = operation.forward_sql(state=state, dialect="postgres")
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
         assert (
             sql
             == """ALTER TABLE test_table ALTER COLUMN count SET DEFAULT 10;
@@ -265,4 +267,4 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
             field_name="role",
         )
 
-        assert operation.forward_sql(state=state, dialect="postgres") == ""
+        assert operation.forward_sql(state=state, schema_manager=PostgresSchemaManager()) == ""
