@@ -23,8 +23,6 @@ from tortoise_pathway.operations import (
     RenameField,
     AddIndex,
     DropIndex,
-    AddConstraint,
-    DropConstraint,
 )
 
 
@@ -111,10 +109,6 @@ class State:
             self._apply_add_index(model_name, operation)
         elif isinstance(operation, DropIndex):
             self._apply_drop_index(model_name, operation)
-        elif isinstance(operation, AddConstraint):
-            self._apply_add_constraint(model_name, operation)
-        elif isinstance(operation, DropConstraint):
-            self._apply_drop_constraint(model_name, operation)
 
     def snapshot(self, name: str) -> None:
         """
@@ -221,18 +215,6 @@ class State:
                 return
 
         raise ValueError(f"Index {operation.index_name} not found in {model_name}")
-
-    def _apply_add_constraint(self, model_name: str, operation: AddConstraint) -> None:
-        """Apply an AddConstraint operation to the state."""
-        # Constraints aren't directly represented in our schema state model yet
-        # This is a simplified implementation
-        pass
-
-    def _apply_drop_constraint(self, model_name: str, operation: DropConstraint) -> None:
-        """Apply a DropConstraint operation to the state."""
-        # Constraints aren't directly represented in our schema state model yet
-        # This is a simplified implementation
-        pass
 
     def get_schema(self) -> Schema:
         """Get the entire schema representation."""
