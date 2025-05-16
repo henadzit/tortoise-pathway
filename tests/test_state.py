@@ -254,7 +254,7 @@ async def test_apply_rename_field():
     assert state.get_schema() == expected_state
 
 
-async def test_apply_rename_model():
+async def test_apply_rename_model_with_new_table_name():
     """Test applying a RenameModel operation to the state."""
     state = State("test_app")
 
@@ -275,13 +275,12 @@ async def test_apply_rename_model():
     # Now rename the model's table
     rename_model_op = RenameModel(
         model="test_app.TestModel",
-        new_name="new_test_model",
+        new_table_name="new_test_model",
     )
 
     state.apply_operation(rename_model_op)
 
-    # Define the expected state
-    expected_state = {
+    assert state.get_schema() == {
         "models": {
             "TestModel": {
                 "table": "new_test_model",  # Table name changed
@@ -291,9 +290,42 @@ async def test_apply_rename_model():
         }
     }
 
-    # Compare the entire state schema to the expected state
-    assert state.get_schema() == expected_state
 
+async def test_apply_rename_model_with_new_model_name():
+    """Test applying a RenameModel operation to the state."""
+    state = State("test_app")
+
+    # First create a model
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+    }
+
+    create_model_op = CreateModel(
+        model="test_app.TestModel",
+        table="test_model",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Now rename the model's name
+    rename_model_op = RenameModel(
+        model="test_app.TestModel",
+        new_model_name="NewTestModel",
+    )
+
+    state.apply_operation(rename_model_op)
+
+    assert state.get_schema() == {
+        "models": {
+            "NewTestModel": {
+                "table": "test_model",
+                "fields": fields,
+                "indexes": [],
+            },
+        }
+    }
 
 async def test_get_schema():
     """Test getting the schema."""

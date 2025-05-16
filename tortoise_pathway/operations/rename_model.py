@@ -12,29 +12,48 @@ if TYPE_CHECKING:
 
 
 class RenameModel(Operation):
-    """Rename an existing model."""
+    """Operation to rename an existing Tortoise ORM model.
+
+    This operation allows renaming either the model name, the table name, or both.
+    At least one of new_model_name or new_table_name must be provided.
+
+    Args:
+        model (str): The name of the model to rename.
+        new_model_name (str | None, optional): The new name for the model. Defaults to None.
+        new_table_name (str | None, optional): The new name for the database table. Defaults to None.
+    """
 
     def __init__(
         self,
         model: str,
-        new_name: str,
+        new_model_name: str | None = None,
+        new_table_name: str | None = None,
     ):
+        if not new_model_name and not new_table_name:
+            raise ValueError("new_model_name or new_table_name must be provided")
+
         super().__init__(model)
-        self.new_name = new_name
+        self.new_model_name = new_model_name
+        self.new_table_name = new_table_name
 
     def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for renaming the table."""
-        return schema_manager.rename_table(self.get_table_name(state), self.new_name)
+        if self.new_table_name:
+            return schema_manager.rename_table(self.get_table_name(state), self.new_table_name)
 
     def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for reverting the table rename."""
-        return schema_manager.rename_table(self.new_name, self.get_table_name(state))
+        if self.new_table_name:
+            return schema_manager.rename_table(self.new_table_name, self.get_table_name(state))
 
     def to_migration(self) -> str:
         """Generate Python code to rename a model in a migration."""
         lines = []
         lines.append("RenameModel(")
         lines.append(f'    model="{self.model}",')
-        lines.append(f'    new_name="{self.new_name}",')
+        if self.new_model_name:
+            lines.append(f'    new_model_name="{self.new_model_name}",')
+        if self.new_table_name:
+            lines.append(f'    new_table_name="{self.new_table_name}",')
         lines.append(")")
         return "\n".join(lines)

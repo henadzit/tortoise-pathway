@@ -145,10 +145,14 @@ class State:
 
     def _apply_rename_model(self, model_name: str, operation: RenameModel) -> None:
         """Apply a RenameModel operation to the state."""
-        new_table_name = operation.new_name
+        model = self._schema["models"][model_name]
 
-        # Update the table name
-        self._schema["models"][model_name]["table"] = new_table_name
+        if operation.new_table_name:
+            model["table"] = operation.new_table_name
+
+        if operation.new_model_name:
+            del self._schema["models"][model_name]
+            self._schema["models"][operation.new_model_name] = model
 
     def _apply_add_field(self, model_name: str, operation: AddField) -> None:
         """Apply an AddField operation to the state."""
