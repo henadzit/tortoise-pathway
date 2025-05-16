@@ -22,7 +22,7 @@ class DropModel(Operation):
 
     def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for dropping the table."""
-        return f"DROP TABLE {self.get_table_name(state)}"
+        return schema_manager.drop_table(self.get_table_name(state))
 
     def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for recreating the table."""

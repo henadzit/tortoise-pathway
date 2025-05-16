@@ -56,7 +56,7 @@ class CreateModel(Operation):
 
     def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for dropping the table."""
-        return f"DROP TABLE {self.table}"
+        return schema_manager.drop_table(self.table)
 
     def to_migration(self) -> str:
         """Generate Python code to create a model in a migration."""
