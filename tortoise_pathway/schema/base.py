@@ -36,6 +36,9 @@ class BaseSchemaManager:
     def drop_table(self, table_name: str) -> str:
         return f"DROP TABLE {table_name}"
 
+    def rename_table(self, old_name: str, new_name: str) -> str:
+        return f"ALTER TABLE {old_name} RENAME TO {new_name}"
+
     def add_column(self, table_name: str, column_name: str, field: Field) -> str:
         column_def = self._field_definition_to_sql(field)
         return f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
@@ -97,6 +100,9 @@ class BaseSchemaManager:
                 statements.append(f"ALTER TABLE {table_name} DROP CONSTRAINT {column_name}_key;")
 
         return "\n".join(statements)
+
+    def rename_column(self, table_name: str, column_name: str, new_column_name: str) -> str:
+        return f"ALTER TABLE {table_name} RENAME COLUMN {column_name} TO {new_column_name}"
 
     def add_foreign_key_column(
         self, table_name: str, column_name: str, related_table: str, to_column: str, null: bool
