@@ -1,4 +1,4 @@
-from tortoise.fields import Field
+from tortoise.fields import Field, IntField
 
 from tortoise_pathway.schema.base import BaseSchemaManager
 
@@ -26,6 +26,12 @@ class SqliteSchemaManager(BaseSchemaManager):
         new_field: Field,
     ) -> str:
         raise NotImplementedError("ALTER COLUMN is not supported in SQLite")
+
+    def _default_pk_type(self):
+        return "INTEGER"
+
+    def _default_pk_keyword(self, pk_field: Field):
+        return "PRIMARY KEY" + (" AUTOINCREMENT" if isinstance(pk_field, IntField) else "")
 
 
 schema_manager = SqliteSchemaManager()

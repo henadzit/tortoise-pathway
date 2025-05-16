@@ -151,27 +151,13 @@ class BaseSchemaManager:
         else:
             sql_type = field.get_for_dialect(self.dialect, "SQL_TYPE")
 
-        # Handle special cases for primary keys
-        if pk:
-            if self.dialect == "sqlite" and isinstance(field, IntField):
-                # For SQLite, INTEGER PRIMARY KEY AUTOINCREMENT must use exactly "INTEGER" type
-                sql_type = "INTEGER"
-            elif pk and isinstance(field, IntField) and self.dialect == "postgres":
-                sql_type = "SERIAL"
+        if pk and isinstance(field, IntField):
+            sql_type = self._default_pk_type()
 
-        # Build column definition
         column_def = f"{sql_type}"
 
         if pk:
-            if self.dialect == "sqlite":
-                column_def += " PRIMARY KEY"
-                if isinstance(field, IntField):
-                    column_def += " AUTOINCREMENT"
-            else:
-                column_def += " PRIMARY KEY"
-                if isinstance(field, IntField) and self.dialect == "postgres":
-                    # For PostgreSQL, we'd use SERIAL instead
-                    column_def = f"{sql_type} PRIMARY KEY"
+            column_def += " " + self._default_pk_keyword(field)
 
         if not nullable and not pk:
             column_def += " NOT NULL"
@@ -205,3 +191,9 @@ class BaseSchemaManager:
             return default
 
         return encoders.get(type(default))(default)
+
+    def _default_pk_type(self):
+        return "INT"
+
+    def _default_pk_keyword(self, pk_field: Field):
+        return "PRIMARY KEY"
