@@ -228,7 +228,7 @@ async def test_apply_rename_field():
     rename_field_op = RenameField(
         model="test_app.TestModel",
         field_name="description",
-        new_name="details",
+        new_field_name="details",
     )
 
     state.apply_operation(rename_field_op)
@@ -240,7 +240,8 @@ async def test_apply_rename_field():
         "details": fields["description"],
     }
 
-    expected_state = {
+    # Compare the entire state schema to the expected state
+    assert state.get_schema() == {
         "models": {
             "TestModel": {
                 "table": "test_model",
@@ -250,8 +251,50 @@ async def test_apply_rename_field():
         }
     }
 
-    # Compare the entire state schema to the expected state
-    assert state.get_schema() == expected_state
+
+async def test_apply_rename_field_with_new_column_name():
+    """Test applying a RenameField operation to the state with a new column name."""
+    state = State("test_app")
+
+    # First create a table
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+        "description": TextField(),
+    }
+
+    create_model_op = CreateModel(
+        model="test_app.TestModel",
+        table="test_model",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Now rename a field with a new column name
+    rename_field_op = RenameField(
+        model="test_app.TestModel",
+        field_name="description",
+        new_field_name="details",
+        new_column_name="details_column",
+    )
+
+    state.apply_operation(rename_field_op)
+
+    assert state.get_schema() == {
+        "models": {
+            "TestModel": {
+                "table": "test_model",
+                "fields": {
+                    "id": fields["id"],
+                    "name": fields["name"],
+                    "details": fields["description"],
+                },
+                "indexes": [],
+            },
+        }
+    }
+    assert state.get_column_name("TestModel", "details") == "details_column"
 
 
 async def test_apply_rename_model_with_new_table_name():
