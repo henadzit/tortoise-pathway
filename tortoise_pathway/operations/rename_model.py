@@ -38,13 +38,20 @@ class RenameModel(Operation):
 
     def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for renaming the table."""
-        if self.new_table_name:
-            return schema_manager.rename_table(self.get_table_name(state), self.new_table_name)
+
+        if not self.new_table_name:
+            return ""
+
+        return schema_manager.rename_table(self.get_table_name(state), self.new_table_name)
 
     def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for reverting the table rename."""
-        if self.new_table_name:
-            return schema_manager.rename_table(self.new_table_name, self.get_table_name(state))
+        if not self.new_table_name:
+            return ""
+
+        old_table_name = state.prev().get_table_name(self.model_name)
+
+        return schema_manager.rename_table(self.new_table_name, old_table_name)
 
     def to_migration(self) -> str:
         """Generate Python code to rename a model in a migration."""
