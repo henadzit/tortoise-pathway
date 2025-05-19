@@ -145,10 +145,14 @@ class State:
 
     def _apply_rename_model(self, model_name: str, operation: RenameModel) -> None:
         """Apply a RenameModel operation to the state."""
-        new_table_name = operation.new_name
+        model = self._schema["models"][model_name]
 
-        # Update the table name
-        self._schema["models"][model_name]["table"] = new_table_name
+        if operation.new_table_name:
+            model["table"] = operation.new_table_name
+
+        if operation.new_model_name:
+            del self._schema["models"][model_name]
+            self._schema["models"][operation.new_model_name] = model
 
     def _apply_add_field(self, model_name: str, operation: AddField) -> None:
         """Apply an AddField operation to the state."""
@@ -191,17 +195,14 @@ class State:
     def _apply_rename_field(self, model_name: str, operation: RenameField) -> None:
         """Apply a RenameField operation to the state."""
         old_field_name = operation.field_name
-        new_field_name = operation.new_name
-        # Verify the old field exists
-        if old_field_name in self._schema["models"][model_name]["fields"]:
-            # Get the field object
-            field_obj = self._schema["models"][model_name]["fields"][old_field_name]
+        new_field_name = operation.new_field_name
 
-            # Add the field with the new name
+        field_obj = self._schema["models"][model_name]["fields"][old_field_name]
+        if new_field_name:
             self._schema["models"][model_name]["fields"][new_field_name] = field_obj
-
-            # Remove the old field
             del self._schema["models"][model_name]["fields"][old_field_name]
+        if operation.new_column_name:
+            field_obj.source_field = operation.new_column_name
 
     def _apply_add_index(self, model_name: str, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
