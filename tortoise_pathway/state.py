@@ -198,8 +198,9 @@ class State:
         new_field_name = operation.new_field_name
 
         field_obj = self._schema["models"][model_name]["fields"][old_field_name]
-        self._schema["models"][model_name]["fields"][new_field_name] = field_obj
-        del self._schema["models"][model_name]["fields"][old_field_name]
+        if new_field_name:
+            self._schema["models"][model_name]["fields"][new_field_name] = field_obj
+            del self._schema["models"][model_name]["fields"][old_field_name]
         if operation.new_column_name:
             field_obj.source_field = operation.new_column_name
 
