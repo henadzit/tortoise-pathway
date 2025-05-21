@@ -40,7 +40,11 @@ def tortoise_config(setup_db_file):
             "test": {
                 "models": ["tests.models"],
                 "default_connection": "default",
-            }
+            },
+            "tortoise_pathway": {
+                "models": ["tortoise_pathway.models"],
+                "default_connection": "default",
+            },
         },
     }
 

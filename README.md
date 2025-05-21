@@ -32,6 +32,7 @@ uv add tortoise-pathway
 ## Development
 
 Running tests
+
 ```bash
 uv run pytest
 ```
@@ -40,7 +41,11 @@ uv run pytest
 
 ### Configuration
 
-Create a configuration module with a `TORTOISE_ORM` dictionary. For example, in `config.py`:
+Create a configuration module with a `TORTOISE_ORM` dictionary.
+In addition to the standard Tortoise ORM configuration,
+you need to add a new app called `tortoise_pathway` to the `apps` dictionary.
+This app will be used to store the migration history for your models.
+For example, in `config.py`:
 
 ```python
 TORTOISE_ORM = {
@@ -55,6 +60,10 @@ TORTOISE_ORM = {
     "apps": {
         "models": {
             "models": ["myapp.models"],
+            "default_connection": "default",
+        },
+        "tortoise_pathway": {
+            "models": ["tortoise_pathway.models"],
             "default_connection": "default",
         },
     },
@@ -79,16 +88,19 @@ class User(models.Model):
 ### Working with Migrations
 
 Generate migrations automatically based on your models:
+
 ```
 python -m tortoise_pathway --config myapp.config.TORTOISE_ORM make
 ```
 
 Apply migrations:
+
 ```
 python -m tortoise_pathway --config myapp.config.TORTOISE_ORM migrate
 ```
 
 Revert a migration:
+
 ```
 python -m tortoise_pathway --config myapp.config.TORTOISE_ORM rollback --migration <migration_name>
 ```
