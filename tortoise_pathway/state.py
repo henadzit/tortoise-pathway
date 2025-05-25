@@ -88,27 +88,25 @@ class State:
         if operation.app_name != self.app_name:
             raise ValueError(f"Operation for {operation.model} is not for app {self.app_name}")
 
-        model_name = operation.model_name
-
         # Handle each type of operation
         if isinstance(operation, CreateModel):
-            self._apply_create_model(model_name, operation)
+            self._apply_create_model(operation)
         elif isinstance(operation, DropModel):
-            self._apply_drop_model(model_name, operation)
+            self._apply_drop_model(operation)
         elif isinstance(operation, RenameModel):
-            self._apply_rename_model(model_name, operation)
+            self._apply_rename_model(operation)
         elif isinstance(operation, AddField):
-            self._apply_add_field(model_name, operation)
+            self._apply_add_field(operation)
         elif isinstance(operation, DropField):
-            self._apply_drop_field(model_name, operation)
+            self._apply_drop_field(operation)
         elif isinstance(operation, AlterField):
-            self._apply_alter_field(model_name, operation)
+            self._apply_alter_field(operation)
         elif isinstance(operation, RenameField):
-            self._apply_rename_field(model_name, operation)
+            self._apply_rename_field(operation)
         elif isinstance(operation, AddIndex):
-            self._apply_add_index(model_name, operation)
+            self._apply_add_index(operation)
         elif isinstance(operation, DropIndex):
-            self._apply_drop_index(model_name, operation)
+            self._apply_drop_index(operation)
 
     def snapshot(self, name: str) -> None:
         """
@@ -128,8 +126,9 @@ class State:
         _, state = self._snapshots[-2]
         return state
 
-    def _apply_create_model(self, model_name: str, operation: CreateModel) -> None:
+    def _apply_create_model(self, operation: CreateModel) -> None:
         """Apply a CreateModel operation to the state."""
+        model_name = operation.model_name
         # Create a new model entry
         self._schema["models"][model_name] = {
             "table": operation.table,
@@ -137,14 +136,16 @@ class State:
             "indexes": [],
         }
 
-    def _apply_drop_model(self, model_name: str, operation: DropModel) -> None:
+    def _apply_drop_model(self, operation: DropModel) -> None:
         """Apply a DropModel operation to the state."""
+        model_name = operation.model_name
         # Remove the model if it exists
         if model_name in self._schema["models"]:
             del self._schema["models"][model_name]
 
-    def _apply_rename_model(self, model_name: str, operation: RenameModel) -> None:
+    def _apply_rename_model(self, operation: RenameModel) -> None:
         """Apply a RenameModel operation to the state."""
+        model_name = operation.model_name
         model = self._schema["models"][model_name]
 
         if operation.new_table_name:
@@ -154,8 +155,9 @@ class State:
             del self._schema["models"][model_name]
             self._schema["models"][operation.new_model_name] = model
 
-    def _apply_add_field(self, model_name: str, operation: AddField) -> None:
+    def _apply_add_field(self, operation: AddField) -> None:
         """Apply an AddField operation to the state."""
+        model_name = operation.model_name
         field_obj = operation.field_object
         field_name = operation.field_name
         # Add the field directly to the state
@@ -174,16 +176,18 @@ class State:
                 )
             )
 
-    def _apply_drop_field(self, model_name: str, operation: DropField) -> None:
+    def _apply_drop_field(self, operation: DropField) -> None:
         """Apply a DropField operation to the state."""
+        model_name = operation.model_name
         field_name = operation.field_name
 
         # Remove the field from the state
         if field_name in self._schema["models"][model_name]["fields"]:
             del self._schema["models"][model_name]["fields"][field_name]
 
-    def _apply_alter_field(self, model_name: str, operation: AlterField) -> None:
+    def _apply_alter_field(self, operation: AlterField) -> None:
         """Apply an AlterField operation to the state."""
+        model_name = operation.model_name
         field_name = operation.field_name
         field_obj = operation.field_object
 
@@ -192,8 +196,9 @@ class State:
             # Replace with the new field object
             self._schema["models"][model_name]["fields"][field_name] = field_obj
 
-    def _apply_rename_field(self, model_name: str, operation: RenameField) -> None:
+    def _apply_rename_field(self, operation: RenameField) -> None:
         """Apply a RenameField operation to the state."""
+        model_name = operation.model_name
         old_field_name = operation.field_name
         new_field_name = operation.new_field_name
 
@@ -204,12 +209,14 @@ class State:
         if operation.new_column_name:
             field_obj.source_field = operation.new_column_name
 
-    def _apply_add_index(self, model_name: str, operation: AddIndex) -> None:
+    def _apply_add_index(self, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
+        model_name = operation.model_name
         self._schema["models"][model_name]["indexes"].append(operation.index)
 
-    def _apply_drop_index(self, model_name: str, operation: DropIndex) -> None:
+    def _apply_drop_index(self, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
+        model_name = operation.model_name
         for i, index in enumerate(self._schema["models"][model_name]["indexes"]):
             if index.name == operation.index_name:
                 del self._schema["models"][model_name]["indexes"][i]

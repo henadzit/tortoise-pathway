@@ -68,7 +68,7 @@ class MigrationManager:
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory and sort them based on dependencies."""
-        migrations = load_migrations_from_disk(self.migrations_dir)
+        migrations = load_migrations_from_disk(self.app_name, self.migrations_dir)
         self.migrations = sort_migrations(migrations)
 
     async def create_migration(self, name: str, auto: bool = True) -> Optional[Type[Migration]]:
@@ -273,7 +273,7 @@ class MigrationManager:
             self.applied_state.snapshot(migration.name())
 
 
-def load_migrations_from_disk(migrations_dir: Path) -> List[Type[Migration]]:
+def load_migrations_from_disk(app_name: str, migrations_dir: Path) -> List[Type[Migration]]:
     """Load migrations from the migrations directory."""
     # Ensure the app-specific migrations directory exists
     if not migrations_dir.exists():
@@ -296,10 +296,16 @@ def load_migrations_from_disk(migrations_dir: Path) -> List[Type[Migration]]:
         try:
             module = importlib.import_module(module_path)
 
-            for name, obj in inspect.getmembers(module):
+            for _, obj in inspect.getmembers(module):
                 if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
+                    # Set app_name for operations where the app_name is hard to determine,
+                    # for instance, RunSQL operations.
+                    for operation in obj.operations:
+                        if not operation.app_name:
+                            operation.app_name = app_name
                     loaded_migrations.append(obj)
                     break
+
         except (ImportError, AttributeError) as e:
             print(f"Error loading migration {migration_name}: {e}")
 

@@ -34,6 +34,8 @@ class Operation:
         model: Model reference in the format "{app_name}.{model_name}".
     """
 
+    app_name: str = ""
+
     def __init__(
         self,
         model: str,
