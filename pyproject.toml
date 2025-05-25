@@ -1,6 +1,6 @@
 [project]
 name = "tortoise-pathway"
-version = "0.1.5"
+version = "0.1.6"
 description = "A schema migration tool for Tortoise ORM"
 readme = "README.md"
 requires-python = ">=3.12"
