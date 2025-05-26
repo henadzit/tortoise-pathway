@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Set, Type, cast
 from tortoise import Tortoise
 
 from tortoise_pathway.migration import Migration
+from tortoise_pathway.operations.operation import Operation
 from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.state import State
 from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
@@ -71,12 +72,14 @@ class MigrationManager:
         migrations = load_migrations_from_disk(self.app_name, self.migrations_dir)
         self.migrations = sort_migrations(migrations)
 
-    async def create_migration(self, name: str, auto: bool = True) -> Optional[Type[Migration]]:
+    async def create_migration(
+        self, name: Optional[str] = None, auto: bool = True
+    ) -> Optional[Type[Migration]]:
         """
         Create a new migration file and return the Migration instance.
 
         Args:
-            name: The descriptive name for the migration
+            name: The descriptive name for the migration. If None, a name will be generated based on detected changes.
             auto: Whether to auto-generate migration operations based on model changes
 
         Returns:
@@ -87,13 +90,9 @@ class MigrationManager:
             ImportError: If the migration file couldn't be loaded or no Migration class was found
         """
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        migration_name = f"{timestamp}_{name}"
 
         # Make sure app migrations directory exists
         self.migrations_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create migration file path
-        migration_file = self.migrations_dir / f"{migration_name}.py"
 
         dependencies = []
         if self.migrations:
@@ -106,6 +105,18 @@ class MigrationManager:
             if not changes:
                 return None
 
+            if name is None:
+                name = gen_name_from_changes(changes)
+
+        if name is None:
+            name = "migration"
+
+        migration_name = f"{timestamp}_{name}"
+
+        # Create migration file path
+        migration_file = self.migrations_dir / f"{migration_name}.py"
+
+        if auto:
             content = generate_auto_migration(migration_name, changes, dependencies)
         else:
             content = generate_empty_migration(migration_name, dependencies)
@@ -271,6 +282,36 @@ class MigrationManager:
             for operation in migration.operations:
                 self.applied_state.apply_operation(operation)
             self.applied_state.snapshot(migration.name())
+
+def gen_name_from_changes(changes: List[Operation]) -> str:
+    models_changed = set()
+    fields_changed = defaultdict(set)
+    field_ops_only = True
+
+    for change in changes:
+        model_name = getattr(change, "model_name", None)
+        if model_name:
+            models_changed.add(model_name)
+
+            field_name = getattr(change, "field_name", None)
+            if field_name:
+                fields_changed[model_name].add(field_name)
+            else:
+                field_ops_only = False
+
+    name = "auto"
+    if len(models_changed) > 1:
+        name = "auto"
+    elif len(models_changed) == 1:
+        model_name = next(iter(models_changed))
+        if len(fields_changed[model_name]) > 1:
+            name = model_name.lower()
+        elif len(fields_changed[model_name]) == 1 and field_ops_only:
+            field_name = next(iter(fields_changed[model_name]))
+            name = f"{model_name.lower()}_{field_name}"
+        else:
+            name = model_name.lower()
+    return name
 
 
 def load_migrations_from_disk(app_name: str, migrations_dir: Path) -> List[Type[Migration]]:

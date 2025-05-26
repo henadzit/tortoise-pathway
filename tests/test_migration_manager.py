@@ -1,8 +1,11 @@
 import pytest
 from unittest.mock import Mock
+from typing import List, Dict
+from tortoise.fields import CharField, IntField, Field
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.migration_manager import sort_migrations
+from tortoise_pathway.migration_manager import sort_migrations, gen_name_from_changes
+from tortoise_pathway.operations import Operation, CreateModel, AddField, AlterField
 
 
 class TestSortMigrations:
@@ -119,3 +122,56 @@ class TestSortMigrations:
 
         with pytest.raises(ValueError, match="No root migration found"):
             sort_migrations([migration1, migration2])
+
+
+class TestGenNameFromChanges:
+    def test_empty_changes_list(self):
+        """Test with an empty list of changes."""
+        assert gen_name_from_changes([]) == "auto"
+
+    def test_single_model_no_fields(self):
+        """Test with changes affecting a single model but no specific fields."""
+        fields: Dict[str, Field] = {"id": IntField(primary_key=True)}
+        changes: List[Operation] = [
+            CreateModel("app.User", "users", fields),
+        ]
+        assert gen_name_from_changes(changes) == "user"
+
+    def test_single_model_single_field(self):
+        """Test with changes affecting a single model and single field."""
+        changes: List[Operation] = [
+            AddField("app.User", CharField(max_length=255), "email"),
+        ]
+        assert gen_name_from_changes(changes) == "user_email"
+
+    def test_single_model_multiple_fields(self):
+        """Test with changes affecting a single model but multiple fields."""
+        changes: List[Operation] = [
+            AddField("app.User", CharField(max_length=255), "email"),
+            AddField("app.User", CharField(max_length=100), "username"),
+        ]
+        assert gen_name_from_changes(changes) == "user"
+
+    def test_multiple_models(self):
+        """Test with changes affecting multiple models."""
+        changes: List[Operation] = [
+            AddField("app.User", CharField(max_length=255), "email"),
+            AddField("app.Profile", CharField(max_length=500), "bio"),
+        ]
+        assert gen_name_from_changes(changes) == "auto"
+
+    def test_mixed_operation_types(self):
+        """Test with a mix of different operation types."""
+        changes: List[Operation] = [
+            CreateModel("app.User", "users", {"id": IntField(primary_key=True)}),
+            AddField("app.User", CharField(max_length=255), "email"),
+        ]
+        assert gen_name_from_changes(changes) == "user"
+
+    def test_operation_without_field_name(self):
+        """Test with operation that doesn't have field_name attribute."""
+        # AlterField alters field but retains the same field_name
+        changes: List[Operation] = [
+            AlterField("app.User", CharField(max_length=50), "username"),
+        ]
+        assert gen_name_from_changes(changes) == "user_username"

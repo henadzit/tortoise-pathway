@@ -110,10 +110,7 @@ async def make(args: argparse.Namespace) -> None:
     manager = MigrationManager(app, migration_dir)
     await manager.initialize()
 
-    if args.name:
-        name = args.name
-    else:
-        name = "auto"
+    name = args.name or None
 
     if not args.empty:
         # Generate automatic migration based on model changes
