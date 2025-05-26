@@ -4,7 +4,7 @@
 
 ⚠️ **Most of the code is written with Claude, there are issues with code style that are common for AI generated code.**
 
-🤓 Code contributions ans assistance with testing is welcome and appreciated!
+🤓 Code contributions and assistance with testing are welcome and appreciated!
 
 Tortoise Pathway is a migration system for [Tortoise ORM](https://github.com/tortoise/tortoise-orm/), inspired by Django's migration approach.
 
@@ -31,7 +31,7 @@ uv add tortoise-pathway
 
 ## Development
 
-Running tests
+Running tests:
 ```bash
 uv run pytest
 ```
@@ -78,17 +78,22 @@ class User(models.Model):
 
 ### Working with Migrations
 
-Generate migrations automatically based on your models:
-```
+Generate migrations automatically based on model changes:
+```bash
 python -m tortoise_pathway --config myapp.config.TORTOISE_ORM make
 ```
 
-Apply migrations:
+or generate an empty migration with a name:
+```bash
+python -m tortoise_pathway --config myapp.config.TORTOISE_ORM make --empty --name "add_email_field"
 ```
+
+Apply migrations:
+```bash
 python -m tortoise_pathway --config myapp.config.TORTOISE_ORM migrate
 ```
 
 Revert a migration:
-```
+```bash
 python -m tortoise_pathway --config myapp.config.TORTOISE_ORM rollback --migration <migration_name>
 ```
