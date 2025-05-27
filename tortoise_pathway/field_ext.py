@@ -49,10 +49,10 @@ def field_to_migration(field: Field) -> str:
     if hasattr(field, "null") and field.null:
         params.append("null=True")
 
-    if hasattr(field, "unique") and field.unique:
+    if hasattr(field, "unique") and field.unique and not field.pk:
         params.append("unique=True")
 
-    if hasattr(field, "index") and field.index:
+    if hasattr(field, "index") and field.index and not field.pk:
         params.append("db_index=True")
 
     if hasattr(field, "enum_type"):

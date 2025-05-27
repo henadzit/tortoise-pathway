@@ -1,3 +1,4 @@
+from hashlib import sha256
 from typing import Any
 from tortoise.fields import Field, IntField
 from tortoise.fields.relational import RelationalField
@@ -29,8 +30,10 @@ class BaseSchemaManager:
         for column_name, field in columns.items():
             column_def = self._field_definition_to_sql(field)
             column_defs.append(f"{column_name} {column_def}")
-            if field.index:
-                index_name = self._column_index_name(table_name, column_name)
+
+            # Add indexes to non-primary key fields
+            if field.index and not field.pk:
+                index_name = self._get_index_name(table_name, column_name)
                 indexes.append(self.add_index(table_name, index_name, [column_name], unique=field.unique))
 
         for from_column, related_table, to_column in foreign_keys:
@@ -60,8 +63,8 @@ class BaseSchemaManager:
     def add_column(self, table_name: str, column_name: str, field: Field) -> str:
         column_def = self._field_definition_to_sql(field)
         statement = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
-        if field.index:
-            index_name = self._column_index_name(table_name, column_name)
+        if field.index and not field.pk:
+            index_name = self._get_index_name(table_name, column_name)
             statement += ";\n" + self.add_index(table_name, index_name, [column_name], unique=field.unique)
         return statement
 
@@ -123,8 +126,8 @@ class BaseSchemaManager:
                 statements.append(f"ALTER TABLE {table_name} DROP CONSTRAINT {column_name}_key;")
 
         # Index change
-        if index != prev_field.index:
-            index_name = self._column_index_name(table_name, column_name)
+        if index != prev_field.index and not is_pk:
+            index_name = self._get_index_name(table_name, column_name)
             if index:
                 statements.append(self.add_index(table_name, index_name, [column_name], unique=unique))
             else:
@@ -200,8 +203,19 @@ class BaseSchemaManager:
 
         return column_def
     
-    def _column_index_name(self, table_name: str, column_name: str) -> str:
-        return f"idx_{table_name}_{column_name}"
+    def _get_index_name(self, table_name: str, column_name: str, prefix: str = "idx") -> str:
+        """
+        Generates a unique index name for a column.  Implementation is based on tortoise's schema generator.
+
+        NOTE: for compatibility, index name should not be longer than 30 characters (Oracle limit).
+        """
+        
+        full_index_name = f"{prefix}_{table_name}_{column_name}"
+        if len(full_index_name) <= 30:
+            return full_index_name
+        else:
+            hashed = self._make_hash(table_name, column_name, length=6)
+            return f"{prefix}_{table_name[:11]}_{column_name[:7]}_{hashed}"
 
     def field_default_to_sql(self, field: Field) -> str:
         default = getattr(field, "default", None)
@@ -231,3 +245,8 @@ class BaseSchemaManager:
 
     def _default_pk_keyword(self, pk_field: Field):
         return "PRIMARY KEY"
+
+    @staticmethod
+    def _make_hash(*args: str, length: int) -> str:
+        # Hash a set of string values and get a digest of the given length.
+        return sha256(";".join(args).encode("utf-8")).hexdigest()[:length]
