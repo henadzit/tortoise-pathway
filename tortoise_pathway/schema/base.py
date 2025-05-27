@@ -24,10 +24,14 @@ class BaseSchemaManager:
     ) -> str:
         column_defs = []
         constraints = []
+        indexes = []
 
         for column_name, field in columns.items():
             column_def = self._field_definition_to_sql(field)
             column_defs.append(f"{column_name} {column_def}")
+            if field.index:
+                index_name = self._column_index_name(table_name, column_name)
+                indexes.append(self.add_index(table_name, index_name, [column_name], unique=field.unique))
 
         for from_column, related_table, to_column in foreign_keys:
             constraints.append(
@@ -42,6 +46,9 @@ class BaseSchemaManager:
 
         sql += "\n);"
 
+        if indexes:
+            sql += ";\n" + ";\n".join(indexes)
+
         return sql
 
     def drop_table(self, table_name: str) -> str:
@@ -52,7 +59,11 @@ class BaseSchemaManager:
 
     def add_column(self, table_name: str, column_name: str, field: Field) -> str:
         column_def = self._field_definition_to_sql(field)
-        return f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
+        statement = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
+        if field.index:
+            index_name = self._column_index_name(table_name, column_name)
+            statement += ";\n" + self.add_index(table_name, index_name, [column_name], unique=field.unique)
+        return statement
 
     def drop_column(self, table_name: str, column_name: str) -> str:
         return f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
@@ -68,6 +79,7 @@ class BaseSchemaManager:
         field_type = new_field.__class__.__name__
         is_pk = getattr(new_field, "pk", False)
         unique = getattr(new_field, "unique", False)
+        index = getattr(new_field, "index", False)
 
         if is_pk and field_type == "IntField" and self.dialect == "postgres":
             column_type = "SERIAL"
@@ -109,6 +121,14 @@ class BaseSchemaManager:
                 )
             else:
                 statements.append(f"ALTER TABLE {table_name} DROP CONSTRAINT {column_name}_key;")
+
+        # Index change
+        if index != prev_field.index:
+            index_name = self._column_index_name(table_name, column_name)
+            if index:
+                statements.append(self.add_index(table_name, index_name, [column_name], unique=unique))
+            else:
+                statements.append(self.drop_index(index_name))
 
         return "\n".join(statements)
 
@@ -179,6 +199,9 @@ class BaseSchemaManager:
         column_def += self.field_default_to_sql(field)
 
         return column_def
+    
+    def _column_index_name(self, table_name: str, column_name: str) -> str:
+        return f"idx_{table_name}_{column_name}"
 
     def field_default_to_sql(self, field: Field) -> str:
         default = getattr(field, "default", None)

@@ -52,6 +52,9 @@ def field_to_migration(field: Field) -> str:
     if hasattr(field, "unique") and field.unique:
         params.append("unique=True")
 
+    if hasattr(field, "index") and field.index:
+        params.append("db_index=True")
+
     if hasattr(field, "enum_type"):
         enum_type = getattr(field, "enum_type")
         params.append(f"enum_type={enum_type.__name__}")
