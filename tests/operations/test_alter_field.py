@@ -224,6 +224,81 @@ class TestPostgresDialect:
 ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         )
 
+    def test_add_index(self):
+        """Test SQL generation for making a field indexed in PostgreSQL."""
+        # Create state with non-unique field
+        state = State(
+            "tests",
+            {
+                "models": {
+                    "TestModel": {
+                        "table": "test_table",
+                        "fields": {"email": fields.CharField(max_length=255, db_index=False)},
+                    }
+                }
+            },
+        )
+
+        # Make the field unique
+        operation = AlterField(
+            model="tests.TestModel",
+            field_object=fields.CharField(max_length=255, db_index=True),
+            field_name="email",
+        )
+
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
+        assert sql == "CREATE INDEX idx_test_table_email ON test_table (email)"
+
+    def test_remove_index(self):
+        """Test SQL generation for removing an index in PostgreSQL."""
+        # Create state with an indexed field
+        state = State(
+            "tests",
+            {
+                "models": {
+                    "TestModel": {
+                        "table": "test_table",
+                        "fields": {"email": fields.CharField(max_length=255, db_index=True)},
+                    }
+                }
+            },
+        )
+
+        # Remove the index
+        operation = AlterField(
+            model="tests.TestModel",
+            field_object=fields.CharField(max_length=255),
+            field_name="email",
+        )
+
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
+        assert sql == "DROP INDEX idx_test_table_email"
+
+    def test_add_index_long_name(self):
+        """Test SQL generation for making a field indexed in PostgreSQL."""
+        # Create state with non-unique field
+        state = State(
+            "tests",
+            {
+                "models": {
+                    "TestModel": {
+                        "table": "test_table_for_long_index_name",
+                        "fields": {"email_address_for_long_index_name": fields.CharField(max_length=255, db_index=False)},
+                    }
+                }
+            },
+        )
+
+        # Make the field unique
+        operation = AlterField(
+            model="tests.TestModel",
+            field_object=fields.CharField(max_length=255, db_index=True),
+            field_name="email_address_for_long_index_name",
+        )
+
+        sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
+        assert sql == "CREATE INDEX idx_test_table__email_a_596fb3 ON test_table_for_long_index_name (email_address_for_long_index_name)"
+
     def test_to_migration(self):
         """Test generating migration code for AlterField."""
         operation = AlterField(

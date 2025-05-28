@@ -541,3 +541,56 @@ async def test_detect_m2m_field_additions_to_existing_models():
 
     changes = await differ.detect_changes()
     assert len(changes) == 0
+
+
+async def test_detect_field_index_addition():
+    """Test detecting added indexes."""
+    # Initialize state with a model without indexes
+    state = State("test")
+
+    fields = {
+        "id": IntField(primary_key=True),
+        "name": CharField(max_length=100),
+        "created_at": DatetimeField(auto_now_add=True),
+    }
+
+    create_model_op = CreateModel(
+        model="test.TestModel",
+        table="test_model",
+        fields=fields,
+    )
+
+    state.apply_operation(create_model_op)
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer("test", state)
+
+    def mock_get_model_schema():
+        return {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": {**fields, "created_at": DatetimeField(auto_now_add=True, db_index=True)},
+                }
+            }
+        }
+
+    differ.get_model_schema = mock_get_model_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be one change: AlterField for count
+    assert len(changes) == 1
+    assert isinstance(changes[0], AlterField)
+    assert changes[0].model == "test.TestModel"
+    assert changes[0].field_name == "created_at"
+    assert isinstance(changes[0].field_object, DatetimeField)
+    assert changes[0].field_object.index is True
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
