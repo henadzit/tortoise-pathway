@@ -50,7 +50,7 @@ class BaseSchemaManager:
         sql += "\n);"
 
         if indexes:
-            sql += ";\n" + ";\n".join(indexes)
+            sql += "\n" + ";\n".join(indexes)
 
         return sql
 
