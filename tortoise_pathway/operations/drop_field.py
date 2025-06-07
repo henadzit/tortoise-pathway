@@ -25,7 +25,7 @@ class DropField(Operation):
 
     def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         # Get actual column name from state
-        column_name = state.get_column_name(self.model_name, self.field_name)
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
         if column_name is None:
             raise ValueError(f"Column {self.field_name} not found in model {self.model_name}")
 

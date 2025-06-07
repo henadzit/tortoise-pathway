@@ -2,7 +2,6 @@
 Tests for the State class.
 """
 
-
 import pytest
 from tortoise.fields import IntField, CharField, TextField, DatetimeField
 
@@ -19,13 +18,13 @@ from tortoise_pathway.operations import (
 
 async def test_build_empty_state():
     """Test building an empty state."""
-    state = State("test_app")
-    assert state.get_schema() == {"models": {}}
+    state = State()
+    assert state.get_schema() == {}
 
 
 async def test_apply_create_model():
     """Test applying a CreateModel operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # Create a model schema that would be used in a migration
     fields = {
@@ -46,12 +45,14 @@ async def test_apply_create_model():
 
     # Define the expected state
     expected_state = {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
@@ -61,7 +62,7 @@ async def test_apply_create_model():
 
 async def test_apply_add_field():
     """Test applying an AddField operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # First create a table
     fields = {
@@ -95,12 +96,14 @@ async def test_apply_add_field():
     }
 
     expected_state = {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": expected_fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": expected_fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
@@ -110,7 +113,7 @@ async def test_apply_add_field():
 
 async def test_apply_drop_field():
     """Test applying a DropField operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # First create a table
     fields = {
@@ -142,12 +145,14 @@ async def test_apply_drop_field():
     }
 
     expected_state = {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": expected_fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": expected_fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
@@ -157,7 +162,7 @@ async def test_apply_drop_field():
 
 async def test_apply_alter_field():
     """Test applying an AlterField operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # First create a table
     fields = {
@@ -192,12 +197,14 @@ async def test_apply_alter_field():
     }
 
     expected_state = {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": expected_fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": expected_fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
@@ -207,7 +214,7 @@ async def test_apply_alter_field():
 
 async def test_apply_rename_field():
     """Test applying a RenameField operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # First create a table
     fields = {
@@ -242,19 +249,21 @@ async def test_apply_rename_field():
 
     # Compare the entire state schema to the expected state
     assert state.get_schema() == {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": expected_fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": expected_fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
 
 async def test_apply_rename_field_with_new_column_name():
     """Test applying a RenameField operation to the state with a new column name."""
-    state = State("test_app")
+    state = State()
 
     # First create a table
     fields = {
@@ -282,24 +291,26 @@ async def test_apply_rename_field_with_new_column_name():
     state.apply_operation(rename_field_op)
 
     assert state.get_schema() == {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": {
-                    "id": fields["id"],
-                    "name": fields["name"],
-                    "details": fields["description"],
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": {
+                        "id": fields["id"],
+                        "name": fields["name"],
+                        "details": fields["description"],
+                    },
+                    "indexes": [],
                 },
-                "indexes": [],
-            },
+            }
         }
     }
-    assert state.get_column_name("TestModel", "details") == "details_column"
+    assert state.get_column_name("test_app", "TestModel", "details") == "details_column"
 
 
 async def test_apply_rename_model_with_new_table_name():
     """Test applying a RenameModel operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # First create a model
     fields = {
@@ -324,19 +335,21 @@ async def test_apply_rename_model_with_new_table_name():
     state.apply_operation(rename_model_op)
 
     assert state.get_schema() == {
-        "models": {
-            "TestModel": {
-                "table": "new_test_model",  # Table name changed
-                "fields": fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "new_test_model",  # Table name changed
+                    "fields": fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
 
 async def test_apply_rename_model_with_new_model_name():
     """Test applying a RenameModel operation to the state."""
-    state = State("test_app")
+    state = State()
 
     # First create a model
     fields = {
@@ -361,18 +374,21 @@ async def test_apply_rename_model_with_new_model_name():
     state.apply_operation(rename_model_op)
 
     assert state.get_schema() == {
-        "models": {
-            "NewTestModel": {
-                "table": "test_model",
-                "fields": fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "NewTestModel": {
+                    "table": "test_model",
+                    "fields": fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
+
 async def test_get_schema():
     """Test getting the schema."""
-    state = State("test_app")
+    state = State()
 
     # Create a model
     fields = {
@@ -393,19 +409,21 @@ async def test_get_schema():
 
     # Compare the schema to the expected state
     assert schema == {
-        "models": {
-            "TestModel": {
-                "table": "test_model",
-                "fields": fields,
-                "indexes": [],
-            },
+        "test_app": {
+            "models": {
+                "TestModel": {
+                    "table": "test_model",
+                    "fields": fields,
+                    "indexes": [],
+                },
+            }
         }
     }
 
 
 async def test_get_model():
     """Test getting the models."""
-    state = State("test_app")
+    state = State()
 
     # Create a model
     fields = {
@@ -422,7 +440,7 @@ async def test_get_model():
     state.apply_operation(create_model_op)
 
     # Compare the model to the expected model
-    assert state.get_model("TestModel") == {
+    assert state.get_model("test_app", "TestModel") == {
         "table": "test_model",
         "fields": fields,
         "indexes": [],
@@ -431,7 +449,7 @@ async def test_get_model():
 
 async def test_get_table_name():
     """Test getting a table name."""
-    state = State("test_app")
+    state = State()
 
     # Create a model
     fields = {
@@ -448,7 +466,7 @@ async def test_get_table_name():
     state.apply_operation(create_model_op)
 
     # Get the table name
-    table_name = state.get_table_name("TestModel")
+    table_name = state.get_table_name("test_app", "TestModel")
 
     # Verify the table name
     assert table_name == "test_model"
@@ -456,7 +474,7 @@ async def test_get_table_name():
 
 async def test_get_column_name():
     """Test getting a column name."""
-    state = State("test_app")
+    state = State()
 
     # Create a model with a field having source_field
     id_field = IntField(primary_key=True)
@@ -481,9 +499,9 @@ async def test_get_column_name():
     state.apply_operation(create_model_op)
 
     # Get the column names
-    id_column = state.get_column_name("TestModel", "id")
-    name_column = state.get_column_name("TestModel", "name")
-    custom_column = state.get_column_name("TestModel", "custom")
+    id_column = state.get_column_name("test_app", "TestModel", "id")
+    name_column = state.get_column_name("test_app", "TestModel", "name")
+    custom_column = state.get_column_name("test_app", "TestModel", "custom")
 
     # Verify the column names
     assert id_column == "id"  # Default column name
@@ -492,7 +510,7 @@ async def test_get_column_name():
 
 
 async def test_app_validation():
-    state = State("test_app")
+    state = State()
 
     create_model_op = CreateModel(
         model="other_app.TestModel",
@@ -504,5 +522,4 @@ async def test_app_validation():
     )
 
     # Apply the operation to the state
-    with pytest.raises(ValueError):
-        state.apply_operation(create_model_op)
+    state.apply_operation(create_model_op)

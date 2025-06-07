@@ -10,7 +10,7 @@ from tortoise_pathway.state import State
 
 async def test_run_sql_basic(setup_test_db):
     """Test RunSQL operation with basic SQL statements."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -63,7 +63,7 @@ async def test_run_sql_basic(setup_test_db):
 
 async def test_run_sql_multiline(setup_test_db):
     """Test RunSQL operation with multi-line SQL statements."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -115,7 +115,7 @@ async def test_run_sql_multiline(setup_test_db):
 
 async def test_run_sql_no_backward(setup_test_db):
     """Test RunSQL operation with no backward SQL."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -132,9 +132,7 @@ async def test_run_sql_no_backward(setup_test_db):
     state.apply_operation(create_op)
 
     # SQL with no backward statement
-    expected_forward_sql = (
-        "INSERT INTO test_run_sql_no_backward (id, name) VALUES (1, 'test_value')"
-    )
+    expected_forward_sql = "INSERT INTO test_run_sql_no_backward (id, name) VALUES (1, 'test_value')"
 
     run_sql_op = RunSQL(
         forward_sql=expected_forward_sql,
@@ -179,8 +177,5 @@ def test_to_migration():
 
     migration_code = multi_op.to_migration()
     assert 'forward_sql="""' in migration_code
-    assert (
-        "INSERT INTO table VALUES (1, 'test');\nINSERT INTO table VALUES (2, 'test2');"
-        in migration_code
-    )
+    assert "INSERT INTO table VALUES (1, 'test');\nINSERT INTO table VALUES (2, 'test2');" in migration_code
     assert "backward_sql=None" in migration_code

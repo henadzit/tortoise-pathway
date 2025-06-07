@@ -46,9 +46,10 @@ class CreateModel(Operation):
 
             # Handle ForeignKey fields
             if isinstance(field, RelationalField):
-                related_app_model_name = field.model_name
-                related_model_name = related_app_model_name.split(".")[-1]
-                model = state.get_model(related_model_name)
+                related_model_app, related_model_name = self._split_model_reference(
+                    field.model_name
+                )
+                model = state.get_model(related_model_app, related_model_name)
                 related_table = model["table"]
                 to_field = field.to_field or "id"
                 foreign_keys.append((db_column, related_table, to_field))

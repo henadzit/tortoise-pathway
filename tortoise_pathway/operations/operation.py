@@ -35,6 +35,7 @@ class Operation:
     """
 
     app_name: str = ""
+    model_name: str = ""
 
     def __init__(
         self,
@@ -43,7 +44,8 @@ class Operation:
         self.model = model
         self.app_name, self.model_name = self._split_model_reference(model)
 
-    def _split_model_reference(self, model_ref: str) -> tuple:
+    @staticmethod
+    def _split_model_reference(model_ref: str) -> tuple:
         """Split model reference into app and model name."""
         app, _, model_name = model_ref.rpartition(".")
         if not app or not model_name:
@@ -61,7 +63,7 @@ class Operation:
             The table name for the model.
         """
         # Use the state's get_table_name method
-        table_name = state.get_table_name(self.model_name)
+        table_name = state.get_table_name(self.app_name, self.model_name)
         if table_name:
             return table_name
 

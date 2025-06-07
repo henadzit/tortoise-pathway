@@ -31,7 +31,7 @@ class DropIndex(Operation):
 
     def backward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for adding an index."""
-        index = state.prev().get_index(self.model_name, self.index_name)
+        index = state.prev().get_index(self.app_name, self.model_name, self.index_name)
         if index is None:
             raise ValueError(f"Index {self.index_name} not found in model {self.model}")
         return AddIndex(self.model, index).forward_sql(state, schema_manager)

@@ -29,7 +29,7 @@ from tortoise_pathway.operations import (
 class SchemaDiffer:
     """Detects differences between Tortoise models and database schema."""
 
-    def __init__(self, app_name: str, state: Optional[State] = None, connection=None):
+    def __init__(self, state: Optional[State] = None, connection=None):
         """
         Initialize a schema differ for a specific app.
 
@@ -38,19 +38,17 @@ class SchemaDiffer:
             state: Optional State object containing current state
             connection: Optional database connection
         """
-        self.app_name = app_name
         self.connection = connection
-        self.state = state or State(app_name)
+        self.state = state or State()
         self._changes = []
 
     def get_model_schema(self) -> Schema:
         """Get schema representation from Tortoise models for this app."""
-        app_schema: Schema = {"models": {}}
+        schema: Schema = {"models": {}}
 
-        # Get models for this app only
-        if self.app_name in Tortoise.apps:
-            app_models = Tortoise.apps[self.app_name]
-
+        for app_name, app_models in Tortoise.apps.items():
+            schema[app_name] = {"models": {}}
+            model_schema = schema[app_name]["models"]
             for model_name, model in app_models.items():
                 if not issubclass(model, Model):
                     continue
@@ -59,7 +57,7 @@ class SchemaDiffer:
                 table_name = model._meta.db_table
 
                 # Initialize model entry
-                app_schema["models"][model_name] = {
+                model_schema[model_name] = {
                     "table": table_name,
                     "fields": {},
                     "indexes": [],
@@ -76,7 +74,7 @@ class SchemaDiffer:
                         continue
 
                     # Store the field object directly
-                    app_schema["models"][model_name]["fields"][field_name] = field_object
+                    model_schema[model_name]["fields"][field_name] = field_object
 
                 # Get indexes
                 if hasattr(model._meta, "indexes") and isinstance(
@@ -89,9 +87,9 @@ class SchemaDiffer:
                                 index.name = gen_index_name(
                                     "idx", model._meta.db_table, index.fields
                                 )
-                            app_schema["models"][model_name]["indexes"].append(index)
+                            model_schema[model_name]["indexes"].append(index)
                         elif isinstance(index, (list, tuple)):
-                            app_schema["models"][model_name]["indexes"].append(
+                            model_schema[model_name]["indexes"].append(
                                 Index(
                                     fields=index,
                                     name=gen_index_name("idx", model._meta.db_table, index),
@@ -105,14 +103,40 @@ class SchemaDiffer:
                 # Get unique constraints
                 if hasattr(model._meta, "unique_together"):
                     for unique_fields in model._meta.unique_together:
-                        app_schema["models"][model_name]["indexes"].append(
+                        model_schema[model_name]["indexes"].append(
                             UniqueIndex(
                                 fields=unique_fields,
                                 name=gen_index_name("uniq", model._meta.db_table, unique_fields),
                             )
                         )
 
-        return app_schema
+        return schema
+
+    def _get_model_names_diff(
+        self, current_schema: Schema, model_schema: Schema
+    ) -> tuple[set[tuple[str, str]], set[tuple[str, str]], set[tuple[str, str]]]:
+        """
+        Detects the difference between the current schema and the model schema.
+
+        Returns:
+            (models added, models removed, models unchanged) as tuples of (app_name, model_name)
+        """
+        new_models = set(
+            [
+                (app_name, model_name)
+                for app_name, app_schema in model_schema.items()
+                for model_name in app_schema.get("models", {}).keys()
+            ]
+        )
+        old_models = set(
+            [
+                (app_name, model_name)
+                for app_name, app_schema in current_schema.items()
+                for model_name in app_schema.get("models", {}).keys()
+            ]
+        )
+
+        return new_models - old_models, old_models - new_models, new_models & old_models
 
     async def _detect_create_models(self, current_schema: Schema, model_schema: Schema):
         """
@@ -125,16 +149,17 @@ class SchemaDiffer:
         Returns:
             List of CreateModel operations
         """
-        processed_model_names = []
-        models_to_create = sorted(
-            list(set(model_schema["models"].keys()) - set(current_schema["models"].keys()))
-        )
+        models_added, _, _ = self._get_model_names_diff(current_schema, model_schema)
+        models_to_create = list(models_added)
 
         # Tables to create (in models but not in current schema)
-        retries = 0
-        while len(models_to_create) > 0:
-            model_name = models_to_create.pop(0)
-            model_info = model_schema["models"][model_name]
+        processed_model_names = []
+        unprocessable_model_names = []
+        previous_processed_models = None
+        previous_unprocessable_models = None
+        while models_to_create:
+            app_name, model_name = models_to_create.pop(0)
+            model_info = model_schema[app_name]["models"][model_name]
             # filtering out ManyToManyFieldInstance to add them after table creation
             field_objects = {
                 n: f
@@ -145,49 +170,68 @@ class SchemaDiffer:
             # The following code ensures that the referenced models are created before
             # the model that references them. Otherwise, we won't be able to create
             # foreign key constraints.
-            try_again = False
+            skipped = False
             for field in field_objects.values():
                 if isinstance(field, ForeignKeyFieldInstance):
-                    referenced_model_name = field.model_name.split(".")[-1]
+                    referenced_model_app, referenced_model_name = Operation._split_model_reference(
+                        field.model_name
+                    )
                     if (
-                        referenced_model_name not in current_schema["models"]
-                        and referenced_model_name not in processed_model_names
-                    ):
+                        referenced_model_name
+                        not in current_schema.get(referenced_model_app, {}).get("models", {})
+                    ) and (
+                        referenced_model_app,
+                        referenced_model_name,
+                    ) not in processed_model_names:
                         # The referenced model has not been created yet, so we need to try again later
-                        models_to_create.append(model_name)
-                        try_again = True
+                        unprocessable_model_names.append((app_name, model_name))
+                        skipped = True
                         break
 
-            if try_again:
-                retries += 1
-                if retries > 50:
-                    raise ValueError(f"Possible circular dependency to {models_to_create}")
-                continue
-
-            model_ref = f"{self.app_name}.{model_name}"
-            self._changes.append(
-                CreateModel(
-                    model=model_ref,
-                    table=model_info["table"],
-                    fields=field_objects,
-                )
-            )
-
-            # Add separate AddIndex operations for each index
-            for index in model_info["indexes"]:
+            if not skipped:
+                model_ref = f"{app_name}.{model_name}"
                 self._changes.append(
-                    AddIndex(
+                    CreateModel(
                         model=model_ref,
-                        index=index,
+                        table=model_info["table"],
+                        fields=field_objects,
                     )
                 )
 
-            processed_model_names.append(model_name)
+                # Add separate AddIndex operations for each index
+                for index in model_info["indexes"]:
+                    self._changes.append(
+                        AddIndex(
+                            model=model_ref,
+                            index=index,
+                        )
+                    )
+
+                processed_model_names.append((app_name, model_name))
+
+            # If no more models, check unprocessable names for re-processing
+            if not models_to_create:
+                if unprocessable_model_names:
+                    # Detect if there were processing changes since last time
+                    processed_models = set(processed_model_names)
+                    unprocessed_models = set(unprocessable_model_names)
+
+                    if (
+                        previous_processed_models == processed_models
+                        and previous_unprocessable_models == unprocessed_models
+                    ):
+                        raise ValueError(f"Possible circular dependency to {models_to_create}")
+
+                    previous_processed_models = processed_models
+                    previous_unprocessable_models = unprocessed_models
+
+                    models_to_create = unprocessable_model_names
+                    unprocessable_model_names = []
 
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
         # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
-        for model_name in processed_model_names:
-            model_info = model_schema["models"][model_name]
+        for app_name, model_name in processed_model_names:
+            model_info = model_schema[app_name]["models"][model_name]
             for field_name, field_object in model_info["fields"].items():
                 if not isinstance(field_object, ManyToManyFieldInstance):
                     continue
@@ -195,13 +239,13 @@ class SchemaDiffer:
                 field = cast(ManyToManyFieldInstance, field_object)
 
                 if self._is_m2m_processed_from_the_other_side(
-                    f"{self.app_name}.{model_name}", field.model_name, field.through
+                    f"{app_name}.{model_name}", field.model_name, field.through
                 ):
                     continue
 
                 self._changes.append(
                     AddField(
-                        model=f"{self.app_name}.{model_name}",
+                        model=f"{app_name}.{model_name}",
                         field_object=field,
                         field_name=field_name,
                     )
@@ -222,16 +266,11 @@ class SchemaDiffer:
         Returns:
             List of DropModel operations
         """
+        _, models_removed, _ = self._get_model_names_diff(current_schema, model_schema)
+
         # Tables to drop (in current schema but not in models)
-        for model_name in sorted(
-            set(current_schema["models"].keys()) - set(model_schema["models"].keys())
-        ):
-            model_ref = f"{self.app_name}.{model_name}"
-            self._changes.append(
-                DropModel(
-                    model=model_ref,
-                )
-            )
+        for app_name, model_name in models_removed:
+            self._changes.append(DropModel(model=f"{app_name}.{model_name}"))
 
     async def _detect_field_changes(
         self,
@@ -248,13 +287,13 @@ class SchemaDiffer:
         Returns:
             List of field and index related operations
         """
+        _, _, models_unchanged = self._get_model_names_diff(current_schema, model_schema)
+
         # For tables that exist in both
-        for model_name in sorted(
-            set(current_schema["models"].keys()) & set(model_schema["models"].keys())
-        ):
+        for app_name, model_name in models_unchanged:
             # Get the model info for both
-            current_model = current_schema["models"][model_name]
-            model_model = model_schema["models"][model_name]
+            current_model = current_schema[app_name]["models"][model_name]
+            model_model = model_schema[app_name]["models"][model_name]
 
             # Get field sets for comparison
             current_fields = current_model["fields"]
@@ -265,7 +304,7 @@ class SchemaDiffer:
             model_field_names = set(model_fields.keys())
 
             # Reference to the model
-            model_ref = f"{self.app_name}.{model_name}"
+            model_ref = f"{app_name}.{model_name}"
 
             # Fields to add (in model but not in current schema)
             for field_name in sorted(model_field_names - current_field_names):
@@ -315,13 +354,12 @@ class SchemaDiffer:
         current_schema: Schema,
         model_schema: Schema,
     ):
-        for model_name in sorted(
-            set(current_schema["models"].keys()) & set(model_schema["models"].keys())
-        ):
-            model_ref = f"{self.app_name}.{model_name}"
+        _, _, models_unchanged = self._get_model_names_diff(current_schema, model_schema)
+        for app_name, model_name in models_unchanged:
+            model_ref = f"{app_name}.{model_name}"
 
-            current_model = current_schema["models"][model_name]
-            model_model = model_schema["models"][model_name]
+            current_model = current_schema[app_name]["models"][model_name]
+            model_model = model_schema[app_name]["models"][model_name]
 
             # Get indexes from both current schema and model schema
             current_indexes = current_model.get("indexes", [])
@@ -330,7 +368,6 @@ class SchemaDiffer:
             # Create maps of index names for easier comparison
             current_index_map = {idx.name: idx for idx in current_indexes}
             model_index_map = {idx.name: idx for idx in model_indexes}
-
 
             # Indexes to add (in model but not in current schema)
             for index_name in set(model_index_map.keys()) - set(current_index_map.keys()):
@@ -479,4 +516,5 @@ class SchemaDiffer:
                 and field.through == through_table
             ):
                 return True
+
         return False

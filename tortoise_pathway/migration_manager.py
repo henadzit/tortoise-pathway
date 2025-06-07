@@ -28,8 +28,8 @@ class MigrationManager:
         self.migrations_dir = self.base_migrations_dir / app_name
         self.migrations: list[Type[Migration]] = []
         self.applied_migrations: Set[str] = set()
-        self.migration_state = State(app_name)
-        self.applied_state = State(app_name)
+        self.migration_state = State()
+        self.applied_state = State()
 
     async def initialize(self, connection=None) -> None:
         """Initialize the migration system."""
@@ -49,13 +49,15 @@ class MigrationManager:
         """Create migration history table if it doesn't exist."""
         conn = connection or Tortoise.get_connection("default")
 
-        await conn.execute_script("""
+        await conn.execute_script(
+            """
         CREATE TABLE IF NOT EXISTS tortoise_migrations (
             app VARCHAR(100) NOT NULL,
             name VARCHAR(255) NOT NULL,
             applied_at TIMESTAMP NOT NULL
         )
-        """)
+        """
+        )
 
     async def _load_applied_migrations(self, connection=None) -> None:
         """Load list of applied migrations from the database."""
@@ -100,7 +102,7 @@ class MigrationManager:
 
         if auto:
             # Generate migration content based on model changes compared to existing migrations state
-            differ = SchemaDiffer(self.app_name, self.migration_state)
+            differ = SchemaDiffer(self.migration_state)
             changes = await differ.detect_changes()
             if not changes:
                 return None
@@ -270,18 +272,19 @@ class MigrationManager:
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""
-        self.migration_state = State(self.app_name)
+        self.migration_state = State()
 
         for migration in self.migrations:
             for operation in migration.operations:
                 self.migration_state.apply_operation(operation)
             self.migration_state.snapshot(migration.name())
 
-        self.applied_state = State(self.app_name)
+        self.applied_state = State()
         for migration in self.get_applied_migrations():
             for operation in migration.operations:
                 self.applied_state.apply_operation(operation)
             self.applied_state.snapshot(migration.name())
+
 
 def gen_name_from_changes(changes: List[Operation]) -> str:
     models_changed = set()
