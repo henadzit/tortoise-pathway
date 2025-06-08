@@ -50,7 +50,7 @@ def generate_timestamp() -> str:
     return datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
 
-def generate_empty_migration(migration_name: str, dependencies: List[str] = []) -> str:
+def generate_empty_migration(migration_name: str, dependencies: list[tuple[str, str]] = []) -> str:
     """
     Generate content for an empty migration file.
 
@@ -64,7 +64,9 @@ def generate_empty_migration(migration_name: str, dependencies: List[str] = []) 
 
     dependencies_str = ""
     if dependencies:
-        dependencies_str = ", ".join(f'"{dep}"' for dep in dependencies)
+        dependencies_str = ", ".join(
+            f'("{app_name}", "{migration_name}")' for app_name, migration_name in dependencies
+        )
 
     return f'''"""
 {migration_name} migration
@@ -86,7 +88,7 @@ class {class_name}(Migration):
 
 
 def generate_auto_migration(
-    migration_name: str, changes: List[Operation], dependencies: List[str] = []
+    migration_name: str, changes: list[Operation], dependencies: list[tuple[str, str]] = []
 ) -> str:
     """
     Generate migration file content based on detected changes.
@@ -148,7 +150,9 @@ def generate_auto_migration(
 
     dependencies_str = ""
     if dependencies:
-        dependencies_str = ", ".join(f'"{dep}"' for dep in dependencies)
+        dependencies_str = ", ".join(
+            f'("{app_name}", "{migration_name}")' for app_name, migration_name in dependencies
+        )
 
     # Generate operations code by utilizing the to_migration method
     operations = []

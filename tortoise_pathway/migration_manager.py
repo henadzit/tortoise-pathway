@@ -17,19 +17,28 @@ from tortoise_pathway.generators import generate_empty_migration, generate_auto_
 class MigrationManager:
     """Manages migrations for Tortoise ORM models."""
 
-    def __init__(self, app_name: str, migrations_dir: str = "migrations"):
-        self.app_name = app_name
+    app_names: list[str]
+    base_migrations_dir: Path
+    migrations: list[Type[Migration]]
+    applied_migrations: set[tuple[str, str]]
+    migration_state: State
+    applied_state: State
+
+    def __init__(self, app_names: list[str], migrations_dir: str = "migrations"):
+        self.app_names = app_names
         if Path(migrations_dir).is_absolute():
             self.base_migrations_dir = Path(migrations_dir).relative_to(Path.cwd())
         else:
             self.base_migrations_dir = Path(migrations_dir)
 
         # Set the app-specific migrations directory
-        self.migrations_dir = self.base_migrations_dir / app_name
-        self.migrations: list[Type[Migration]] = []
-        self.applied_migrations: Set[str] = set()
+        self.migrations = []
+        self.applied_migrations = set()
         self.migration_state = State()
         self.applied_state = State()
+
+    def get_migrations_dir(self, app_name: str) -> Path:
+        return self.base_migrations_dir / app_name
 
     async def initialize(self, connection=None) -> None:
         """Initialize the migration system."""
@@ -59,24 +68,26 @@ class MigrationManager:
         """
         )
 
-    async def _load_applied_migrations(self, connection=None) -> None:
+    async def _load_applied_migrations(self, app: str = None, connection=None) -> None:
         """Load list of applied migrations from the database."""
         conn = connection or Tortoise.get_connection("default")
 
-        records = await conn.execute_query(
-            f"SELECT name FROM tortoise_migrations WHERE app = '{self.app_name}'"
-        )
+        where = f"WHERE app = '{app}'" if app else ""
+        records = await conn.execute_query(f"SELECT app, name FROM tortoise_migrations {where}")
 
-        self.applied_migrations = {record["name"] for record in records[1]}
+        self.applied_migrations = {(record["app"], record["name"]) for record in records[1]}
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory and sort them based on dependencies."""
-        migrations = load_migrations_from_disk(self.app_name, self.migrations_dir)
+        migrations = []
+        for app_name in self.app_names:
+            app_migrations = load_migrations_from_disk(app_name, self.get_migrations_dir(app_name))
+            migrations.extend(app_migrations)
         self.migrations = sort_migrations(migrations)
 
     async def create_migration(
-        self, name: Optional[str] = None, auto: bool = True
-    ) -> Optional[Type[Migration]]:
+        self, name: str = None, app: str = None, auto: bool = True
+    ) -> list[Type[Migration]] | None:
         """
         Create a new migration file and return the Migration instance.
 
@@ -93,63 +104,76 @@ class MigrationManager:
         """
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
-        # Make sure app migrations directory exists
-        self.migrations_dir.mkdir(parents=True, exist_ok=True)
-
-        dependencies = []
-        if self.migrations:
-            dependencies = [self.migrations[-1].name()]
-
         if auto:
             # Generate migration content based on model changes compared to existing migrations state
             differ = SchemaDiffer(self.migration_state)
-            changes = await differ.detect_changes()
-            if not changes:
+            all_changes = await differ.detect_changes()
+
+            # Calculate changes by app - TODO: detect dependent changes
+            changes_by_app = defaultdict(list)
+            for change in all_changes:
+                changes_by_app[change.app_name].append(change)
+
+            # No changes to selected app? (or any)
+            if not (changes_by_app.get(app) if app else changes_by_app):
                 return None
 
-            if name is None:
-                name = gen_name_from_changes(changes)
-
-        if name is None:
-            name = "migration"
-
-        migration_name = f"{timestamp}_{name}"
-
-        # Create migration file path
-        migration_file = self.migrations_dir / f"{migration_name}.py"
-
-        if auto:
-            content = generate_auto_migration(migration_name, changes, dependencies)
+            apps_updated = changes_by_app.keys()
         else:
-            content = generate_empty_migration(migration_name, dependencies)
+            if not app:
+                raise ValueError("No app specified for empty migration")
 
-        with open(migration_file, "w") as f:
-            f.write(content)
+            changes_by_app = {app: []}
+            apps_updated = [app]
 
-        # Load the migration module and instantiate the migration
-        module_path = (
-            f"{str(self.base_migrations_dir).replace('/', '.').replace('\\', '.')}."
-            f"{self.app_name}.{migration_name}"
-        )
-        try:
-            module = importlib.import_module(module_path)
-            for name, obj in inspect.getmembers(module):
-                if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
-                    self.migrations.append(obj)
+        new_migrations = []
+        for app_name in apps_updated:
+            migrations_dir = self.get_migrations_dir(app_name)
 
-                    for operation in obj.operations:
-                        self.migration_state.apply_operation(operation)
-                    self.migration_state.snapshot(migration_name)
+            # Make sure app migrations directory exists
+            migrations_dir.mkdir(parents=True, exist_ok=True)
 
-                    return obj
+            changes = changes_by_app.get(app_name)
+            file_name = name or (gen_name_from_changes(changes) if changes else "migration")
+            migration_name = f"{timestamp}_{file_name}"
 
-            # If we reach here, no Migration class was found in the module
-            raise ImportError(f"No Migration class found in the generated module {module_path}")
-        except (ImportError, AttributeError) as e:
-            print(f"Error loading migration {migration_name}: {e}")
-            raise ImportError(f"Failed to load newly created migration: {e}")
+            # Create migration file path
+            migration_file = migrations_dir / f"{migration_name}.py"
 
-    async def apply_migrations(self, connection=None) -> List[Type[Migration]]:
+            dependencies = []
+            if self.migrations:
+                last_migration = self.migrations[-1]
+                dependencies = [(last_migration.app_name, last_migration.name())]
+
+            if changes:
+                content = generate_auto_migration(migration_name, changes, dependencies)
+            else:
+                content = generate_empty_migration(migration_name, dependencies)
+
+            with open(migration_file, "w") as f:
+                f.write(content)
+
+            # Load the migration module and instantiate the migration
+            try:
+                migration = load_migration_file(migrations_dir / f"{migration_name}.py")
+                self.migrations.append(migration)
+
+                for operation in migration.operations:
+                    self.migration_state.apply_operation(operation)
+                self.migration_state.snapshot(migration_name)
+
+                # Inject app name
+                migration.app_name = app_name
+
+                new_migrations.append(migration)
+
+            except (ImportError, AttributeError) as e:
+                print(f"Error loading migration {migration_name}: {e}")
+                raise ImportError(f"Failed to load newly created migration: {e}")
+
+        return new_migrations
+
+    async def apply_migrations(self, app: str = None, connection=None) -> List[Type[Migration]]:
         """
         Apply pending migrations.
 
@@ -160,7 +184,7 @@ class MigrationManager:
         applied_migrations = []
 
         # Get pending migrations
-        pending_migrations = self.get_pending_migrations()
+        pending_migrations = self.get_pending_migrations(app=app)
 
         # Apply each migration
         for migration in pending_migrations:
@@ -177,10 +201,10 @@ class MigrationManager:
                 # inlining the values helps to avoid the complexity of choosing the correct placeholders
                 # for the backend. The probability of SQL injection here is close to 0.
                 await conn.execute_query(
-                    f"INSERT INTO tortoise_migrations (app, name, applied_at) VALUES ('{self.app_name}', '{migration_name}', '{now}')",
+                    f"INSERT INTO tortoise_migrations (app, name, applied_at) VALUES ('{migration.app_name}', '{migration_name}', '{now}')",
                 )
 
-                self.applied_migrations.add(migration_name)
+                self.applied_migrations.add((migration.app_name, migration_name))
                 applied_migrations.append(migration)
                 self.applied_state.snapshot(migration_name)
                 print(f"Applied migration: {migration_name}")
@@ -192,7 +216,7 @@ class MigrationManager:
         return applied_migrations
 
     async def revert_migration(
-        self, migration_name: Optional[str] = None, connection=None
+        self, app: str, migration_name: Optional[str] = None, connection=None
     ) -> Optional[Type[Migration]]:
         """
         Revert the last applied migration or a specific migration.
@@ -209,8 +233,7 @@ class MigrationManager:
         if not migration_name:
             # Get the last applied migration
             records = await conn.execute_query(
-                "SELECT name FROM tortoise_migrations WHERE app = ? ORDER BY id DESC LIMIT 1",
-                [self.app_name],
+                f"SELECT name FROM tortoise_migrations WHERE app = '{app}' ORDER BY id DESC LIMIT 1",
             )
 
             if not records[1]:
@@ -222,7 +245,7 @@ class MigrationManager:
         if migration_name not in [m.name() for m in self.migrations]:
             raise ValueError(f"Migration {migration_name} not found")
 
-        if migration_name not in self.applied_migrations:
+        if (app, migration_name) not in self.applied_migrations:
             raise ValueError(f"Migration {migration_name} is not applied")
 
         # Revert the migration
@@ -236,10 +259,10 @@ class MigrationManager:
             # Remove migration record
             await conn.execute_query(
                 "DELETE FROM tortoise_migrations WHERE app = ? AND name = ?",
-                [self.app_name, migration_name],
+                [app, migration_name],
             )
 
-            self.applied_migrations.remove(migration_name)
+            self.applied_migrations.remove((app, migration_name))
 
             # Rebuild state from remaining applied migrations
             self.applied_state = self.applied_state.prev()
@@ -252,23 +275,23 @@ class MigrationManager:
             # Rollback transaction if supported
             raise
 
-    def get_pending_migrations(self) -> List[Type[Migration]]:
+    def get_pending_migrations(self, app: str = None) -> list[tuple[str, Type[Migration]]]:
         """
         Get list of pending migrations.
 
         Returns:
             List of Migration instances
         """
-        return [m for m in self.migrations if m.name() not in self.applied_migrations]
+        return [m for m in self.migrations if (m.app_name, m.name()) not in self.applied_migrations]
 
-    def get_applied_migrations(self) -> List[Type[Migration]]:
+    def get_applied_migrations(self, app: str = None) -> list[tuple[str, Type[Migration]]]:
         """
         Get list of applied migrations.
 
         Returns:
             List of Migration instances
         """
-        return [m for m in self.migrations if m.name() in self.applied_migrations]
+        return [m for m in self.migrations if (m.app_name, m.name()) in self.applied_migrations]
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""
@@ -334,21 +357,19 @@ def load_migrations_from_disk(app_name: str, migrations_dir: Path) -> List[Type[
 
         migration_name = file_path.stem
 
-        # Create module path with app name included
-        module_path = f"{str(migrations_dir).replace('/', '.').replace('\\', '.')}.{migration_name}"
-
         try:
-            module = importlib.import_module(module_path)
+            migration = load_migration_file(file_path)
 
-            for _, obj in inspect.getmembers(module):
-                if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
-                    # Set app_name for operations where the app_name is hard to determine,
-                    # for instance, RunSQL operations.
-                    for operation in obj.operations:
-                        if not operation.app_name:
-                            operation.app_name = app_name
-                    loaded_migrations.append(obj)
-                    break
+            # Set app_name for operations where the app_name is hard to determine,
+            # for instance, RunSQL operations.
+            for operation in migration.operations:
+                if not operation.app_name:
+                    operation.app_name = app_name
+
+            # Inject app_name for the migration class
+            migration.app_name = app_name
+
+            loaded_migrations.append(migration)
 
         except (ImportError, AttributeError) as e:
             print(f"Error loading migration {migration_name}: {e}")
@@ -356,11 +377,11 @@ def load_migrations_from_disk(app_name: str, migrations_dir: Path) -> List[Type[
     return loaded_migrations
 
 
-def sort_migrations(migrations: List[Type[Migration]]) -> List[Type[Migration]]:
+def sort_migrations(migrations: list[Type[Migration]]) -> list[Type[Migration]]:
     """Sort migrations based on dependencies."""
     root = None
     # for traversing the dependency graph from the root to the leaves
-    reverse_dependency_graph: Dict[str, List[Type[Migration]]] = defaultdict(list)
+    reverse_dependency_graph: dict[tuple[str, str], list[Type[Migration]]] = defaultdict(list)
 
     for migration in migrations:
         for dependency in migration.dependencies:
@@ -385,21 +406,38 @@ def sort_migrations(migrations: List[Type[Migration]]) -> List[Type[Migration]]:
 
     while stack:
         migration = stack.pop()
-        visited[migration.name()] += 1
+        migration_key = (migration.app_name, migration.name())
+        visited[migration_key] += 1
 
-        if visited[migration.name()] < len(migration.dependencies):
+        if visited[migration_key] < len(migration.dependencies):
             # wait for other branches before proceeding further
             continue
 
-        if migration != root and visited[migration.name()] > len(migration.dependencies):
-            raise ValueError(f"Circular dependency detected to {migration.name()}")
+        if migration != root and visited[migration_key] > len(migration.dependencies):
+            raise ValueError(f"Circular dependency detected to {migration_key}")
 
         sorted_migrations.append(migration)
 
-        for next_node in reverse_dependency_graph[migration.name()]:
+        for next_node in reverse_dependency_graph[migration_key]:
             stack.append(next_node)
 
     if len(sorted_migrations) != len(migrations):
-        raise ValueError(f"Circular dependency detected to {migration.name()}")
+        raise ValueError(f"Circular dependency detected to {migration.app_name} {migration.name()}")
 
     return sorted_migrations
+
+
+def load_migration_file(migration_path: Path) -> Type[Migration]:
+    """Load a migration file."""
+    path_without_ext = migration_path.with_suffix("")
+    module_path = f"{str(path_without_ext).replace('/', '.').replace('\\', '.')}"
+    module = __import__(module_path, globals(), locals(), [], 0)
+
+    # Dig into the module to find the Migration class
+    for path in module_path.split(".")[1:]:
+        module = getattr(module, path)
+
+    for _name, obj in inspect.getmembers(module):
+        if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
+            return obj
+    raise ImportError(f"No Migration class found in the module {module_path}")

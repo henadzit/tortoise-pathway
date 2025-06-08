@@ -28,7 +28,7 @@ async def test_model_changes(setup_test_db):
 
     # Create migration manager and initialize it
     manager = MigrationManager(
-        app_name="test_model_changes",
+        app_names=["test_model_changes"],
         migrations_dir=str(migrations_dir),
     )
     await manager.initialize()
@@ -50,7 +50,9 @@ async def test_model_changes(setup_test_db):
         await conn.execute_query("SELECT * FROM comments")
 
     # Detect changes and create a new migration
-    migration = await manager.create_migration("model_changes", auto=True)
+    migrations = await manager.create_migration("model_changes", auto=True)
+    assert len(migrations) == 1
+    migration = migrations[0]
     assert migration.path().exists()
 
     # Verify operations in the migration

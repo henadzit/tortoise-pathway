@@ -7,8 +7,9 @@ from tortoise_pathway.operations import Operation
 class Migration:
     """Base class for all migrations."""
 
-    dependencies: List[str]
-    operations: List[Operation]
+    dependencies: list[tuple[str, str]]
+    operations: list[Operation]
+    app_name: str | None = None
 
     @classmethod
     def name(cls) -> str:
