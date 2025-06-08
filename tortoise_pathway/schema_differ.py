@@ -114,31 +114,24 @@ class SchemaDiffer:
 
         return schema
 
-    def _get_model_names_diff(
-        self, current_schema: Schema, model_schema: Schema
-    ) -> tuple[set[tuple[str, str]], set[tuple[str, str]], set[tuple[str, str]]]:
+    @staticmethod
+    def _get_schema_app_model_pairs(schema: Schema) -> set[tuple[str, str]]:
         """
-        Detects the difference between the current schema and the model schema.
+        Get the names of all models in the schema.
+
+        Args:
+            schema: Schema to get the model names from
 
         Returns:
-            (models added, models removed, models unchanged) as tuples of (app_name, model_name)
+            Set of tuples of (app_name, model_name)
         """
-        new_models = set(
+        return set(
             [
                 (app_name, model_name)
-                for app_name, app_schema in model_schema.items()
+                for app_name, app_schema in schema.items()
                 for model_name in app_schema.get("models", {}).keys()
             ]
         )
-        old_models = set(
-            [
-                (app_name, model_name)
-                for app_name, app_schema in current_schema.items()
-                for model_name in app_schema.get("models", {}).keys()
-            ]
-        )
-
-        return new_models - old_models, old_models - new_models, new_models & old_models
 
     async def _detect_create_models(self, current_schema: Schema, model_schema: Schema):
         """
@@ -151,12 +144,15 @@ class SchemaDiffer:
         Returns:
             List of CreateModel operations
         """
-        models_added, _, _ = self._get_model_names_diff(current_schema, model_schema)
+        old_schema_models = SchemaDiffer._get_schema_app_model_pairs(current_schema)
+        new_schema_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
+        models_added = new_schema_models - old_schema_models
         models_to_create = list(models_added)
 
         # Tables to create (in models but not in current schema)
         processed_app_models = []
         unprocessable_app_models = []
+        dependened_on_app_models = set()
         previous_processed_app_models = None
         previous_unprocessable_app_models = None
         while models_to_create:
@@ -188,6 +184,7 @@ class SchemaDiffer:
                     ):
                         # The referenced model has not been created yet, so we need to try again later
                         unprocessable_app_models.append((app_name, model_name))
+                        dependened_on_app_models.add(referenced_app_model)
                         skipped = True
                         break
 
@@ -219,17 +216,31 @@ class SchemaDiffer:
                     processed_app_models_set = set(processed_app_models)
                     unprocessed_app_models_set = set(unprocessable_app_models)
 
+                    # If no changes, we're stuck in a loop, error
                     if (
                         previous_processed_app_models == processed_app_models_set
                         and previous_unprocessable_app_models == unprocessed_app_models_set
                     ):
-                        raise ValueError(f"Possible circular dependency to {models_to_create}")
+                        # Generate a helpful error
+                        existing_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
+                        missing_models = dependened_on_app_models - existing_models
+                        models_str = lambda ml: ",".join([".".join(m) for m in ml])
+
+                        raise ValueError(
+                            f"Unable to process models: {models_str(unprocessable_app_models)}. "
+                            + (
+                                f"Missing models in the current schema: {models_str(missing_models)}"
+                                if missing_models
+                                else "Possible circular dependency"
+                            )
+                        )
 
                     previous_processed_app_models = processed_app_models_set
                     previous_unprocessable_app_models = unprocessed_app_models_set
 
                     models_to_create = unprocessable_app_models
                     unprocessable_app_models = []
+                    dependened_on_app_models = set()
 
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
         # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
@@ -269,7 +280,9 @@ class SchemaDiffer:
         Returns:
             List of DropModel operations
         """
-        _, models_removed, _ = self._get_model_names_diff(current_schema, model_schema)
+        old_schema_models = SchemaDiffer._get_schema_app_model_pairs(current_schema)
+        new_schema_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
+        models_removed = old_schema_models - new_schema_models
 
         # Tables to drop (in current schema but not in models)
         for app_name, model_name in models_removed:
@@ -290,7 +303,9 @@ class SchemaDiffer:
         Returns:
             List of field and index related operations
         """
-        _, _, models_unchanged = self._get_model_names_diff(current_schema, model_schema)
+        old_schema_models = SchemaDiffer._get_schema_app_model_pairs(current_schema)
+        new_schema_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
+        models_unchanged = old_schema_models & new_schema_models
 
         # For tables that exist in both
         for app_name, model_name in models_unchanged:
@@ -357,7 +372,10 @@ class SchemaDiffer:
         current_schema: Schema,
         model_schema: Schema,
     ):
-        _, _, models_unchanged = self._get_model_names_diff(current_schema, model_schema)
+        old_schema_models = SchemaDiffer._get_schema_app_model_pairs(current_schema)
+        new_schema_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
+        models_unchanged = old_schema_models & new_schema_models
+
         for app_name, model_name in models_unchanged:
             model_ref = f"{app_name}.{model_name}"
 
