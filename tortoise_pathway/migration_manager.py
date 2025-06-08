@@ -109,7 +109,7 @@ class MigrationManager:
             differ = SchemaDiffer(self.migration_state)
             all_changes = await differ.detect_changes()
 
-            # Calculate changes by app - TODO: detect dependent changes
+            # Calculate changes by app
             changes_by_app = defaultdict(list)
             for change in all_changes:
                 changes_by_app[change.app_name].append(change)
@@ -118,7 +118,17 @@ class MigrationManager:
             if not (changes_by_app.get(app) if app else changes_by_app):
                 return None
 
-            apps_updated = changes_by_app.keys()
+            if app:
+                # Check dependencies for the selected app (foreign key references)
+                app_dependencies = await differ.get_change_app_dependencies()
+
+                # Update apps in order of dependencies
+                apps_updated = flatten_app_dependencies(app_dependencies, app)
+                if app not in apps_updated:
+                    apps_updated.append(app)
+            else:
+                # Update all apps
+                apps_updated = changes_by_app.keys()
         else:
             if not app:
                 raise ValueError("No app specified for empty migration")
@@ -441,3 +451,24 @@ def load_migration_file(migration_path: Path) -> Type[Migration]:
         if inspect.isclass(obj) and issubclass(obj, Migration) and obj is not Migration:
             return obj
     raise ImportError(f"No Migration class found in the module {module_path}")
+
+
+def flatten_app_dependencies(
+    app_dependencies: dict[str, list[str]], app_name: str, already_checked: set[str] | None = None
+) -> list[str]:
+    """Builds a list of all app dependencies for a given app"""
+    if already_checked is None:
+        already_checked = set()
+
+    dependencies = []
+    for _app_name in app_dependencies[app_name]:
+        if _app_name not in already_checked:
+            already_checked.add(_app_name)
+            additional_dependencies = flatten_app_dependencies(
+                app_dependencies, _app_name, already_checked
+            )
+            dependencies.extend(additional_dependencies)
+            if not _app_name in dependencies:
+                dependencies.append(_app_name)
+
+    return dependencies

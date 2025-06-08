@@ -5,9 +5,11 @@ This module provides the SchemaDiffer class that detects differences between
 Tortoise models and the actual database schema.
 """
 
+from collections import defaultdict
 from typing import List, Optional, cast
 
 from tortoise import Tortoise
+from tortoise.fields import Field
 from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
 from tortoise.models import Model
 from tortoise.indexes import Index
@@ -40,7 +42,7 @@ class SchemaDiffer:
         """
         self.connection = connection
         self.state = state or State()
-        self._changes = []
+        self._changes: list[Operation] = []
 
     def get_model_schema(self) -> Schema:
         """Get schema representation from Tortoise models for this app."""
@@ -153,10 +155,10 @@ class SchemaDiffer:
         models_to_create = list(models_added)
 
         # Tables to create (in models but not in current schema)
-        processed_model_names = []
-        unprocessable_model_names = []
-        previous_processed_models = None
-        previous_unprocessable_models = None
+        processed_app_models = []
+        unprocessable_app_models = []
+        previous_processed_app_models = None
+        previous_unprocessable_app_models = None
         while models_to_create:
             app_name, model_name = models_to_create.pop(0)
             model_info = model_schema[app_name]["models"][model_name]
@@ -173,18 +175,19 @@ class SchemaDiffer:
             skipped = False
             for field in field_objects.values():
                 if isinstance(field, ForeignKeyFieldInstance):
-                    referenced_model_app, referenced_model_name = Operation._split_model_reference(
+                    referenced_app_name, referenced_model_name = Operation._split_model_reference(
                         field.model_name
                     )
+                    referenced_app_model = (referenced_app_name, referenced_model_name)
+                    referenced_app_models = current_schema.get(referenced_app_name, {}).get(
+                        "models", {}
+                    )
                     if (
-                        referenced_model_name
-                        not in current_schema.get(referenced_model_app, {}).get("models", {})
-                    ) and (
-                        referenced_model_app,
-                        referenced_model_name,
-                    ) not in processed_model_names:
+                        referenced_model_name not in referenced_app_models
+                        and referenced_app_model not in processed_app_models
+                    ):
                         # The referenced model has not been created yet, so we need to try again later
-                        unprocessable_model_names.append((app_name, model_name))
+                        unprocessable_app_models.append((app_name, model_name))
                         skipped = True
                         break
 
@@ -207,30 +210,30 @@ class SchemaDiffer:
                         )
                     )
 
-                processed_model_names.append((app_name, model_name))
+                processed_app_models.append((app_name, model_name))
 
             # If no more models, check unprocessable names for re-processing
             if not models_to_create:
-                if unprocessable_model_names:
+                if unprocessable_app_models:
                     # Detect if there were processing changes since last time
-                    processed_models = set(processed_model_names)
-                    unprocessed_models = set(unprocessable_model_names)
+                    processed_app_models_set = set(processed_app_models)
+                    unprocessed_app_models_set = set(unprocessable_app_models)
 
                     if (
-                        previous_processed_models == processed_models
-                        and previous_unprocessable_models == unprocessed_models
+                        previous_processed_app_models == processed_app_models_set
+                        and previous_unprocessable_app_models == unprocessed_app_models_set
                     ):
                         raise ValueError(f"Possible circular dependency to {models_to_create}")
 
-                    previous_processed_models = processed_models
-                    previous_unprocessable_models = unprocessed_models
+                    previous_processed_app_models = processed_app_models_set
+                    previous_unprocessable_app_models = unprocessed_app_models_set
 
-                    models_to_create = unprocessable_model_names
-                    unprocessable_model_names = []
+                    models_to_create = unprocessable_app_models
+                    unprocessable_app_models = []
 
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
         # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
-        for app_name, model_name in processed_model_names:
+        for app_name, model_name in processed_app_models:
             model_info = model_schema[app_name]["models"][model_name]
             for field_name, field_object in model_info["fields"].items():
                 if not isinstance(field_object, ManyToManyFieldInstance):
@@ -431,6 +434,41 @@ class SchemaDiffer:
         await self._detect_field_changes(current_schema, model_schema)
         await self._detect_index_changes(current_schema, model_schema)
         return self._changes
+
+    async def get_change_app_dependencies(self) -> dict[str, list[str]]:
+        """
+        Get the dependencies between apps for the curreng changes.
+        """
+        change_app_dependencies: dict[str, list[str]] = defaultdict(list)
+
+        # Detect which models are new
+        new_app_models = set()
+        for operation in self._changes:
+            if isinstance(operation, CreateModel):
+                new_app_models.add((operation.app_name, operation.model_name))
+
+        # Detect which fields need checking
+        app_fields_to_check = []
+        for operation in self._changes:
+            if isinstance(operation, CreateModel):
+                for field in operation.fields.values():
+                    app_fields_to_check.append((operation.app_name, field))
+            if isinstance(operation, (AddField, AlterField)):
+                app_fields_to_check.append((operation.app_name, operation.field_object))
+
+        # Detect which fields have foreign key references to other apps
+        for app_name, field in app_fields_to_check:
+            if isinstance(field, (ForeignKeyFieldInstance, ManyToManyFieldInstance)):
+                referenced_app, referenced_model = Operation._split_model_reference(
+                    field.model_name
+                )
+                if (
+                    referenced_app != app_name
+                    and (referenced_app, referenced_model) in new_app_models
+                ):
+                    change_app_dependencies[app_name].append(referenced_app)
+
+        return change_app_dependencies
 
     def _are_fields_different(self, field1, field2) -> bool:
         """
