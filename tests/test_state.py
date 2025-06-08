@@ -2,7 +2,6 @@
 Tests for the State class.
 """
 
-import pytest
 from tortoise.fields import IntField, CharField, TextField, DatetimeField
 
 from tortoise_pathway.state import State

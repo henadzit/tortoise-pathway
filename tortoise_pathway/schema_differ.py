@@ -9,7 +9,6 @@ from collections import defaultdict
 from typing import List, Optional, cast
 
 from tortoise import Tortoise
-from tortoise.fields import Field
 from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
 from tortoise.models import Model
 from tortoise.indexes import Index
@@ -224,12 +223,11 @@ class SchemaDiffer:
                         # Generate a helpful error
                         existing_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
                         missing_models = dependened_on_app_models - existing_models
-                        models_str = lambda ml: ",".join([".".join(m) for m in ml])
 
                         raise ValueError(
-                            f"Unable to process models: {models_str(unprocessable_app_models)}. "
+                            f"Unable to process models: {','.join(['.'.join(m) for m in unprocessable_app_models])}. "
                             + (
-                                f"Missing models in the current schema: {models_str(missing_models)}"
+                                f"Missing models in the current schema: {','.join(['.'.join(m) for m in missing_models])}"
                                 if missing_models
                                 else "Possible circular dependency"
                             )

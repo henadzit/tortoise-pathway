@@ -12,7 +12,7 @@ from tortoise.fields import (
     CharEnumField,
 )
 from tortoise.fields.data import IntEnumFieldInstance, CharEnumFieldInstance
-from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
+from tortoise.fields.relational import ManyToManyFieldInstance
 
 from tortoise_pathway.state import State
 from tortoise_pathway.schema_differ import SchemaDiffer

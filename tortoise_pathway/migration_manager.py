@@ -1,9 +1,8 @@
 from collections import defaultdict
-import importlib
 import inspect
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Type, cast
+from typing import Dict, List, Optional, Type, cast
 
 from tortoise import Tortoise
 
@@ -482,7 +481,7 @@ def flatten_app_dependencies(
                 app_dependencies, _app_name, already_checked
             )
             dependencies.extend(additional_dependencies)
-            if not _app_name in dependencies:
+            if _app_name not in dependencies:
                 dependencies.append(_app_name)
 
     return dependencies
