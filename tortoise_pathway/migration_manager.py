@@ -89,10 +89,11 @@ class MigrationManager:
         self, name: str = None, app: str = None, auto: bool = True
     ) -> list[Type[Migration]] | None:
         """
-        Create a new migration file and return the Migration instance.
+        Create new migration files and return the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
 
         Args:
             name: The descriptive name for the migration. If None, a name will be generated based on detected changes.
+            app: The app to create the migration for. If None, the migration will be created for all apps.
             auto: Whether to auto-generate migration operations based on model changes
 
         Returns:
@@ -136,6 +137,7 @@ class MigrationManager:
             changes_by_app = {app: []}
             apps_updated = [app]
 
+        # Generate migrations for all effected apps
         new_migrations = []
         for app_name in apps_updated:
             migrations_dir = self.get_migrations_dir(app_name)
@@ -217,16 +219,16 @@ class MigrationManager:
                 self.applied_migrations.add((migration.app_name, migration_name))
                 applied_migrations.append(migration)
                 self.applied_state.snapshot(migration_name)
-                print(f"Applied migration: {migration_name}")
+                print(f"Applied migration: {migration.display_name()}")
             except Exception as e:
-                print(f"Error applying migration {migration_name}: {e}")
+                print(f"Error applying migration {migration.display_name()}: {e}")
                 # Rollback transaction if supported
                 raise
 
         return applied_migrations
 
     async def revert_migration(
-        self, app: str, migration_name: Optional[str] = None, connection=None
+        self, app: str | None = None, migration_name: Optional[str] = None, connection=None
     ) -> Optional[Type[Migration]]:
         """
         Revert the last applied migration or a specific migration.
@@ -243,17 +245,19 @@ class MigrationManager:
         if not migration_name:
             # Get the last applied migration
             records = await conn.execute_query(
-                f"SELECT name FROM tortoise_migrations WHERE app = '{app}' ORDER BY id DESC LIMIT 1",
+                f"SELECT app, name FROM tortoise_migrations {f'WHERE app = \'{app}\'' if app else ''} ORDER BY applied_at DESC LIMIT 1",
             )
 
             if not records[1]:
                 print("No migrations to revert")
                 return None
 
-            migration_name = cast(str, records[1][0]["name"])
+            record = records[1][0]
+            migration_name = cast(str, record["name"])
+            app = cast(str, record["app"])
 
-        if migration_name not in [m.name() for m in self.migrations]:
-            raise ValueError(f"Migration {migration_name} not found")
+        if (app, migration_name) not in set([(m.app_name, m.name()) for m in self.migrations]):
+            raise ValueError(f"Migration {app} -> {migration_name} not found")
 
         if (app, migration_name) not in self.applied_migrations:
             raise ValueError(f"Migration {migration_name} is not applied")
@@ -285,23 +289,33 @@ class MigrationManager:
             # Rollback transaction if supported
             raise
 
-    def get_pending_migrations(self, app: str = None) -> list[tuple[str, Type[Migration]]]:
+    def get_pending_migrations(self, app: str = None) -> list[Type[Migration]]:
         """
         Get list of pending migrations.
 
         Returns:
             List of Migration instances
         """
-        return [m for m in self.migrations if (m.app_name, m.name()) not in self.applied_migrations]
+        return [
+            m
+            for m in self.migrations
+            if (m.app_name, m.name()) not in self.applied_migrations
+            if app is None or m.app_name == app
+        ]
 
-    def get_applied_migrations(self, app: str = None) -> list[tuple[str, Type[Migration]]]:
+    def get_applied_migrations(self, app: str = None) -> list[Type[Migration]]:
         """
         Get list of applied migrations.
 
         Returns:
             List of Migration instances
         """
-        return [m for m in self.migrations if (m.app_name, m.name()) in self.applied_migrations]
+        return [
+            m
+            for m in self.migrations
+            if (m.app_name, m.name()) in self.applied_migrations
+            if app is None or m.app_name == app
+        ]
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""

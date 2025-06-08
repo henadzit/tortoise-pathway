@@ -122,7 +122,7 @@ async def make(args: argparse.Namespace) -> None:
         migrations = await manager.create_migration(name, app=app, auto=False)
 
     for migration in migrations:
-        print(f"Created migration {migration.name()} at {migration.path()}")
+        print(f"Created migration {migration.display_name()} at {migration.path()}")
 
 
 @close_connections_after
@@ -145,7 +145,7 @@ async def migrate(args: argparse.Namespace) -> None:
 
     print(f"Applying {len(pending)} migration(s):")
     for migration in pending:
-        print(f"  - {migration.name()}")
+        print(f"  - {migration.display_name()}")
 
     applied = await manager.apply_migrations(app=app)
 
@@ -173,7 +173,7 @@ async def rollback(args: argparse.Namespace) -> None:
         reverted = await manager.revert_migration(app=app)
 
     if reverted:
-        print(f"Successfully reverted migration: {reverted.name()}")
+        print(f"Successfully reverted migration: {reverted.display_name()}")
     else:
         print("No migration was reverted.")
 
@@ -193,18 +193,18 @@ async def showmigrations(args: argparse.Namespace) -> None:
     applied = manager.get_applied_migrations(app=app)
     pending = manager.get_pending_migrations(app=app)
 
-    print(f"Migrations for {app}:")
+    print(f"Migrations for {app}:" if app else "All Migrations:")
     print("\nApplied migrations:")
     if applied:
         for migration in applied:
-            print(f"  [X] {migration.name()}")
+            print(f"  [X] {migration.display_name()}")
     else:
         print("  (none)")
 
     print("\nPending migrations:")
     if pending:
         for migration in pending:
-            print(f"  [ ] {migration.name()}")
+            print(f"  [ ] {migration.display_name()}")
     else:
         print("  (none)")
 

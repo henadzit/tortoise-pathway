@@ -31,3 +31,7 @@ class Migration:
         module = cls.__module__
         module_path = module.replace(".", "/")
         return Path(f"{module_path}.py")
+
+    @classmethod
+    def display_name(cls) -> str:
+        return f"{cls.app_name} -> {cls.name()}"
