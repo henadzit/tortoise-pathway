@@ -50,7 +50,7 @@ class RenameField(Operation):
         if not self.new_column_name:
             return ""
 
-        column_name = state.get_column_name(self.model_name, self.field_name)
+        column_name = state.get_column_name(self.app_name, self.model_name, self.field_name)
 
         return schema_manager.rename_column(
             self.get_table_name(state), column_name, self.new_column_name
@@ -61,7 +61,7 @@ class RenameField(Operation):
         if not self.new_column_name:
             return ""
 
-        old_name = state.prev().get_column_name(self.model_name, self.field_name)
+        old_name = state.prev().get_column_name(self.app_name, self.model_name, self.field_name)
 
         return schema_manager.rename_column(
             self.get_table_name(state), self.new_column_name, old_name

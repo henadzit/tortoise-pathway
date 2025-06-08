@@ -14,7 +14,7 @@ from tortoise_pathway.operations import AddIndex, DropIndex, CreateModel
 async def test_detect_index_additions():
     """Test detecting added indexes."""
     # Initialize state with a model without indexes
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -31,20 +31,22 @@ async def test_detect_index_additions():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     def mock_get_model_schema() -> Schema:
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": fields,
-                    "indexes": [
-                        Index(
-                            fields=["created_at"],
-                            name="idx_test_model_created_at",
-                        )
-                    ],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": fields,
+                        "indexes": [
+                            Index(
+                                fields=["created_at"],
+                                name="idx_test_model_created_at",
+                            )
+                        ],
+                    }
                 }
             }
         }
@@ -72,7 +74,7 @@ async def test_detect_index_additions():
 async def test_detect_index_removals():
     """Test detecting removed indexes."""
     # Initialize state with a model with an index
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -97,10 +99,20 @@ async def test_detect_index_removals():
     )
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     def mock_get_model_schema() -> Schema:
-        return {"models": {"TestModel": {"table": "test_model", "fields": fields, "indexes": []}}}
+        return {
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": fields,
+                        "indexes": [],
+                    }
+                }
+            }
+        }
 
     differ.get_model_schema = mock_get_model_schema
 
@@ -123,7 +135,7 @@ async def test_detect_index_removals():
 async def test_detect_change_to_unique():
     """Test detecting modified indexes (changing unique constraint)."""
     # Initialize state with a model with a non-unique index
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -149,20 +161,22 @@ async def test_detect_change_to_unique():
     )
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     def mock_get_model_schema() -> Schema:
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": fields,
-                    "indexes": [
-                        UniqueIndex(
-                            fields=["created_at"],
-                            name="idx_test_model_created_at",
-                        )
-                    ],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": fields,
+                        "indexes": [
+                            UniqueIndex(
+                                fields=["created_at"],
+                                name="idx_test_model_created_at",
+                            )
+                        ],
+                    }
                 }
             }
         }

@@ -27,7 +27,7 @@ from tortoise_pathway.operations import (
 async def test_detect_field_additions():
     """Test detecting added fields."""
     # Initialize state with a model without the field we'll add
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -43,7 +43,7 @@ async def test_detect_field_additions():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with an additional field
     def mock_get_model_schema():
@@ -52,11 +52,13 @@ async def test_detect_field_additions():
         updated_fields["created_at"] = DatetimeField(auto_now_add=True)
 
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": updated_fields,
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": updated_fields,
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -86,7 +88,7 @@ async def test_detect_field_additions():
 async def test_detect_field_removals():
     """Test detecting removed fields."""
     # Initialize state with a model with the field we'll remove
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -103,7 +105,7 @@ async def test_detect_field_removals():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema without the created_at field
     def mock_get_model_schema():
@@ -114,11 +116,13 @@ async def test_detect_field_removals():
         }
 
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": updated_fields,
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": updated_fields,
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -146,7 +150,7 @@ async def test_detect_field_removals():
 async def test_detect_field_alterations():
     """Test detecting altered fields (changing field properties)."""
     # Initialize state with a model with the field we'll alter
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -163,7 +167,7 @@ async def test_detect_field_alterations():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with altered field properties
     def mock_get_model_schema():
@@ -175,11 +179,13 @@ async def test_detect_field_alterations():
         }
 
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": updated_fields,
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": updated_fields,
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -224,7 +230,7 @@ async def test_detect_field_alterations():
 async def test_detect_field_type_changes():
     """Test detecting altered fields (changing field type)."""
     # Initialize state with a model with the field we'll change type
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -241,7 +247,7 @@ async def test_detect_field_type_changes():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with changed field type
     def mock_get_model_schema():
@@ -253,11 +259,13 @@ async def test_detect_field_type_changes():
         }
 
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": updated_fields,
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": updated_fields,
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -287,7 +295,7 @@ async def test_detect_field_type_changes():
 async def test_detect_multiple_field_changes():
     """Test detecting multiple field changes at once."""
     # Initialize state with a model
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -305,7 +313,7 @@ async def test_detect_multiple_field_changes():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with multiple changes
     def mock_get_model_schema():
@@ -319,11 +327,13 @@ async def test_detect_multiple_field_changes():
         }
 
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": updated_fields,
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": updated_fields,
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -387,20 +397,24 @@ async def test_detect_enum_field_additions():
         "name": CharField(max_length=100),
     }
     state = State(
-        "test",
         {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {"id": IntField(primary_key=True), "name": CharField(max_length=100)},
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
+                    }
                 }
             }
-        },
+        }
     )
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with additional enum fields
     def mock_get_model_schema():
@@ -410,11 +424,13 @@ async def test_detect_enum_field_additions():
         updated_fields["user_type"] = CharEnumField(UserType, default=UserType.USER)
 
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": updated_fields,
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": updated_fields,
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -462,14 +478,45 @@ async def test_detect_m2m_field_additions_to_existing_models():
     """Test detecting added m2m fields to two existing models."""
     # Initialize state with two models that don't have m2m relationship
     state = State(
-        "test",
         {
+            "test": {
+                "models": {
+                    "User": {
+                        "table": "user",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
+                    },
+                    "Project": {
+                        "table": "project",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
+                    },
+                }
+            }
+        }
+    )
+
+    # Create a schema differ with our state
+    differ = SchemaDiffer(state)
+
+    # Define a schema with the same models but with m2m relationship added
+    model_schema = {
+        "test": {
             "models": {
                 "User": {
                     "table": "user",
                     "fields": {
                         "id": IntField(primary_key=True),
                         "name": CharField(max_length=100),
+                        "projects": ManyToManyFieldInstance(
+                            "test.Project", related_name="users", through="user_project"
+                        ),
                     },
                     "indexes": [],
                 },
@@ -478,41 +525,13 @@ async def test_detect_m2m_field_additions_to_existing_models():
                     "fields": {
                         "id": IntField(primary_key=True),
                         "name": CharField(max_length=100),
+                        "users": ManyToManyFieldInstance(
+                            "test.User", related_name="projects", through="user_project"
+                        ),
                     },
                     "indexes": [],
                 },
             }
-        },
-    )
-
-    # Create a schema differ with our state
-    differ = SchemaDiffer("test", state)
-
-    # Define a schema with the same models but with m2m relationship added
-    model_schema = {
-        "models": {
-            "User": {
-                "table": "user",
-                "fields": {
-                    "id": IntField(primary_key=True),
-                    "name": CharField(max_length=100),
-                    "projects": ManyToManyFieldInstance(
-                        "test.Project", related_name="users", through="user_project"
-                    ),
-                },
-                "indexes": [],
-            },
-            "Project": {
-                "table": "project",
-                "fields": {
-                    "id": IntField(primary_key=True),
-                    "name": CharField(max_length=100),
-                    "users": ManyToManyFieldInstance(
-                        "test.User", related_name="projects", through="user_project"
-                    ),
-                },
-                "indexes": [],
-            },
         }
     }
 
@@ -527,13 +546,15 @@ async def test_detect_m2m_field_additions_to_existing_models():
     assert isinstance(changes[0], AddField)
 
     # Check the field was added correctly
+    # It is impossible to tell the origin of the m2m field, so we check both
     change = changes[0]
-    assert change.model == "test.Project"
-    assert change.field_name == "users"
     assert isinstance(change.field_object, ManyToManyFieldInstance)
-    assert change.field_object.model_name == "test.User"
-    assert change.field_object.related_name == "projects"
-    assert change.field_object.through == "user_project"
+    assert (change.model, change.field_name) in set(
+        [("test.Project", "users"), ("test.User", "projects")]
+    )
+    assert (change.field_object.model_name, change.field_object.related_name) in set(
+        [("test.User", "projects"), ("test.Project", "users")]
+    )
 
     # check that the detected changes lead to a stable
     for change in changes:
@@ -546,7 +567,7 @@ async def test_detect_m2m_field_additions_to_existing_models():
 async def test_detect_field_index_addition():
     """Test detecting added indexes."""
     # Initialize state with a model without indexes
-    state = State("test")
+    state = State()
 
     fields = {
         "id": IntField(primary_key=True),
@@ -563,14 +584,19 @@ async def test_detect_field_index_addition():
     state.apply_operation(create_model_op)
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     def mock_get_model_schema():
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {**fields, "created_at": DatetimeField(auto_now_add=True, db_index=True)},
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": {
+                            **fields,
+                            "created_at": DatetimeField(auto_now_add=True, db_index=True),
+                        },
+                    }
                 }
             }
         }

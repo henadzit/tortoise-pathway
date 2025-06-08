@@ -34,7 +34,7 @@ class AlterField(Operation):
             # SQLite does not support ALTER COLUMN, so we need to create a new table and copy the data over
             return self._forward_sql_sqlite(state, schema_manager)
 
-        prev_field = state.get_field(self.model_name, self.field_name)
+        prev_field = state.get_field(self.app_name, self.model_name, self.field_name)
         if prev_field is None:
             raise ValueError(f"Field {self.field_name} not found in model {self.model_name}")
 
@@ -74,7 +74,7 @@ class AlterField(Operation):
 
         # Step 2: Create a new table with the desired schema
         # First, get all fields from the model
-        model_fields = state.get_fields(self.model_name)
+        model_fields = state.get_fields(self.app_name, self.model_name)
         if model_fields is None:
             raise ValueError(f"Model {self.model_name} not found in state")
 
@@ -92,7 +92,7 @@ class AlterField(Operation):
         # Step 3: Copy data from old table to new table
         # Get all column names from the model
         column_names = [
-            state.get_column_name(self.model_name, field_name) or field_name
+            state.get_column_name(self.app_name, self.model_name, field_name) or field_name
             for field_name in model_fields.keys()
             if model_fields[field_name].__class__.__name__ != "BackwardFKRelation"
         ]

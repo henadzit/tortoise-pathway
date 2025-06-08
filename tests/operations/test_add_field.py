@@ -14,11 +14,11 @@ class TestSqliteDialect:
 
     def test_add_regular_field(self):
         """Test SQL generation for adding a regular field."""
-        state = State("test", schema={"models": {"TestModel": {"table": "test_table"}}})
+        state = State(schema={"test": {"models": {"TestModel": {"table": "test_table"}}}})
 
         # Test adding a text field
         operation = AddField(
-            model="tests.models.TestModel",
+            model="test.TestModel",
             field_object=fields.TextField(null=True),
             field_name="description",
         )
@@ -29,7 +29,7 @@ class TestSqliteDialect:
 
         # Test adding a non-nullable field with default
         operation = AddField(
-            model="tests.models.TestModel",
+            model="test.TestModel",
             field_object=fields.IntField(default=0),
             field_name="count",
         )
@@ -40,30 +40,39 @@ class TestSqliteDialect:
 
     def test_add_field_with_index(self):
         """Test SQL generation for adding a regular field."""
-        state = State("test", schema={"models": {"TestModel": {"table": "test_table"}}})
+        state = State(schema={"test": {"models": {"TestModel": {"table": "test_table"}}}})
 
         # Test adding a text field
         operation = AddField(
-            model="tests.models.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=100, null=True, db_index=True),
             field_name="description",
         )
 
         sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
 
-        assert sql == "ALTER TABLE test_table ADD COLUMN description VARCHAR(100);\nCREATE INDEX idx_test_table_description ON test_table (description)"
+        assert (
+            sql
+            == "ALTER TABLE test_table ADD COLUMN description VARCHAR(100);\nCREATE INDEX idx_test_table_description ON test_table (description)"
+        )
 
     def test_add_foreign_key(self):
         """Test SQL generation for adding a foreign key field with SQLite."""
         state = State(
-            "test",
-            schema={"models": {"TestModel": {"table": "test_table"}, "User": {"table": "users"}}},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {"table": "test_table"},
+                        "User": {"table": "users"},
+                    }
+                }
+            },
         )
 
         # Test adding a foreign key field
         operation = AddField(
-            model="tests.models.TestModel",
-            field_object=fields.ForeignKeyField("tests.User", related_name="test_models"),
+            model="test.TestModel",
+            field_object=fields.ForeignKeyField("test.User", related_name="test_models"),
             field_name="user",
         )
 
@@ -81,11 +90,11 @@ class TestPostgresDialect:
 
     def test_add_regular_field(self):
         """Test SQL generation for adding a regular field."""
-        state = State("test", schema={"models": {"TestModel": {"table": "test_table"}}})
+        state = State(schema={"test": {"models": {"TestModel": {"table": "test_table"}}}})
 
         # Test adding a text field
         operation = AddField(
-            model="tests.models.TestModel",
+            model="test.TestModel",
             field_object=fields.TextField(null=True),
             field_name="description",
         )
@@ -96,35 +105,39 @@ class TestPostgresDialect:
 
     def test_add_field_with_index(self):
         """Test SQL generation for adding a regular field."""
-        state = State("test", schema={"models": {"TestModel": {"table": "test_table"}}})
+        state = State(schema={"test": {"models": {"TestModel": {"table": "test_table"}}}})
 
         # Test adding an indexed char field
         operation = AddField(
-            model="tests.models.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=100, null=True, db_index=True),
             field_name="description",
         )
 
         sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
 
-        assert sql == "ALTER TABLE test_table ADD COLUMN description VARCHAR(100);\nCREATE INDEX idx_test_table_description ON test_table (description)"
+        assert (
+            sql
+            == "ALTER TABLE test_table ADD COLUMN description VARCHAR(100);\nCREATE INDEX idx_test_table_description ON test_table (description)"
+        )
 
     def test_add_foreign_key(self):
         """Test SQL generation for adding a foreign key field with PostgreSQL."""
         state = State(
-            "test",
             schema={
-                "models": {
-                    "TestModel": {"table": "test_table"},
-                    "Category": {"table": "categories"},
+                "test": {
+                    "models": {
+                        "TestModel": {"table": "test_table"},
+                        "Category": {"table": "categories"},
+                    }
                 }
             },
         )
 
         # Test adding a foreign key field
         operation = AddField(
-            model="tests.models.TestModel",
-            field_object=fields.ForeignKeyField("tests.Category", related_name="test_models"),
+            model="test.TestModel",
+            field_object=fields.ForeignKeyField("test.Category", related_name="test_models"),
             field_name="category",
         )
 

@@ -24,12 +24,13 @@ class TestSqliteDialect:
         """Test SQL generation for altering a field type."""
         # Create state with proper model and field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"name": fields.TextField(null=True)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"name": fields.TextField(null=True)},
+                        }
                     }
                 }
             },
@@ -37,7 +38,7 @@ class TestSqliteDialect:
 
         # Change the field type to CharField
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=50, null=True),
             field_name="name",
         )
@@ -60,12 +61,13 @@ COMMIT;"""
         """Test SQL generation for altering a field's default value."""
         # Create state with proper model and field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"count": fields.IntField(default=0)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"count": fields.IntField(default=0)},
+                        }
                     }
                 }
             },
@@ -73,7 +75,7 @@ COMMIT;"""
 
         # Change the default value
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.IntField(default=10),
             field_name="count",
         )
@@ -92,6 +94,7 @@ ALTER TABLE __new__test_table RENAME TO test_table;
 COMMIT;"""
         )
 
+
 class TestPostgresDialect:
     """Tests for AlterField operation with PostgreSQL dialect."""
 
@@ -99,12 +102,13 @@ class TestPostgresDialect:
         """Test SQL generation for altering a field type in PostgreSQL."""
         # Create state with proper model and field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"count": fields.IntField()},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"count": fields.IntField()},
+                        }
                     }
                 }
             },
@@ -112,7 +116,7 @@ class TestPostgresDialect:
 
         # Change IntField to BigIntField
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.BigIntField(),
             field_name="count",
         )
@@ -124,12 +128,13 @@ class TestPostgresDialect:
         """Test SQL generation for altering a field's default value in PostgreSQL."""
         # Create state with proper model and field with default
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"count": fields.IntField(default=0)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"count": fields.IntField(default=0)},
+                        }
                     }
                 }
             },
@@ -137,7 +142,7 @@ class TestPostgresDialect:
 
         # Change the default value
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.IntField(default=10),
             field_name="count",
         )
@@ -149,12 +154,13 @@ class TestPostgresDialect:
         """Test SQL generation for making a field unique in PostgreSQL."""
         # Create state with non-unique field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"email": fields.CharField(max_length=255, unique=False)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"email": fields.CharField(max_length=255, unique=False)},
+                        }
                     }
                 }
             },
@@ -162,7 +168,7 @@ class TestPostgresDialect:
 
         # Make the field unique
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=255, unique=True),
             field_name="email",
         )
@@ -174,12 +180,13 @@ class TestPostgresDialect:
         """Test SQL generation for removing a unique constraint in PostgreSQL."""
         # Create state with a unique field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"email": fields.CharField(max_length=255, unique=True)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"email": fields.CharField(max_length=255, unique=True)},
+                        }
                     }
                 }
             },
@@ -187,7 +194,7 @@ class TestPostgresDialect:
 
         # Remove the unique constraint
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=255),
             field_name="email",
         )
@@ -199,12 +206,13 @@ class TestPostgresDialect:
         """Test SQL generation for altering a field's default value in PostgreSQL."""
         # Create state with proper model and field with default
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"count": fields.IntField(default=0)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"count": fields.IntField(default=0)},
+                        }
                     }
                 }
             },
@@ -212,7 +220,7 @@ class TestPostgresDialect:
 
         # Change the default value
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.IntField(default=10, unique=True),
             field_name="count",
         )
@@ -228,12 +236,13 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         """Test SQL generation for making a field indexed in PostgreSQL."""
         # Create state with non-unique field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"email": fields.CharField(max_length=255, db_index=False)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"email": fields.CharField(max_length=255, db_index=False)},
+                        }
                     }
                 }
             },
@@ -241,7 +250,7 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
 
         # Make the field unique
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=255, db_index=True),
             field_name="email",
         )
@@ -253,12 +262,13 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         """Test SQL generation for removing an index in PostgreSQL."""
         # Create state with an indexed field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"email": fields.CharField(max_length=255, db_index=True)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"email": fields.CharField(max_length=255, db_index=True)},
+                        }
                     }
                 }
             },
@@ -266,7 +276,7 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
 
         # Remove the index
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=255),
             field_name="email",
         )
@@ -278,12 +288,17 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         """Test SQL generation for making a field indexed in PostgreSQL."""
         # Create state with non-unique field
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table_for_long_index_name",
-                        "fields": {"email_address_for_long_index_name": fields.CharField(max_length=255, db_index=False)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table_for_long_index_name",
+                            "fields": {
+                                "email_address_for_long_index_name": fields.CharField(
+                                    max_length=255, db_index=False
+                                )
+                            },
+                        }
                     }
                 }
             },
@@ -291,18 +306,21 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
 
         # Make the field unique
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=255, db_index=True),
             field_name="email_address_for_long_index_name",
         )
 
         sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
-        assert sql == "CREATE INDEX idx_test_table__email_a_596fb3 ON test_table_for_long_index_name (email_address_for_long_index_name)"
+        assert (
+            sql
+            == "CREATE INDEX idx_test_table__email_a_596fb3 ON test_table_for_long_index_name (email_address_for_long_index_name)"
+        )
 
     def test_to_migration(self):
         """Test generating migration code for AlterField."""
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=fields.CharField(max_length=100, null=True),
             field_name="name",
         )
@@ -311,7 +329,7 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         assert (
             migration_code
             == """AlterField(
-    model="tests.TestModel",
+    model="test.TestModel",
     field_object=CharField(null=True, max_length=100),
     field_name="name",
 )"""
@@ -324,12 +342,13 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
         """
         # Create state with a CharField
         state = State(
-            "tests",
-            {
-                "models": {
-                    "TestModel": {
-                        "table": "test_table",
-                        "fields": {"role": fields.CharField(max_length=20)},
+            schema={
+                "test": {
+                    "models": {
+                        "TestModel": {
+                            "table": "test_table",
+                            "fields": {"role": fields.CharField(max_length=20)},
+                        }
                     }
                 }
             },
@@ -337,7 +356,7 @@ ALTER TABLE test_table ADD CONSTRAINT count_key UNIQUE (count);"""
 
         # Change to CharEnumField
         operation = AlterField(
-            model="tests.TestModel",
+            model="test.TestModel",
             field_object=CharEnumFieldInstance(enum_type=UserRole, max_length=20),
             field_name="role",
         )

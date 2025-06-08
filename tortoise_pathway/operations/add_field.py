@@ -33,8 +33,8 @@ class AddField(Operation):
         # Handle foreign key fields
         if isinstance(self.field_object, RelationalField):
             related_model_ref = getattr(self.field_object, "model_name", "")
-            related_model_name = related_model_ref.split(".")[-1]
-            model = state.get_model(related_model_name)
+            related_model_app, related_model_name = self._split_model_reference(related_model_ref)
+            model = state.get_model(related_model_app, related_model_name)
             related_table = model["table"]
             to_field = getattr(self.field_object, "to_field", None) or "id"
             return schema_manager.add_foreign_key_column(

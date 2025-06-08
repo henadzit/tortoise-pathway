@@ -13,9 +13,7 @@ from tortoise_pathway.state import State
 def test_rename_field_validation():
     """Test RenameField validation."""
     # Test that ValueError is raised when neither new_field_name nor new_column_name are provided
-    with pytest.raises(
-        ValueError, match="Either new_field_name or new_column_name must be provided"
-    ):
+    with pytest.raises(ValueError, match="Either new_field_name or new_column_name must be provided"):
         RenameField(
             model="tests.TestModel",
             field_name="name",
@@ -46,7 +44,7 @@ def test_rename_field_validation():
 
 async def test_rename_field(setup_test_db):
     """Test RenameField operation with field rename."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -83,7 +81,7 @@ async def test_rename_field(setup_test_db):
 
 async def test_rename_field_only_column(setup_test_db):
     """Test RenameField operation with only column rename."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -119,7 +117,7 @@ async def test_rename_field_only_column(setup_test_db):
 
 def test_forward_sql():
     """Test SQL generation for SQLite dialect."""
-    state = State("tests")
+    state = State()
     state.apply_operation(
         CreateModel(
             model="tests.TestModel",
@@ -168,7 +166,7 @@ def test_forward_sql():
 
 def test_backward_sql():
     """Test SQL generation for SQLite dialect."""
-    state = State("tests")
+    state = State()
     state.apply_operation(
         CreateModel(
             model="tests.TestModel",

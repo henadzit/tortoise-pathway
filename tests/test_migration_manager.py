@@ -27,16 +27,19 @@ class TestSortMigrations:
     def test_linear_dependencies(self):
         """Test sorting migrations with linear dependencies."""
         migration1 = Mock(spec=Migration)
+        migration1.app_name = "app"
         migration1.name.return_value = "migration1"
         migration1.dependencies = []
 
         migration2 = Mock(spec=Migration)
+        migration2.app_name = "app"
         migration2.name.return_value = "migration2"
-        migration2.dependencies = ["migration1"]
+        migration2.dependencies = [("app", "migration1")]
 
         migration3 = Mock(spec=Migration)
+        migration3.app_name = "app"
         migration3.name.return_value = "migration3"
-        migration3.dependencies = ["migration2"]
+        migration3.dependencies = [("app", "migration2")]
 
         # Test with different input orders
         result1 = sort_migrations([migration1, migration2, migration3])
@@ -52,20 +55,24 @@ class TestSortMigrations:
     def test_multiple_dependencies(self):
         """Test sorting migrations with multiple dependencies."""
         migration1 = Mock(spec=Migration)
+        migration1.app_name = "app"
         migration1.name.return_value = "migration1"
         migration1.dependencies = []
 
         migration2 = Mock(spec=Migration)
+        migration2.app_name = "app"
         migration2.name.return_value = "migration2"
-        migration2.dependencies = ["migration1"]
+        migration2.dependencies = [("app", "migration1")]
 
         migration3 = Mock(spec=Migration)
+        migration3.app_name = "app"
         migration3.name.return_value = "migration3"
-        migration3.dependencies = ["migration1"]
+        migration3.dependencies = [("app", "migration1")]
 
         migration4 = Mock(spec=Migration)
+        migration4.app_name = "app"
         migration4.name.return_value = "migration4"
-        migration4.dependencies = ["migration2", "migration3"]
+        migration4.dependencies = [("app", "migration2"), ("app", "migration3")]
 
         result = sort_migrations([migration4, migration3, migration2, migration1])
 

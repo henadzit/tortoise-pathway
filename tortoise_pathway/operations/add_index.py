@@ -33,10 +33,10 @@ class AddIndex(Operation):
 
     def forward_sql(self, state: "State", schema_manager: BaseSchemaManager) -> str:
         """Generate SQL for adding an index."""
-        table_name = state.get_table_name(self.model_name)
+        table_name = state.get_table_name(self.app_name, self.model_name)
         column_names = []
         for field_name in self.index.fields:
-            column_name = state.get_column_name(self.model_name, field_name)
+            column_name = state.get_column_name(self.app_name, self.model_name, field_name)
             # Fall back to field name if column name is None
             if column_name is None:
                 column_name = field_name

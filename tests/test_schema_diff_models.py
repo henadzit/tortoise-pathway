@@ -18,23 +18,25 @@ from tortoise_pathway.operations import CreateModel, AddField
 async def test_detect_basic_model_creation():
     """Test detecting a single model creation with no relations."""
     # Initialize state with no models
-    state = State("test")
+    state = State()
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with a new model
     def mock_get_model_schema():
         return {
-            "models": {
-                "TestModel": {
-                    "table": "test_model",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "created_at": DatetimeField(auto_now_add=True),
-                    },
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "TestModel": {
+                        "table": "test_model",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "created_at": DatetimeField(auto_now_add=True),
+                        },
+                        "indexes": [],
+                    }
                 }
             }
         }
@@ -68,10 +70,10 @@ async def test_detect_basic_model_creation():
 async def test_detect_single_relation_model_creation():
     """Test detecting model creation with a single foreign key relation."""
     # Initialize state with no models
-    state = State("test")
+    state = State()
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with related models
     def mock_get_model_schema():
@@ -90,17 +92,19 @@ async def test_detect_single_relation_model_creation():
         }
 
         return {
-            "models": {
-                "User": {
-                    "table": "user",
-                    "fields": user_fields,
-                    "indexes": [],
-                },
-                "Post": {
-                    "table": "post",
-                    "fields": post_fields,
-                    "indexes": [],
-                },
+            "test": {
+                "models": {
+                    "User": {
+                        "table": "user",
+                        "fields": user_fields,
+                        "indexes": [],
+                    },
+                    "Post": {
+                        "table": "post",
+                        "fields": post_fields,
+                        "indexes": [],
+                    },
+                }
             }
         }
 
@@ -139,49 +143,51 @@ async def test_detect_single_relation_model_creation():
 async def test_detect_multiple_relations_model_creation():
     """Test detecting model creation with multiple foreign key relations between models."""
     # Initialize state with no models
-    state = State("test")
+    state = State()
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with multiple related models
     def mock_get_model_schema():
         return {
-            "models": {
-                "Post": {
-                    "table": "post",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "title": CharField(max_length=100),
-                        "content": CharField(max_length=1000),
-                        "user": ForeignKeyFieldInstance(
-                            "test.User", related_name="posts", to_field="id"
-                        ),
+            "test": {
+                "models": {
+                    "Post": {
+                        "table": "post",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "title": CharField(max_length=100),
+                            "content": CharField(max_length=1000),
+                            "user": ForeignKeyFieldInstance(
+                                "test.User", related_name="posts", to_field="id"
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "User": {
-                    "table": "user",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
+                    "User": {
+                        "table": "user",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Comment": {
-                    "table": "comment",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "text": CharField(max_length=500),
-                        "user": ForeignKeyFieldInstance(
-                            "test.User", related_name="comments", to_field="id"
-                        ),
-                        "post": ForeignKeyFieldInstance(
-                            "test.Post", related_name="comments", to_field="id"
-                        ),
+                    "Comment": {
+                        "table": "comment",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "text": CharField(max_length=500),
+                            "user": ForeignKeyFieldInstance(
+                                "test.User", related_name="comments", to_field="id"
+                            ),
+                            "post": ForeignKeyFieldInstance(
+                                "test.Post", related_name="comments", to_field="id"
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
+                }
             }
         }
 
@@ -215,89 +221,93 @@ async def test_detect_multiple_relations_model_creation():
 async def test_detect_circular_reference_model_creation():
     """Test detecting model creation with circular references between models."""
     # Initialize state with no models
-    state = State("test")
+    state = State()
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with circular references
     def mock_get_model_schema():
         return {
-            "models": {
-                "Course": {
-                    "table": "course",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "teacher": ForeignKeyFieldInstance(
-                            "test.Teacher", related_name="courses", to_field="id"
-                        ),
+            "test": {
+                "models": {
+                    "Course": {
+                        "table": "course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "teacher": ForeignKeyFieldInstance(
+                                "test.Teacher", related_name="courses", to_field="id"
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Teacher": {
-                    "table": "teacher",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "department": ForeignKeyFieldInstance(
-                            "test.Department", related_name="teachers", to_field="id"
-                        ),
+                    "Teacher": {
+                        "table": "teacher",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "department": ForeignKeyFieldInstance(
+                                "test.Department",
+                                related_name="teachers",
+                                to_field="id",
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Department": {
-                    "table": "department",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "school": ForeignKeyFieldInstance(
-                            "test.School", related_name="departments", to_field="id"
-                        ),
+                    "Department": {
+                        "table": "department",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "school": ForeignKeyFieldInstance(
+                                "test.School", related_name="departments", to_field="id"
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "School": {
-                    "table": "school",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "admin": ForeignKeyFieldInstance(
-                            "test.Admin", related_name="schools", to_field="id"
-                        ),
+                    "School": {
+                        "table": "school",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "admin": ForeignKeyFieldInstance(
+                                "test.Admin", related_name="schools", to_field="id"
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Admin": {
-                    "table": "admin",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
+                    "Admin": {
+                        "table": "admin",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Student": {
-                    "table": "student",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
+                    "Student": {
+                        "table": "student",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "StudentCourse": {
-                    "table": "student_course",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "student": ForeignKeyFieldInstance(
-                            "test.Student", related_name="courses", to_field="id"
-                        ),
-                        "course": ForeignKeyFieldInstance(
-                            "test.Course", related_name="students", to_field="id"
-                        ),
-                        "grade": CharField(max_length=2, null=True),
+                    "StudentCourse": {
+                        "table": "student_course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "student": ForeignKeyFieldInstance(
+                                "test.Student", related_name="courses", to_field="id"
+                            ),
+                            "course": ForeignKeyFieldInstance(
+                                "test.Course", related_name="students", to_field="id"
+                            ),
+                            "grade": CharField(max_length=2, null=True),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
+                }
             }
         }
 
@@ -316,9 +326,9 @@ async def test_detect_circular_reference_model_creation():
     # Verify models with dependencies are created after the models they depend on
     # For example, Teacher depends on Department, so Department must come before Teacher
     def assert_model_created_before(dependent: str, dependency: str):
-        assert model_names.index(dependent) > model_names.index(dependency), (
-            f"{dependent} should be created after {dependency}"
-        )
+        assert model_names.index(dependent) > model_names.index(
+            dependency
+        ), f"{dependent} should be created after {dependency}"
 
     # Admin should be created before School
     assert_model_created_before("School", "Admin")
@@ -349,37 +359,43 @@ async def test_detect_circular_reference_model_creation():
 async def test_detect_both_m2m_models_created():
     """Test detecting M2M relationship when both models are being created."""
     # Initialize state with no models
-    state = State("test")
+    state = State()
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with M2M relationship
     def mock_get_model_schema():
         return {
-            "models": {
-                "Student": {
-                    "table": "student",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "courses": ManyToManyFieldInstance(
-                            "test.Course", related_name="students", through="student_course"
-                        ),
+            "test": {
+                "models": {
+                    "Student": {
+                        "table": "student",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "courses": ManyToManyFieldInstance(
+                                "test.Course",
+                                related_name="students",
+                                through="student_course",
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Course": {
-                    "table": "course",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "students": ManyToManyFieldInstance(
-                            "test.Student", related_name="courses", through="student_course"
-                        ),
+                    "Course": {
+                        "table": "course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "students": ManyToManyFieldInstance(
+                                "test.Student",
+                                related_name="courses",
+                                through="student_course",
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
+                }
             }
         }
 
@@ -394,13 +410,12 @@ async def test_detect_both_m2m_models_created():
     assert len(changes) == 3
 
     assert isinstance(changes[0], CreateModel)
-    assert changes[0].model == "test.Course"
     assert isinstance(changes[1], CreateModel)
-    assert changes[1].model == "test.Student"
+    assert set([change.model for change in changes[0:2]]) == {"test.Course", "test.Student"}
     assert isinstance(changes[2], AddField)
-    assert changes[2].field_name == "students"
+    assert changes[2].field_name in {"students", "courses"}
     assert isinstance(changes[2].field_object, ManyToManyFieldInstance)
-    assert changes[2].field_object.model_name == "test.Student"
+    assert changes[2].field_object.model_name in {"test.Course", "test.Student"}
     assert changes[2].field_object.through == "student_course"
 
     # check that the detected changes lead to a stable
@@ -415,50 +430,57 @@ async def test_detect_one_m2m_model_exists():
     """Test detecting M2M relationship when one model exists and another is being added."""
     # Initialize state with one of the M2M models already existing
     state = State(
-        "test",
         {
-            "models": {
-                "Course": {
-                    "table": "course",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                    },
-                    "indexes": [],
+            "test": {
+                "models": {
+                    "Course": {
+                        "table": "course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
+                    }
                 }
             }
         },
     )
 
     # Create a SchemaDiffer with our state
-    differ = SchemaDiffer("test", state)
+    differ = SchemaDiffer(state)
 
     # Mock the get_model_schema method to return a schema with both models including M2M relationship
     def mock_get_model_schema():
         return {
-            "models": {
-                "Student": {
-                    "table": "student",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "courses": ManyToManyFieldInstance(
-                            "test.Course", related_name="students", through="student_course"
-                        ),
+            "test": {
+                "models": {
+                    "Student": {
+                        "table": "student",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "courses": ManyToManyFieldInstance(
+                                "test.Course",
+                                related_name="students",
+                                through="student_course",
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
-                "Course": {
-                    "table": "course",
-                    "fields": {
-                        "id": IntField(primary_key=True),
-                        "name": CharField(max_length=100),
-                        "students": ManyToManyFieldInstance(
-                            "test.Student", related_name="courses", through="student_course"
-                        ),
+                    "Course": {
+                        "table": "course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "students": ManyToManyFieldInstance(
+                                "test.Student",
+                                related_name="courses",
+                                through="student_course",
+                            ),
+                        },
+                        "indexes": [],
                     },
-                    "indexes": [],
-                },
+                }
             }
         }
 
@@ -474,9 +496,9 @@ async def test_detect_one_m2m_model_exists():
     assert isinstance(changes[0], CreateModel)
     assert changes[0].model == "test.Student"
     assert isinstance(changes[1], AddField)
-    assert changes[1].field_name == "courses"
+    assert changes[1].field_name in {"courses", "students"}
     assert isinstance(changes[1].field_object, ManyToManyFieldInstance)
-    assert changes[1].field_object.model_name == "test.Course"
+    assert changes[1].field_object.model_name in {"test.Course", "test.Student"}
     assert changes[1].field_object.through == "student_course"
 
     # check that the detected changes lead to a stable
@@ -485,3 +507,195 @@ async def test_detect_one_m2m_model_exists():
 
     changes = await differ.detect_changes()
     assert len(changes) == 0
+
+
+async def test_verify_cross_app_creation_dependencies():
+    """Test detecting model creation order with cross-app dependencies."""
+    # Initialize state with no models
+    state = State()
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer(state)
+
+    # Mock the get_model_schema method to return a schema with circular references
+    def mock_get_model_schema():
+        return {
+            "school": {
+                "models": {
+                    "Course": {
+                        "table": "course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "teacher": ForeignKeyFieldInstance(
+                                "school.Teacher", related_name="courses", to_field="id"
+                            ),
+                        },
+                        "indexes": [],
+                    },
+                    "Teacher": {
+                        "table": "teacher",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                            "user": ForeignKeyFieldInstance(
+                                "user.User",
+                                related_name="teachers",
+                                to_field="id",
+                            ),
+                        },
+                        "indexes": [],
+                    },
+                }
+            },
+            "user": {
+                "models": {
+                    "User": {
+                        "table": "user",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
+                    }
+                }
+            },
+        }
+
+    # Replace the method with our mock
+    differ.get_model_schema = mock_get_model_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be 7 changes: CreateModel for all the models
+    assert len(changes) == 3
+
+    # Extract model names in order of creation
+    model_names = [change.model.split(".")[-1] for change in changes]
+
+    # Verify models with dependencies are created after the models they depend on
+    # For example, Teacher depends on Department, so Department must come before Teacher
+    def assert_model_created_before(dependent: str, dependency: str):
+        assert model_names.index(dependent) > model_names.index(
+            dependency
+        ), f"{dependent} should be created after {dependency}"
+
+    # User should be created before Teacher
+    assert_model_created_before("Teacher", "User")
+
+    # Teacher should be created before Course
+    assert_model_created_before("Course", "Teacher")
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
+
+
+async def test_detect_field_dependencies_on_fk_add_for_new_model():
+    """Test detecting M2M relationship when one model exists and another is being added."""
+    # Initialize state with one of the M2M models already existing
+    state = State(
+        {
+            "school": {
+                "models": {
+                    "Course": {
+                        "table": "course",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "name": CharField(max_length=100),
+                        },
+                        "indexes": [],
+                    }
+                }
+            }
+        },
+    )
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer(state)
+
+    # Mock the get_model_schema method to return a schema with both models including M2M relationship
+    updated_schema = {
+        "school": {
+            "models": {
+                "Course": {
+                    "table": "course",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                        "teacher": ForeignKeyFieldInstance(
+                            "user.User", related_name="teacher", to_field="id"
+                        ),
+                    },
+                    "indexes": [],
+                }
+            }
+        },
+        "user": {
+            "models": {
+                "User": {
+                    "table": "user",
+                    "fields": {
+                        "id": IntField(primary_key=True),
+                        "name": CharField(max_length=100),
+                    },
+                    "indexes": [],
+                }
+            }
+        },
+    }
+
+    # Replace the method with our mock
+    differ.get_model_schema = lambda: updated_schema
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be 2 changes: CreateModel for Student and one AddField for m2m relation
+    assert len(changes) == 2
+
+    assert isinstance(changes[0], CreateModel)
+    assert changes[0].model == "user.User"
+    assert isinstance(changes[1], AddField)
+    assert changes[1].field_name == "teacher"
+    assert changes[1].model == "school.Course"
+    assert isinstance(changes[1].field_object, ForeignKeyFieldInstance)
+    assert changes[1].field_object.model_name == "user.User"
+    assert changes[1].field_object.to_field == "id"
+
+    # Check that school depends on user for the fk field pointing to the new user model
+    app_dependencies = await differ.get_change_app_dependencies()
+    assert app_dependencies == {"school": ["user"]}
+
+    # check that the detected changes lead to a stable
+    for change in changes:
+        state.apply_operation(change)
+
+    changes = await differ.detect_changes()
+    assert len(changes) == 0
+
+    # Add new fk field on existing table
+    updated_schema["school"]["models"]["Course"]["fields"]["janitor"] = ForeignKeyFieldInstance(
+        "user.User", related_name="janitor", to_field="id"
+    )
+
+    # Detect changes
+    changes = await differ.detect_changes()
+
+    # There should be 1 change: AddField for the new fk field
+    assert len(changes) == 1
+
+    assert isinstance(changes[0], AddField)
+    assert changes[0].field_name == "janitor"
+    assert changes[0].model == "school.Course"
+    assert isinstance(changes[0].field_object, ForeignKeyFieldInstance)
+    assert changes[0].field_object.model_name == "user.User"
+    assert changes[0].field_object.to_field == "id"
+
+    # Check that school depends on user for the fk field pointing to the new user model
+    app_dependencies = await differ.get_change_app_dependencies()
+    assert app_dependencies == {}

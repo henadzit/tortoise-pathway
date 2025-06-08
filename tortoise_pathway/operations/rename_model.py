@@ -49,7 +49,7 @@ class RenameModel(Operation):
         if not self.new_table_name:
             return ""
 
-        old_table_name = state.prev().get_table_name(self.model_name)
+        old_table_name = state.prev().get_table_name(self.app_name, self.model_name)
 
         return schema_manager.rename_table(self.new_table_name, old_table_name)
 

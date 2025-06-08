@@ -13,7 +13,7 @@ from tortoise_pathway.state import State
 
 async def test_rename_table(setup_test_db):
     """Test RenameModel operation with table rename."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -48,7 +48,7 @@ async def test_rename_table(setup_test_db):
 
 def test_forward_sql_postgres():
     """Test SQL generation for PostgreSQL dialect."""
-    state = State("tests")
+    state = State()
     state.apply_operation(
         CreateModel(
             model="tests.TestModel",
@@ -71,7 +71,7 @@ def test_forward_sql_postgres():
 
 def test_forward_sql_sqlite():
     """Test SQL generation for SQLite dialect."""
-    state = State("tests")
+    state = State()
     state.apply_operation(
         CreateModel(
             model="tests.TestModel",
@@ -100,7 +100,7 @@ def test_invalid_rename():
 
 def test_backward_sql():
     """Test backward SQL generation for PostgreSQL dialect."""
-    state = State("tests")
+    state = State()
     state.apply_operation(
         CreateModel(
             model="tests.TestModel",
