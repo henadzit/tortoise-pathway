@@ -48,7 +48,6 @@ class State:
     database schema directly.
 
     Attributes:
-        app_name: Name of the app this state represents.
         schema: Dictionary mapping model names to their schema representations.
     """
 
@@ -59,24 +58,7 @@ class State:
         Args:
             schema: The tortoise configuration.
         """
-        # New structure:
-        # {
-        #     'models': {
-        #         'ModelName': {
-        #             'table': 'table_name',
-        #             'fields': {
-        #                 'field_name': field_object,  # The actual Field instance
-        #             },
-        #             'indexes': [
-        #                 Index(
-        #                     name='index_name',
-        #                     fields=['col1', 'col2'],
-        #                 ),
-        #             ],
-        #         }
-        #     }
-        # }
-        self._schema: dict[str, AppSchema] = schema or {}
+        self._schema: Schema = schema or {}
         self._snapshots: List[Tuple[str, State]] = []
 
     def apply_operation(self, operation: Operation) -> None:
@@ -125,7 +107,9 @@ class State:
         _, state = self._snapshots[-2]
         return state
 
-    def _get_app_models(self, app_name: str, create: bool = False) -> AppSchema:
+    def _get_app_models(
+        self, app_name: str, create: bool = False
+    ) -> Dict[str, ModelSchema]:
         if app_name not in self._schema:
             if not create:
                 raise ValueError(f"App {app_name} not found in schema")
@@ -178,13 +162,13 @@ class State:
                 m2m_field.model_name
             )
             referred_app_models = self._get_app_models(referred_model_app)
-            referred_app_models[referred_model_name]["fields"][m2m_field.related_name] = (
-                ManyToManyFieldInstance(
-                    model_name=f"{operation.app_name}.{operation.model_name}",
-                    through=m2m_field.through,
-                    related_name=field_name,
-                    on_delete=m2m_field.on_delete,
-                )
+            referred_app_models[referred_model_name]["fields"][
+                m2m_field.related_name
+            ] = ManyToManyFieldInstance(
+                model_name=f"{operation.app_name}.{operation.model_name}",
+                through=m2m_field.through,
+                related_name=field_name,
+                on_delete=m2m_field.on_delete,
             )
 
     def _apply_drop_field(self, operation: DropField) -> None:
@@ -203,7 +187,9 @@ class State:
         field_name = operation.field_name
         field_obj = operation.field_object
 
-        model_fields = self._schema[operation.app_name]["models"][operation.model_name]["fields"]
+        model_fields = self._schema[operation.app_name]["models"][operation.model_name][
+            "fields"
+        ]
 
         # Verify the field exists
         if field_name in model_fields:
@@ -215,7 +201,9 @@ class State:
         old_field_name = operation.field_name
         new_field_name = operation.new_field_name
 
-        model_fields = self._schema[operation.app_name]["models"][operation.model_name]["fields"]
+        model_fields = self._schema[operation.app_name]["models"][operation.model_name][
+            "fields"
+        ]
 
         field_obj = model_fields[old_field_name]
         if new_field_name:
@@ -266,7 +254,9 @@ class State:
         """
         return self._schema[app_name]["models"][model_name]["table"]
 
-    def get_field(self, app_name: str, model_name: str, field_name: str) -> Optional[Field]:
+    def get_field(
+        self, app_name: str, model_name: str, field_name: str
+    ) -> Optional[Field]:
         """
         Get the field object for a specific field.
         """
@@ -277,7 +267,9 @@ class State:
             return self._schema[app_name]["models"][model_name]["fields"][field_name]
         return None
 
-    def get_index(self, app_name: str, model_name: str, index_name: str) -> Optional[Index]:
+    def get_index(
+        self, app_name: str, model_name: str, index_name: str
+    ) -> Optional[Index]:
         """
         Get the Index object by name.
         """
@@ -304,7 +296,9 @@ class State:
             return app_models[model_name]["fields"]
         return None
 
-    def get_column_name(self, app_name: str, model_name: str, field_name: str) -> Optional[str]:
+    def get_column_name(
+        self, app_name: str, model_name: str, field_name: str
+    ) -> Optional[str]:
         """
         Get the column name for a specific field.
 
@@ -317,7 +311,10 @@ class State:
         """
         app_models = self._get_app_models(app_name)
         try:
-            if model_name in app_models and field_name in app_models[model_name]["fields"]:
+            if (
+                model_name in app_models
+                and field_name in app_models[model_name]["fields"]
+            ):
                 field_obj = app_models[model_name]["fields"][field_name]
                 # Get source_field if available, otherwise use field_name as the column name
                 source_field = getattr(field_obj, "source_field", None)

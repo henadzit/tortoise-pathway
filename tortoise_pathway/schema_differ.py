@@ -45,7 +45,7 @@ class SchemaDiffer:
 
     def get_model_schema(self) -> Schema:
         """Get schema representation from Tortoise models for this app."""
-        schema: Schema = {"models": {}}
+        schema: Schema = {}
 
         for app_name, app_models in Tortoise.apps.items():
             schema[app_name] = {"models": {}}
@@ -93,7 +93,9 @@ class SchemaDiffer:
                             model_schema[model_name]["indexes"].append(
                                 Index(
                                     fields=index,
-                                    name=gen_index_name("idx", model._meta.db_table, index),
+                                    name=gen_index_name(
+                                        "idx", model._meta.db_table, index
+                                    ),
                                 )
                             )
                         else:
@@ -107,7 +109,9 @@ class SchemaDiffer:
                         model_schema[model_name]["indexes"].append(
                             UniqueIndex(
                                 fields=unique_fields,
-                                name=gen_index_name("uniq", model._meta.db_table, unique_fields),
+                                name=gen_index_name(
+                                    "uniq", model._meta.db_table, unique_fields
+                                ),
                             )
                         )
 
@@ -146,7 +150,7 @@ class SchemaDiffer:
         old_schema_models = SchemaDiffer._get_schema_app_model_pairs(current_schema)
         new_schema_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
         models_added = new_schema_models - old_schema_models
-        models_to_create = list(models_added)
+        models_to_create = sorted(models_added)
 
         # Tables to create (in models but not in current schema)
         processed_app_models = []
@@ -170,13 +174,13 @@ class SchemaDiffer:
             skipped = False
             for field in field_objects.values():
                 if isinstance(field, ForeignKeyFieldInstance):
-                    referenced_app_name, referenced_model_name = Operation._split_model_reference(
-                        field.model_name
+                    referenced_app_name, referenced_model_name = (
+                        Operation._split_model_reference(field.model_name)
                     )
                     referenced_app_model = (referenced_app_name, referenced_model_name)
-                    referenced_app_models = current_schema.get(referenced_app_name, {}).get(
-                        "models", {}
-                    )
+                    referenced_app_models = current_schema.get(
+                        referenced_app_name, {}
+                    ).get("models", {})
                     if (
                         referenced_model_name not in referenced_app_models
                         and referenced_app_model not in processed_app_models
@@ -218,10 +222,13 @@ class SchemaDiffer:
                     # If no changes, we're stuck in a loop, error
                     if (
                         previous_processed_app_models == processed_app_models_set
-                        and previous_unprocessable_app_models == unprocessed_app_models_set
+                        and previous_unprocessable_app_models
+                        == unprocessed_app_models_set
                     ):
                         # Generate a helpful error
-                        existing_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
+                        existing_models = SchemaDiffer._get_schema_app_model_pairs(
+                            model_schema
+                        )
                         missing_models = dependened_on_app_models - existing_models
 
                         raise ValueError(
@@ -242,7 +249,7 @@ class SchemaDiffer:
 
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
         # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
-        for app_name, model_name in processed_app_models:
+        for app_name, model_name in sorted(processed_app_models):
             model_info = model_schema[app_name]["models"][model_name]
             for field_name, field_object in model_info["fields"].items():
                 if not isinstance(field_object, ManyToManyFieldInstance):
@@ -283,7 +290,7 @@ class SchemaDiffer:
         models_removed = old_schema_models - new_schema_models
 
         # Tables to drop (in current schema but not in models)
-        for app_name, model_name in models_removed:
+        for app_name, model_name in sorted(models_removed):
             self._changes.append(DropModel(model=f"{app_name}.{model_name}"))
 
     async def _detect_field_changes(
@@ -306,7 +313,7 @@ class SchemaDiffer:
         models_unchanged = old_schema_models & new_schema_models
 
         # For tables that exist in both
-        for app_name, model_name in models_unchanged:
+        for app_name, model_name in sorted(models_unchanged):
             # Get the model info for both
             current_model = current_schema[app_name]["models"][model_name]
             model_model = model_schema[app_name]["models"][model_name]
@@ -374,7 +381,7 @@ class SchemaDiffer:
         new_schema_models = SchemaDiffer._get_schema_app_model_pairs(model_schema)
         models_unchanged = old_schema_models & new_schema_models
 
-        for app_name, model_name in models_unchanged:
+        for app_name, model_name in sorted(models_unchanged):
             model_ref = f"{app_name}.{model_name}"
 
             current_model = current_schema[app_name]["models"][model_name]
@@ -389,7 +396,9 @@ class SchemaDiffer:
             model_index_map = {idx.name: idx for idx in model_indexes}
 
             # Indexes to add (in model but not in current schema)
-            for index_name in set(model_index_map.keys()) - set(current_index_map.keys()):
+            for index_name in sorted(
+                set(model_index_map.keys()) - set(current_index_map.keys())
+            ):
                 index = model_index_map[index_name]
                 self._changes.append(
                     AddIndex(
@@ -399,7 +408,9 @@ class SchemaDiffer:
                 )
 
             # Indexes to drop (in current schema but not in model)
-            for index_name in set(current_index_map.keys()) - set(model_index_map.keys()):
+            for index_name in sorted(
+                set(current_index_map.keys()) - set(model_index_map.keys())
+            ):
                 self._changes.append(
                     DropIndex(
                         model=model_ref,
@@ -408,13 +419,16 @@ class SchemaDiffer:
                 )
 
             # Indexes to alter (in both, but different)
-            for index_name in set(current_index_map.keys()) & set(model_index_map.keys()):
+            for index_name in sorted(
+                set(current_index_map.keys()) & set(model_index_map.keys())
+            ):
                 current_index = current_index_map[index_name]
                 model_index = model_index_map[index_name]
 
                 # Check if indexes are different
                 if (
-                    isinstance(current_index, UniqueIndex) != isinstance(model_index, UniqueIndex)
+                    isinstance(current_index, UniqueIndex)
+                    != isinstance(model_index, UniqueIndex)
                     or current_index.fields != model_index.fields
                 ):
                     # First drop the old index

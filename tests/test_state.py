@@ -506,19 +506,3 @@ async def test_get_column_name():
     assert id_column == "id"  # Default column name
     assert name_column == "name"  # Default column name
     assert custom_column == "custom_column"  # Custom column name from source_field
-
-
-async def test_app_validation():
-    state = State()
-
-    create_model_op = CreateModel(
-        model="other_app.TestModel",
-        table="test_model",
-        fields={
-            "id": IntField(primary_key=True),
-            "name": CharField(max_length=100),
-        },
-    )
-
-    # Apply the operation to the state
-    state.apply_operation(create_model_op)

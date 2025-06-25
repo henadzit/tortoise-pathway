@@ -113,13 +113,13 @@ async def make(args: argparse.Namespace) -> None:
 
     if not args.empty:
         # Generate automatic migration based on model changes
-        migrations = await manager.create_migration(name, app=app, auto=True)
+        migrations = await manager.create_migrations(name, app=app, auto=True)
         if not migrations:
             print("No changes detected.")
             return
     else:
         # Create an empty migration
-        migrations = await manager.create_migration(name, app=app, auto=False)
+        migrations = await manager.create_migrations(name, app=app, auto=False)
 
     for migration in migrations:
         print(f"Created migration {migration.display_name()} at {migration.path()}")
@@ -233,9 +233,13 @@ def main() -> None:
 
     # make command
     make_parser = subparsers.add_parser("make", help="Create new migration(s)")
-    make_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    make_parser.add_argument(
+        "--app", help="App name (optional if config has only one app)"
+    )
     make_parser.add_argument("--name", help="Migration name (default: 'auto')")
-    make_parser.add_argument("--empty", action="store_true", help="Create an empty migration")
+    make_parser.add_argument(
+        "--empty", action="store_true", help="Create an empty migration"
+    )
     make_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
@@ -249,15 +253,21 @@ def main() -> None:
 
     # rollback command
     rollback_parser = subparsers.add_parser("rollback", help="Revert migrations")
-    rollback_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    rollback_parser.add_argument(
+        "--app", help="App name (optional if config has only one app)"
+    )
     rollback_parser.add_argument("--migration", help="Specific migration to revert")
     rollback_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
 
     # showmigrations command
-    show_parser = subparsers.add_parser("showmigrations", help="List migrations and their status")
-    show_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    show_parser = subparsers.add_parser(
+        "showmigrations", help="List migrations and their status"
+    )
+    show_parser.add_argument(
+        "--app", help="App name (optional if config has only one app)"
+    )
     show_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )

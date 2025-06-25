@@ -32,7 +32,7 @@ async def test_create_initial_migration(setup_test_db):
     assert len(manager.get_pending_migrations()) == 0
 
     # Create an initial migration
-    migrations = await manager.create_migration("initial", auto=True)
+    migrations = await manager.create_migrations("initial", auto=True)
     assert len(migrations) == 1
     migration = migrations[0]
     assert migration.path().exists()
@@ -81,4 +81,4 @@ async def test_create_initial_migration(setup_test_db):
     assert len(manager.get_applied_migrations()) == 1
     assert len(manager.get_pending_migrations()) == 0
 
-    assert await manager.create_migration("no_changes", auto=True) is None
+    assert await manager.create_migrations("no_changes", auto=True) == []

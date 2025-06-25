@@ -47,14 +47,21 @@ class Operation:
     @staticmethod
     def _split_model_reference(model_ref: str) -> tuple:
         """Split model reference into app and model name."""
-        app, _, model_name = model_ref.rpartition(".")
-        if not app or not model_name:
-            raise ValueError(f"Invalid model reference: {model_ref}. Expected format: 'app.Model'")
-        return app, model_name
+        if "." in model_ref:
+            app_name, _, model_name = model_ref.rpartition(".")
+        else:
+            app_name, model_name = model_ref, None
+
+        if not app_name:
+            raise ValueError(
+                f"Invalid model reference: {model_ref}. Expected format: 'app' or 'app.Model'"
+            )
+
+        return app_name, model_name
 
     def get_table_name(self, state: "State") -> str:
         """
-        Get the table name for this schema change.
+        Get the table name for this schema change, if applicable.
 
         Args:
             state: State object that contains schema information.
@@ -62,6 +69,10 @@ class Operation:
         Returns:
             The table name for the model.
         """
+
+        if not self.model_name:
+            raise ValueError(f"Operation does not have an applicable table")
+
         # Use the state's get_table_name method
         table_name = state.get_table_name(self.app_name, self.model_name)
         if table_name:
@@ -77,7 +88,9 @@ class Operation:
                 and self.model_name in Tortoise.apps[self.app_name]
             ):
                 model_class = Tortoise.apps[self.app_name][self.model_name]
-                if hasattr(model_class, "_meta") and hasattr(model_class._meta, "db_table"):
+                if hasattr(model_class, "_meta") and hasattr(
+                    model_class._meta, "db_table"
+                ):
                     return model_class._meta.db_table
         except (ImportError, AttributeError):
             pass

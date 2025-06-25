@@ -50,7 +50,7 @@ async def test_model_changes(setup_test_db):
         await conn.execute_query("SELECT * FROM comments")
 
     # Detect changes and create a new migration
-    migrations = await manager.create_migration("model_changes", auto=True)
+    migrations = await manager.create_migrations("model_changes", auto=True)
     assert len(migrations) == 1
     migration = migrations[0]
     assert migration.path().exists()
@@ -75,60 +75,53 @@ async def test_model_changes(setup_test_db):
     assert "created_at" in comments_table_op.fields
     assert "blog" in comments_table_op.fields
 
-    operations_change = {
-        op.field_name: op for op in operations[0:8] if type(op) in (AlterField, AddField, DropField)
-    }
-    operations_index = {op.index_name: op for op in operations[8:10] if isinstance(op, AddIndex)}
+    assert isinstance(operations[1], AddField)
+    assert operations[1].get_table_name(manager.migration_state) == "blogs"
+    assert operations[1].field_name == "summary"
 
-    assert isinstance(operations_change["summary"], AddField)
-    assert operations_change["summary"].get_table_name(manager.migration_state) == "blogs"
-    assert operations_change["summary"].field_name == "summary"
+    assert isinstance(operations[2], AddField)
+    assert operations[2].get_table_name(manager.migration_state) == "blogs"
+    assert operations[2].field_name == "updated_at"
+    assert getattr(operations[2].field_object, "auto_now", False)
 
-    assert isinstance(operations_change["updated_at"], AddField)
-    assert operations_change["updated_at"].get_table_name(manager.migration_state) == "blogs"
-    assert operations_change["updated_at"].field_name == "updated_at"
-    assert getattr(operations_change["updated_at"].field_object, "auto_now", False)
+    assert isinstance(operations[3], DropField)
+    assert operations[3].get_table_name(manager.migration_state) == "blogs"
+    assert operations[3].field_name == "content"
 
-    assert isinstance(operations_change["content"], DropField)
-    assert operations_change["content"].get_table_name(manager.migration_state) == "blogs"
-    assert operations_change["content"].field_name == "content"
+    assert isinstance(operations[4], AlterField)
+    assert operations[4].get_table_name(manager.migration_state) == "blogs"
+    assert operations[4].field_name == "slug"
+    assert operations[4].field_object is not None
+    assert operations[4].field_object.unique
 
-    assert isinstance(operations_change["slug"], AlterField)
-    assert operations_change["slug"].get_table_name(manager.migration_state) == "blogs"
-    assert operations_change["slug"].field_name == "slug"
-    assert operations_change["slug"].field_object is not None
-    assert operations_change["slug"].field_object.unique
+    assert isinstance(operations[5], AddField)
+    assert operations[5].get_table_name(manager.migration_state) == "tags"
+    assert operations[5].field_name == "description"
 
-    assert isinstance(operations_change["description"], AddField)
-    assert operations_change["description"].get_table_name(manager.migration_state) == "tags"
-    assert operations_change["description"].field_name == "description"
+    assert isinstance(operations[6], AddField)
+    assert operations[6].get_table_name(manager.migration_state) == "tags"
+    assert operations[6].field_name == "status"
+    assert isinstance(operations[6].field_object, CharEnumFieldInstance)
+    assert getattr(operations[6].field_object, "enum_type", None) == TagStatus
 
-    assert isinstance(operations_change["status"], AddField)
-    assert operations_change["status"].get_table_name(manager.migration_state) == "tags"
-    assert operations_change["status"].field_name == "status"
-    assert isinstance(operations_change["status"].field_object, CharEnumFieldInstance)
-    assert getattr(operations_change["status"].field_object, "enum_type", None) == TagStatus
+    assert isinstance(operations[7], AlterField)
+    assert operations[7].get_table_name(manager.migration_state) == "tags"
+    assert operations[7].field_name == "color"
+    assert operations[7].field_object is not None
+    assert operations[7].field_object.null
+    assert operations[7].field_object.default == "red"
 
-    assert isinstance(operations_change["color"], AlterField)
-    assert operations_change["color"].get_table_name(manager.migration_state) == "tags"
-    assert operations_change["color"].field_name == "color"
-    assert operations_change["color"].field_object is not None
-    assert operations_change["color"].field_object.null
-    assert operations_change["color"].field_object.default == "red"
+    assert isinstance(operations[8], AddIndex)
+    assert operations[8].get_table_name(manager.migration_state) == "blogs"
+    assert operations[8].index.fields == ["created_at"]
+    assert operations[8].index_name == "idx_blogs_created_5b8c34"
+    assert not operations[8].unique
 
-    index_1 = operations_index["idx_blogs_created_5b8c34"]
-    assert isinstance(index_1, AddIndex)
-    assert index_1.get_table_name(manager.migration_state) == "blogs"
-    assert index_1.index.fields == ["created_at"]
-    assert index_1.index_name == "idx_blogs_created_5b8c34"
-    assert not index_1.unique
-
-    index_2 = operations_index["uniq_tags_blog_na_086dc5"]
-    assert isinstance(index_2, AddIndex)
-    assert index_2.get_table_name(manager.migration_state) == "tags"
-    assert index_2.index.fields == ["blog", "name"]
-    assert index_2.index_name == "uniq_tags_blog_na_086dc5"
-    assert index_2.unique
+    assert isinstance(operations[9], AddIndex)
+    assert operations[9].get_table_name(manager.migration_state) == "tags"
+    assert operations[9].fields == ["blog", "name"]
+    assert operations[9].index_name == "uniq_tags_blog_na_086dc5"
+    assert operations[9].unique
 
     # Verify field deletion operation
 

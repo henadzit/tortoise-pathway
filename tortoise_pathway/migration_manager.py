@@ -10,7 +10,10 @@ from tortoise_pathway.migration import Migration
 from tortoise_pathway.operations.operation import Operation
 from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.state import State
-from tortoise_pathway.generators import generate_empty_migration, generate_auto_migration
+from tortoise_pathway.generators import (
+    generate_empty_migration,
+    generate_auto_migration,
+)
 
 
 class MigrationManager:
@@ -72,21 +75,27 @@ class MigrationManager:
         conn = connection or Tortoise.get_connection("default")
 
         where = f"WHERE app = '{app}'" if app else ""
-        records = await conn.execute_query(f"SELECT app, name FROM tortoise_migrations {where}")
+        records = await conn.execute_query(
+            f"SELECT app, name FROM tortoise_migrations {where}"
+        )
 
-        self.applied_migrations = {(record["app"], record["name"]) for record in records[1]}
+        self.applied_migrations = {
+            (record["app"], record["name"]) for record in records[1]
+        }
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory and sort them based on dependencies."""
         migrations = []
         for app_name in self.app_names:
-            app_migrations = load_migrations_from_disk(app_name, self.get_migrations_dir(app_name))
+            app_migrations = load_migrations_from_disk(
+                app_name, self.get_migrations_dir(app_name)
+            )
             migrations.extend(app_migrations)
         self.migrations = sort_migrations(migrations)
 
-    async def create_migration(
+    async def create_migrations(
         self, name: str = None, app: str = None, auto: bool = True
-    ) -> list[Type[Migration]] | None:
+    ) -> list[Type[Migration]]:
         """
         Create new migration files and return the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
 
@@ -116,7 +125,7 @@ class MigrationManager:
 
             # No changes to selected app? (or any)
             if not (changes_by_app.get(app) if app else changes_by_app):
-                return None
+                return []
 
             if app:
                 # Check dependencies for the selected app (foreign key references)
@@ -145,7 +154,9 @@ class MigrationManager:
             migrations_dir.mkdir(parents=True, exist_ok=True)
 
             changes = changes_by_app.get(app_name)
-            file_name = name or (gen_name_from_changes(changes) if changes else "migration")
+            file_name = name or (
+                gen_name_from_changes(changes) if changes else "migration"
+            )
             migration_name = f"{timestamp}_{file_name}"
 
             # Create migration file path
@@ -184,7 +195,9 @@ class MigrationManager:
 
         return new_migrations
 
-    async def apply_migrations(self, app: str = None, connection=None) -> List[Type[Migration]]:
+    async def apply_migrations(
+        self, app: str = None, connection=None
+    ) -> List[Type[Migration]]:
         """
         Apply pending migrations.
 
@@ -227,7 +240,10 @@ class MigrationManager:
         return applied_migrations
 
     async def revert_migration(
-        self, app: str | None = None, migration_name: Optional[str] = None, connection=None
+        self,
+        app: str | None = None,
+        migration_name: Optional[str] = None,
+        connection=None,
     ) -> Optional[Type[Migration]]:
         """
         Revert the last applied migration or a specific migration.
@@ -255,7 +271,9 @@ class MigrationManager:
             migration_name = cast(str, record["name"])
             app = cast(str, record["app"])
 
-        if (app, migration_name) not in set([(m.app_name, m.name()) for m in self.migrations]):
+        if (app, migration_name) not in set(
+            [(m.app_name, m.name()) for m in self.migrations]
+        ):
             raise ValueError(f"Migration {app} -> {migration_name} not found")
 
         if (app, migration_name) not in self.applied_migrations:
@@ -363,7 +381,9 @@ def gen_name_from_changes(changes: List[Operation]) -> str:
     return name
 
 
-def load_migrations_from_disk(app_name: str, migrations_dir: Path) -> List[Type[Migration]]:
+def load_migrations_from_disk(
+    app_name: str, migrations_dir: Path
+) -> List[Type[Migration]]:
     """Load migrations from the migrations directory."""
     # Ensure the app-specific migrations directory exists
     if not migrations_dir.exists():
@@ -404,7 +424,9 @@ def sort_migrations(migrations: list[Type[Migration]]) -> list[Type[Migration]]:
     """Sort migrations based on dependencies."""
     root = None
     # for traversing the dependency graph from the root to the leaves
-    reverse_dependency_graph: dict[tuple[str, str], list[Type[Migration]]] = defaultdict(list)
+    reverse_dependency_graph: dict[tuple[str, str], list[Type[Migration]]] = (
+        defaultdict(list)
+    )
 
     for migration in migrations:
         for dependency in migration.dependencies:
@@ -445,7 +467,9 @@ def sort_migrations(migrations: list[Type[Migration]]) -> list[Type[Migration]]:
             stack.append(next_node)
 
     if len(sorted_migrations) != len(migrations):
-        raise ValueError(f"Circular dependency detected to {migration.app_name} {migration.name()}")
+        raise ValueError(
+            f"Circular dependency detected to {migration.app_name} {migration.name()}"
+        )
 
     return sorted_migrations
 
@@ -467,7 +491,9 @@ def load_migration_file(migration_path: Path) -> Type[Migration]:
 
 
 def flatten_app_dependencies(
-    app_dependencies: dict[str, list[str]], app_name: str, already_checked: set[str] | None = None
+    app_dependencies: dict[str, list[str]],
+    app_name: str,
+    already_checked: set[str] | None = None,
 ) -> list[str]:
     """Builds a list of all app dependencies for a given app"""
     if already_checked is None:
