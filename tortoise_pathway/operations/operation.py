@@ -71,7 +71,7 @@ class Operation:
         """
 
         if not self.model_name:
-            raise ValueError(f"Operation does not have an applicable table")
+            raise ValueError("Operation does not have an applicable table")
 
         # Use the state's get_table_name method
         table_name = state.get_table_name(self.app_name, self.model_name)
