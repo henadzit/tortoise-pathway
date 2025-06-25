@@ -6,7 +6,8 @@ Tortoise models and the actual database schema.
 """
 
 from collections import defaultdict
-from typing import List, Optional, cast
+from graphlib import CycleError, TopologicalSorter
+from typing import cast, List, Optional, Set, Tuple
 
 from tortoise import Tortoise
 from tortoise.fields.relational import ForeignKeyFieldInstance, ManyToManyFieldInstance
@@ -14,7 +15,7 @@ from tortoise.models import Model
 from tortoise.indexes import Index
 
 from tortoise_pathway.index_ext import gen_index_name, UniqueIndex
-from tortoise_pathway.state import Schema, State
+from tortoise_pathway.state import ModelSchema, Schema, State
 from tortoise_pathway.operations import (
     Operation,
     CreateModel,
@@ -129,12 +130,35 @@ class SchemaDiffer:
             Set of tuples of (app_name, model_name)
         """
         return set(
-            [
-                (app_name, model_name)
-                for app_name, app_schema in schema.items()
-                for model_name in app_schema.get("models", {}).keys()
-            ]
+            (app_name, model_name)
+            for app_name, app_schema in schema.items()
+            for model_name in app_schema.get("models", {}).keys()
         )
+
+    def _get_model_dependencies(self, model_info: ModelSchema) -> Set[Tuple[str, str]]:
+        """
+        Gets the set of foreign key dependencies for a model.
+
+        Args:
+            model_info: Model schema to get the dependencies from
+
+        Returns:
+            Set of tuples of (app_name, model_name)
+        """
+        # filtering out ManyToManyFieldInstance to add them after table creation
+        field_objects = {
+            n: f
+            for n, f in model_info["fields"].items()
+            if not isinstance(f, ManyToManyFieldInstance)
+        }
+
+        dependencies = set()
+        for field in field_objects.values():
+            if isinstance(field, ForeignKeyFieldInstance):
+                dependency = Operation._split_model_reference(field.model_name)
+                dependencies.add(dependency)
+
+        return dependencies
 
     async def _detect_create_models(self, current_schema: Schema, model_schema: Schema):
         """
@@ -152,14 +176,28 @@ class SchemaDiffer:
         models_added = new_schema_models - old_schema_models
         models_to_create = sorted(models_added)
 
+        # The following code ensures that the referenced models are created before
+        # the model that references them. Otherwise, we won't be able to create
+        # foreign key constraints.
+        dependency_graph = {
+            (app, model): self._get_model_dependencies(
+                model_schema[app]["models"][model]
+            ).intersection(models_added)
+            for app, model in models_to_create
+        }
+
+        # Sort the models to create based on the dependencies
+        topological_sorter = TopologicalSorter(dependency_graph)
+        try:
+            models_to_create_sorted = list(topological_sorter.static_order())
+        except CycleError as e:
+            model_names = [f"{app}.{model}" for app, model in e.args[1]]
+            raise ValueError(
+                f"Cycle detected in model dependencies: {', '.join(model_names)}"
+            )
+
         # Tables to create (in models but not in current schema)
-        processed_app_models = []
-        unprocessable_app_models = []
-        dependened_on_app_models = set()
-        previous_processed_app_models = None
-        previous_unprocessable_app_models = None
-        while models_to_create:
-            app_name, model_name = models_to_create.pop(0)
+        for app_name, model_name in models_to_create_sorted:
             model_info = model_schema[app_name]["models"][model_name]
             # filtering out ManyToManyFieldInstance to add them after table creation
             field_objects = {
@@ -168,88 +206,27 @@ class SchemaDiffer:
                 if not isinstance(f, ManyToManyFieldInstance)
             }
 
-            # The following code ensures that the referenced models are created before
-            # the model that references them. Otherwise, we won't be able to create
-            # foreign key constraints.
-            skipped = False
-            for field in field_objects.values():
-                if isinstance(field, ForeignKeyFieldInstance):
-                    referenced_app_name, referenced_model_name = (
-                        Operation._split_model_reference(field.model_name)
-                    )
-                    referenced_app_model = (referenced_app_name, referenced_model_name)
-                    referenced_app_models = current_schema.get(
-                        referenced_app_name, {}
-                    ).get("models", {})
-                    if (
-                        referenced_model_name not in referenced_app_models
-                        and referenced_app_model not in processed_app_models
-                    ):
-                        # The referenced model has not been created yet, so we need to try again later
-                        unprocessable_app_models.append((app_name, model_name))
-                        dependened_on_app_models.add(referenced_app_model)
-                        skipped = True
-                        break
+            model_ref = f"{app_name}.{model_name}"
+            self._changes.append(
+                CreateModel(
+                    model=model_ref,
+                    table=model_info["table"],
+                    fields=field_objects,
+                )
+            )
 
-            if not skipped:
-                model_ref = f"{app_name}.{model_name}"
+            # Add separate AddIndex operations for each index
+            for index in model_info["indexes"]:
                 self._changes.append(
-                    CreateModel(
+                    AddIndex(
                         model=model_ref,
-                        table=model_info["table"],
-                        fields=field_objects,
+                        index=index,
                     )
                 )
 
-                # Add separate AddIndex operations for each index
-                for index in model_info["indexes"]:
-                    self._changes.append(
-                        AddIndex(
-                            model=model_ref,
-                            index=index,
-                        )
-                    )
-
-                processed_app_models.append((app_name, model_name))
-
-            # If no more models, check unprocessable names for re-processing
-            if not models_to_create:
-                if unprocessable_app_models:
-                    # Detect if there were processing changes since last time
-                    processed_app_models_set = set(processed_app_models)
-                    unprocessed_app_models_set = set(unprocessable_app_models)
-
-                    # If no changes, we're stuck in a loop, error
-                    if (
-                        previous_processed_app_models == processed_app_models_set
-                        and previous_unprocessable_app_models
-                        == unprocessed_app_models_set
-                    ):
-                        # Generate a helpful error
-                        existing_models = SchemaDiffer._get_schema_app_model_pairs(
-                            model_schema
-                        )
-                        missing_models = dependened_on_app_models - existing_models
-
-                        raise ValueError(
-                            f"Unable to process models: {','.join(['.'.join(m) for m in unprocessable_app_models])}. "
-                            + (
-                                f"Missing models in the current schema: {','.join(['.'.join(m) for m in missing_models])}"
-                                if missing_models
-                                else "Possible circular dependency"
-                            )
-                        )
-
-                    previous_processed_app_models = processed_app_models_set
-                    previous_unprocessable_app_models = unprocessed_app_models_set
-
-                    models_to_create = unprocessable_app_models
-                    unprocessable_app_models = []
-                    dependened_on_app_models = set()
-
         # When Tortoise initialized, the M2M field is present on the both models. We need to add just
         # a single operation to setup the M2M relation, hence we need to skip one side of the relation.
-        for app_name, model_name in sorted(processed_app_models):
+        for app_name, model_name in models_to_create_sorted:
             model_info = model_schema[app_name]["models"][model_name]
             for field_name, field_object in model_info["fields"].items():
                 if not isinstance(field_object, ManyToManyFieldInstance):
