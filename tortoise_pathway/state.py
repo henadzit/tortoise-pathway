@@ -6,7 +6,7 @@ on applied migrations, rather than the actual database state.
 """
 
 import copy
-from typing import Dict, List, Optional, Tuple, TypedDict, cast
+from typing import Dict, List, Tuple, TypedDict, cast
 
 from tortoise.fields import Field
 from tortoise.fields.relational import ManyToManyFieldInstance
@@ -220,7 +220,7 @@ class State:
                 del model["indexes"][i]
                 return
 
-        raise ValueError(
+        raise KeyError(
             f"Index {operation.index_name} not found in {operation.model_name}"
         )
 
@@ -237,7 +237,7 @@ class State:
         """
         app_models = self._get_app_models(app_name)
         if model_name not in app_models:
-            raise ValueError(f"Model {model_name} not found in app {app_name}")
+            raise KeyError(f"Model {model_name} not found in app {app_name}")
         return app_models[model_name]
 
     def get_table_name(self, app_name: str, model_name: str) -> str:
@@ -271,7 +271,7 @@ class State:
                 return index
         raise KeyError(f"Index {index_name} not found in {model_name}")
 
-    def get_fields(self, app_name: str, model_name: str) -> Optional[Dict[str, Field]]:
+    def get_fields(self, app_name: str, model_name: str) -> Dict[str, Field]:
         """
         Get all fields for a specific model.
 
@@ -284,9 +284,7 @@ class State:
         model = self.get_model(app_name, model_name)
         return model["fields"]
 
-    def get_column_name(
-        self, app_name: str, model_name: str, field_name: str
-    ) -> Optional[str]:
+    def get_column_name(self, app_name: str, model_name: str, field_name: str) -> str:
         """
         Get the column name for a specific field.
 
