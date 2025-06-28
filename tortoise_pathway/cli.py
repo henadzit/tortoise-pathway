@@ -77,7 +77,7 @@ async def init_tortoise(config_path: str) -> Dict[str, Any]:
         sys.exit(1)
 
 
-def get_app_name(args: argparse.Namespace, config: Dict[str, Any]) -> str:
+def get_app_name(args: argparse.Namespace, config: Dict[str, Any]) -> str | None:
     """Get the app name from args and check it exists in tortoise config."""
     apps = config.get("apps", {})
 
@@ -233,9 +233,7 @@ def main() -> None:
 
     # make command
     make_parser = subparsers.add_parser("make", help="Create new migration(s)")
-    make_parser.add_argument(
-        "--app", help="App name (optional if config has only one app)"
-    )
+    make_parser.add_argument("--app", help="App name")
     make_parser.add_argument("--name", help="Migration name (default: 'auto')")
     make_parser.add_argument(
         "--empty", action="store_true", help="Create an empty migration"
@@ -253,9 +251,7 @@ def main() -> None:
 
     # rollback command
     rollback_parser = subparsers.add_parser("rollback", help="Revert migrations")
-    rollback_parser.add_argument(
-        "--app", help="App name (optional if config has only one app)"
-    )
+    rollback_parser.add_argument("--app", help="App name")
     rollback_parser.add_argument("--migration", help="Specific migration to revert")
     rollback_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
@@ -265,9 +261,7 @@ def main() -> None:
     show_parser = subparsers.add_parser(
         "showmigrations", help="List migrations and their status"
     )
-    show_parser.add_argument(
-        "--app", help="App name (optional if config has only one app)"
-    )
+    show_parser.add_argument("--app", help="App name")
     show_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )

@@ -444,7 +444,7 @@ class SchemaDiffer:
 
     async def get_change_app_dependencies(self) -> dict[str, list[str]]:
         """
-        Get the dependencies between apps for the curreng changes.
+        Get the dependencies between apps for the current changes.
         """
         change_app_dependencies: dict[str, list[str]] = defaultdict(list)
 

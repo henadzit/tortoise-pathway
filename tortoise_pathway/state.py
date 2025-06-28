@@ -112,7 +112,7 @@ class State:
     ) -> Dict[str, ModelSchema]:
         if app_name not in self._schema:
             if not create:
-                raise ValueError(f"App {app_name} not found in schema")
+                raise KeyError(f"App {app_name} not found in schema")
             self._schema[app_name] = {"models": {}}
 
         return self._schema[app_name]["models"]
@@ -173,10 +173,9 @@ class State:
 
     def _apply_drop_field(self, operation: DropField) -> None:
         """Apply a DropField operation to the state."""
-        model_name = operation.model_name
         field_name = operation.field_name
 
-        model_fields = self._schema[operation.app_name]["models"][model_name]["fields"]
+        model_fields = self.get_fields(operation.app_name, operation.model_name)
 
         # Remove the field from the state
         if field_name in model_fields:
@@ -187,9 +186,7 @@ class State:
         field_name = operation.field_name
         field_obj = operation.field_object
 
-        model_fields = self._schema[operation.app_name]["models"][operation.model_name][
-            "fields"
-        ]
+        model_fields = self.get_fields(operation.app_name, operation.model_name)
 
         # Verify the field exists
         if field_name in model_fields:
@@ -201,9 +198,7 @@ class State:
         old_field_name = operation.field_name
         new_field_name = operation.new_field_name
 
-        model_fields = self._schema[operation.app_name]["models"][operation.model_name][
-            "fields"
-        ]
+        model_fields = self.get_fields(operation.app_name, operation.model_name)
 
         field_obj = model_fields[old_field_name]
         if new_field_name:
@@ -214,20 +209,20 @@ class State:
 
     def _apply_add_index(self, operation: AddIndex) -> None:
         """Apply an AddIndex operation to the state."""
-        model_name = operation.model_name
-        app_models = self._schema[operation.app_name]["models"]
-        app_models[model_name]["indexes"].append(operation.index)
+        model = self.get_model(operation.app_name, operation.model_name)
+        model["indexes"].append(operation.index)
 
     def _apply_drop_index(self, operation: DropIndex) -> None:
         """Apply a DropIndex operation to the state."""
-        app_models = self._schema[operation.app_name]["models"]
-        model_name = operation.model_name
-        for i, index in enumerate(app_models[model_name]["indexes"]):
+        model = self.get_model(operation.app_name, operation.model_name)
+        for i, index in enumerate(model["indexes"]):
             if index.name == operation.index_name:
-                del app_models[model_name]["indexes"][i]
+                del model["indexes"][i]
                 return
 
-        raise ValueError(f"Index {operation.index_name} not found in {model_name}")
+        raise ValueError(
+            f"Index {operation.index_name} not found in {operation.model_name}"
+        )
 
     def get_schema(self) -> Schema:
         """Get the entire schema representation."""
@@ -240,7 +235,10 @@ class State:
         Returns:
             Dictionary of the model.
         """
-        return self._schema[app_name]["models"][model_name]
+        app_models = self._get_app_models(app_name)
+        if model_name not in app_models:
+            raise ValueError(f"Model {model_name} not found in app {app_name}")
+        return app_models[model_name]
 
     def get_table_name(self, app_name: str, model_name: str) -> str:
         """
@@ -254,32 +252,24 @@ class State:
         """
         return self._schema[app_name]["models"][model_name]["table"]
 
-    def get_field(
-        self, app_name: str, model_name: str, field_name: str
-    ) -> Optional[Field]:
+    def get_field(self, app_name: str, model_name: str, field_name: str) -> Field:
         """
         Get the field object for a specific field.
         """
-        if (
-            model_name in self._schema[app_name]["models"]
-            and field_name in self._schema[app_name]["models"][model_name]["fields"]
-        ):
-            return self._schema[app_name]["models"][model_name]["fields"][field_name]
-        return None
+        fields = self.get_fields(app_name, model_name)
+        if field_name not in fields:
+            raise KeyError(f"Field {field_name} not found in {model_name}")
+        return fields[field_name]
 
-    def get_index(
-        self, app_name: str, model_name: str, index_name: str
-    ) -> Optional[Index]:
+    def get_index(self, app_name: str, model_name: str, index_name: str) -> Index:
         """
         Get the Index object by name.
         """
-        app_models = self._get_app_models(app_name)
-        if model_name not in app_models:
-            return None
-        for index in app_models[model_name]["indexes"]:
+        model = self.get_model(app_name, model_name)
+        for index in model["indexes"]:
             if index.name == index_name:
                 return index
-        return None
+        raise KeyError(f"Index {index_name} not found in {model_name}")
 
     def get_fields(self, app_name: str, model_name: str) -> Optional[Dict[str, Field]]:
         """
@@ -291,10 +281,8 @@ class State:
         Returns:
             Dictionary mapping field names to Field objects, or None if model not found.
         """
-        app_models = self._get_app_models(app_name)
-        if model_name in app_models:
-            return app_models[model_name]["fields"]
-        return None
+        model = self.get_model(app_name, model_name)
+        return model["fields"]
 
     def get_column_name(
         self, app_name: str, model_name: str, field_name: str
@@ -309,16 +297,15 @@ class State:
         Returns:
             The column name, or None if not found.
         """
-        app_models = self._get_app_models(app_name)
+        fields = self.get_fields(app_name, model_name)
         try:
-            if (
-                model_name in app_models
-                and field_name in app_models[model_name]["fields"]
-            ):
-                field_obj = app_models[model_name]["fields"][field_name]
+            if field_name in fields:
+                field_obj = fields[field_name]
                 # Get source_field if available, otherwise use field_name as the column name
                 source_field = getattr(field_obj, "source_field", None)
-                return source_field if source_field is not None else field_name
-            return None
+                if source_field is not None:
+                    return source_field
         except (KeyError, TypeError):
-            return field_name  # Fall back to using field name as column name
+            pass  # Fall back to using field name as column name
+
+        return field_name

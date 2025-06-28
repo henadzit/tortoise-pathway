@@ -88,7 +88,9 @@ async def test_detect_single_relation_model_creation():
             "id": IntField(primary_key=True),
             "title": CharField(max_length=100),
             "content": CharField(max_length=1000),
-            "user": ForeignKeyFieldInstance("test.User", related_name="posts", to_field="id"),
+            "user": ForeignKeyFieldInstance(
+                "test.User", related_name="posts", to_field="id"
+            ),
         }
 
         return {
@@ -206,7 +208,9 @@ async def test_detect_multiple_relations_model_creation():
     assert model_names == ["User", "Post", "Comment"]
 
     # Check that the Comment model has both ForeignKey fields
-    comment_model = cast(CreateModel, [m for m in changes if m.model == "test.Comment"][0])
+    comment_model = cast(
+        CreateModel, [m for m in changes if m.model == "test.Comment"][0]
+    )
     assert isinstance(comment_model.fields["user"], ForeignKeyFieldInstance)
     assert isinstance(comment_model.fields["post"], ForeignKeyFieldInstance)
 
@@ -410,12 +414,13 @@ async def test_detect_both_m2m_models_created():
     assert len(changes) == 3
 
     assert isinstance(changes[0], CreateModel)
+    assert changes[0].model == "test.Course"
     assert isinstance(changes[1], CreateModel)
-    assert set([change.model for change in changes[0:2]]) == {"test.Course", "test.Student"}
+    assert changes[1].model == "test.Student"
     assert isinstance(changes[2], AddField)
-    assert changes[2].field_name in {"students", "courses"}
+    assert changes[2].field_name == "students"
     assert isinstance(changes[2].field_object, ManyToManyFieldInstance)
-    assert changes[2].field_object.model_name in {"test.Course", "test.Student"}
+    assert changes[2].field_object.model_name == "test.Student"
     assert changes[2].field_object.through == "student_course"
 
     # check that the detected changes lead to a stable
@@ -496,9 +501,9 @@ async def test_detect_one_m2m_model_exists():
     assert isinstance(changes[0], CreateModel)
     assert changes[0].model == "test.Student"
     assert isinstance(changes[1], AddField)
-    assert changes[1].field_name in {"courses", "students"}
+    assert changes[1].field_name == "courses"
     assert isinstance(changes[1].field_object, ManyToManyFieldInstance)
-    assert changes[1].field_object.model_name in {"test.Course", "test.Student"}
+    assert changes[1].field_object.model_name == "test.Course"
     assert changes[1].field_object.through == "student_course"
 
     # check that the detected changes lead to a stable
@@ -679,8 +684,8 @@ async def test_detect_field_dependencies_on_fk_add_for_new_model():
     assert len(changes) == 0
 
     # Add new fk field on existing table
-    updated_schema["school"]["models"]["Course"]["fields"]["janitor"] = ForeignKeyFieldInstance(
-        "user.User", related_name="janitor", to_field="id"
+    updated_schema["school"]["models"]["Course"]["fields"]["janitor"] = (
+        ForeignKeyFieldInstance("user.User", related_name="janitor", to_field="id")
     )
 
     # Detect changes
