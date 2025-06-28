@@ -46,9 +46,20 @@ class Operation:
 
     @staticmethod
     def _split_model_reference(model_ref: str) -> tuple:
-        """Split model reference into app and model name."""
+        """Split model reference into app and model name.
+
+        Args:
+            model_ref: Model reference in the format "{app_name}.{model_name}" or "{app_name}".
+
+        Returns:
+            Tuple of (app_name, model_name).
+        """
+
+        # "app.model"
         if "." in model_ref:
             app_name, _, model_name = model_ref.rpartition(".")
+
+        # "app"
         else:
             app_name, model_name = model_ref, None
 
