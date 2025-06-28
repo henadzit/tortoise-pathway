@@ -2,6 +2,8 @@
 Tests for the SchemaDiffer's ability to detect model changes.
 """
 
+import pytest
+from graphlib import CycleError
 from typing import Dict, Any, cast
 from tortoise.fields import (
     IntField,
@@ -704,3 +706,52 @@ async def test_detect_field_dependencies_on_fk_add_for_new_model():
     # Check that school depends on user for the fk field pointing to the new user model
     app_dependencies = await differ.get_change_app_dependencies()
     assert app_dependencies == {}
+
+
+async def test_detect_cycle_error_on_creation():
+    """Test that a CycleError is raised when models have a circular dependency."""
+    # Initialize state with no models
+    state = State()
+
+    # Create a SchemaDiffer with our state
+    differ = SchemaDiffer(state)
+
+    # Mock the get_model_schema method to return a schema with two models that depend on each other
+    def mock_get_model_schema():
+        return {
+            "test": {
+                "models": {
+                    "ModelA": {
+                        "table": "model_a",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "model_b": ForeignKeyFieldInstance(
+                                "test.ModelB", related_name="a_s"
+                            ),
+                        },
+                        "indexes": [],
+                    },
+                    "ModelB": {
+                        "table": "model_b",
+                        "fields": {
+                            "id": IntField(primary_key=True),
+                            "model_a": ForeignKeyFieldInstance(
+                                "test.ModelA", related_name="b_s"
+                            ),
+                        },
+                        "indexes": [],
+                    },
+                }
+            }
+        }
+
+    # Replace the method with our mock
+    differ.get_model_schema = mock_get_model_schema
+
+    # Detect changes, expecting a CycleError
+    with pytest.raises(CycleError) as excinfo:
+        await differ.detect_changes()
+
+    # Check that the error message contains the model names
+    assert "test.ModelA" in str(excinfo.value)
+    assert "test.ModelB" in str(excinfo.value)

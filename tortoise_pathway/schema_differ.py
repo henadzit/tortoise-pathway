@@ -145,15 +145,9 @@ class SchemaDiffer:
         Returns:
             Set of tuples of (app_name, model_name)
         """
-        # filtering out ManyToManyFieldInstance to add them after table creation
-        field_objects = {
-            n: f
-            for n, f in model_info["fields"].items()
-            if not isinstance(f, ManyToManyFieldInstance)
-        }
 
         dependencies = set()
-        for field in field_objects.values():
+        for field in model_info["fields"].values():
             if isinstance(field, ForeignKeyFieldInstance):
                 dependency = Operation._split_model_reference(field.model_name)
                 dependencies.add(dependency)
@@ -192,7 +186,7 @@ class SchemaDiffer:
             models_to_create_sorted = list(topological_sorter.static_order())
         except CycleError as e:
             model_names = [f"{app}.{model}" for app, model in e.args[1]]
-            raise ValueError(
+            raise CycleError(
                 f"Cycle detected in model dependencies: {', '.join(model_names)}"
             )
 
