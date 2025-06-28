@@ -148,6 +148,8 @@ class SchemaDiffer:
 
         dependencies = set()
         for field in model_info["fields"].values():
+            if isinstance(field, ManyToManyFieldInstance):
+                continue
             if isinstance(field, ForeignKeyFieldInstance):
                 dependency = Operation._split_model_reference(field.model_name)
                 dependencies.add(dependency)
