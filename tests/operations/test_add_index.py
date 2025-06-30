@@ -11,7 +11,7 @@ from tortoise_pathway.state import State
 
 async def test_add_index(setup_test_db):
     """Test AddIndex operation."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -54,7 +54,7 @@ async def test_add_index(setup_test_db):
 
 def test_forward_sql_with_custom_index_type():
     """Test forward_sql method with an index that has a custom INDEX_TYPE."""
-    state = State("tests")
+    state = State()
 
     create_op = CreateModel(
         model="tests.TestModel",
@@ -74,7 +74,9 @@ def test_forward_sql_with_custom_index_type():
     # Add an index with custom type
     operation = AddIndex(
         model="tests.TestModel",
-        index=CustomIndex(name="idx_test_model_name_description", fields=["name", "description"]),
+        index=CustomIndex(
+            name="idx_test_model_name_description", fields=["name", "description"]
+        ),
     )
 
     # Test SQL generation

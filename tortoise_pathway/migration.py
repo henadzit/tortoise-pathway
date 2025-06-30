@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 
 from tortoise_pathway.operations import Operation
 
@@ -7,8 +6,9 @@ from tortoise_pathway.operations import Operation
 class Migration:
     """Base class for all migrations."""
 
-    dependencies: List[str]
-    operations: List[Operation]
+    dependencies: list[tuple[str, str]]
+    operations: list[Operation]
+    app_name: str | None = None
 
     @classmethod
     def name(cls) -> str:
@@ -30,3 +30,7 @@ class Migration:
         module = cls.__module__
         module_path = module.replace(".", "/")
         return Path(f"{module_path}.py")
+
+    @classmethod
+    def display_name(cls) -> str:
+        return f"{cls.app_name} -> {cls.name()}"

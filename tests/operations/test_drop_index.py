@@ -11,7 +11,7 @@ from tortoise_pathway.state import State
 
 async def test_drop_index(setup_test_db):
     """Test DropIndex operation."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {
@@ -53,7 +53,9 @@ async def test_drop_index(setup_test_db):
     )
 
     # Test SQL generation
-    forward_sql = operation.forward_sql(state=state, schema_manager=PostgresSchemaManager())
+    forward_sql = operation.forward_sql(
+        state=state, schema_manager=PostgresSchemaManager()
+    )
     assert "DROP INDEX" in forward_sql
 
     await operation.apply(state=state)
@@ -61,7 +63,9 @@ async def test_drop_index(setup_test_db):
 
     state.snapshot("index_dropped")
 
-    backward_sql = operation.backward_sql(state=state, schema_manager=PostgresSchemaManager())
+    backward_sql = operation.backward_sql(
+        state=state, schema_manager=PostgresSchemaManager()
+    )
     assert "CREATE INDEX" in backward_sql
 
     # Verify index was dropped
@@ -71,4 +75,3 @@ async def test_drop_index(setup_test_db):
         )
         index_names = [index["name"] for index in indices[1]]
         assert "idx_test_model_name" not in index_names
-

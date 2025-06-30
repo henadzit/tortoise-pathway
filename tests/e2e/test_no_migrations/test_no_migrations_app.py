@@ -22,7 +22,7 @@ async def test_create_initial_migration(setup_test_db):
 
     # Create migration manager and initialize it
     manager = MigrationManager(
-        app_name="test_no_migrations",
+        app_names=["test_no_migrations"],
         migrations_dir=str(migrations_dir),
     )
     await manager.initialize()
@@ -32,8 +32,9 @@ async def test_create_initial_migration(setup_test_db):
     assert len(manager.get_pending_migrations()) == 0
 
     # Create an initial migration
-    migration = await manager.create_migration("initial", auto=True)
-    assert migration is not None
+    migrations = await manager.create_migrations("initial", auto=True)
+    assert len(migrations) == 1
+    migration = migrations[0]
     assert migration.path().exists()
 
     # Re-discover migrations and verify the new migration is found
@@ -80,4 +81,4 @@ async def test_create_initial_migration(setup_test_db):
     assert len(manager.get_applied_migrations()) == 1
     assert len(manager.get_pending_migrations()) == 0
 
-    assert await manager.create_migration("no_changes", auto=True) is None
+    assert await manager.create_migrations("no_changes", auto=True) == []

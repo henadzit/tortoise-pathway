@@ -18,7 +18,7 @@ async def test_applied_migrations(setup_test_db):
 
     # Create migration manager and initialize it
     manager = MigrationManager(
-        app_name="test_applied_migrations",
+        app_names=["test_applied_migrations"],
         migrations_dir=str(migrations_dir),
     )
     await manager.initialize()
@@ -45,7 +45,7 @@ async def test_applied_migrations(setup_test_db):
 
     # Initialize a new instance of the manager to simulate restarting the application
     new_manager = MigrationManager(
-        app_name="test_applied_migrations",
+        app_names=["test_applied_migrations"],
         migrations_dir=str(migrations_dir),
     )
     await new_manager.initialize()

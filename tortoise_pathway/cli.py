@@ -77,8 +77,8 @@ async def init_tortoise(config_path: str) -> Dict[str, Any]:
         sys.exit(1)
 
 
-def get_app_name(args: argparse.Namespace, config: Dict[str, Any]) -> str:
-    """Get the app name from args or automatically from config if there's only one app."""
+def get_app_name(args: argparse.Namespace, config: Dict[str, Any]) -> str | None:
+    """Get the app name from args and check it exists in tortoise config."""
     apps = config.get("apps", {})
 
     if args.app:
@@ -88,56 +88,56 @@ def get_app_name(args: argparse.Namespace, config: Dict[str, Any]) -> str:
             sys.exit(1)
         return args.app
 
-    # No app specified - check if there's just one app
-    if len(apps) == 1:
-        return next(iter(apps))
+    return None
 
-    # Multiple apps and none specified
-    print("Error: You must specify an app name with --app when config has multiple apps")
-    print("Available apps:", ", ".join(apps.keys()))
-    sys.exit(1)
+
+def get_app_names(config: Dict[str, Any]) -> list[str]:
+    """Get the app names from tortoise config."""
+    apps = config.get("apps", {})
+    return list(apps.keys())
 
 
 @close_connections_after
 async def make(args: argparse.Namespace) -> None:
     """Create new migration(s) based on model changes."""
     config = await init_tortoise(args.config)
-    app = get_app_name(args, config)
+    app, apps = get_app_name(args, config), get_app_names(config)
 
     # The migrations directory is now the base directory, no need to join with app name
     migration_dir = args.directory or "migrations"
 
-    manager = MigrationManager(app, migration_dir)
+    manager = MigrationManager(apps, migration_dir)
     await manager.initialize()
 
     name = args.name or None
 
     if not args.empty:
         # Generate automatic migration based on model changes
-        migration = await manager.create_migration(name, auto=True)
-        if migration is None:
+        migrations = await manager.create_migrations(name, app=app, auto=True)
+        if not migrations:
             print("No changes detected.")
             return
     else:
         # Create an empty migration
-        migration = await manager.create_migration(name, auto=False)
+        migrations = await manager.create_migrations(name, app=app, auto=False)
 
-    print(f"Created migration {migration.name()} at {migration.path()}")
+    for migration in migrations:
+        print(f"Created migration {migration.display_name()} at {migration.path()}")
 
 
 @close_connections_after
 async def migrate(args: argparse.Namespace) -> None:
     """Apply migrations to the database."""
     config = await init_tortoise(args.config)
-    app = get_app_name(args, config)
+    app, apps = get_app_name(args, config), get_app_names(config)
 
     # The migrations directory is now the base directory, no need to join with app name
     migration_dir = args.directory or "migrations"
 
-    manager = MigrationManager(app, migration_dir)
+    manager = MigrationManager(apps, migration_dir)
     await manager.initialize()
 
-    pending = manager.get_pending_migrations()
+    pending = manager.get_pending_migrations(app=app)
 
     if not pending:
         print("No pending migrations.")
@@ -145,9 +145,9 @@ async def migrate(args: argparse.Namespace) -> None:
 
     print(f"Applying {len(pending)} migration(s):")
     for migration in pending:
-        print(f"  - {migration.name()}")
+        print(f"  - {migration.display_name()}")
 
-    applied = await manager.apply_migrations()
+    applied = await manager.apply_migrations(app=app)
 
     if applied:
         print(f"Successfully applied {len(applied)} migration(s).")
@@ -159,21 +159,21 @@ async def migrate(args: argparse.Namespace) -> None:
 async def rollback(args: argparse.Namespace) -> None:
     """Revert the most recent migration."""
     config = await init_tortoise(args.config)
-    app = get_app_name(args, config)
+    app, apps = get_app_name(args, config), get_app_names(config)
 
     # The migrations directory is now the base directory, no need to join with app name
     migration_dir = args.directory or "migrations"
 
-    manager = MigrationManager(app, migration_dir)
+    manager = MigrationManager(apps, migration_dir)
     await manager.initialize()
 
     if args.migration:
-        reverted = await manager.revert_migration(args.migration)
+        reverted = await manager.revert_migration(args.migration, app=app)
     else:
-        reverted = await manager.revert_migration()
+        reverted = await manager.revert_migration(app=app)
 
     if reverted:
-        print(f"Successfully reverted migration: {reverted.name()}")
+        print(f"Successfully reverted migration: {reverted.display_name()}")
     else:
         print("No migration was reverted.")
 
@@ -182,29 +182,29 @@ async def rollback(args: argparse.Namespace) -> None:
 async def showmigrations(args: argparse.Namespace) -> None:
     """Show migration status."""
     config = await init_tortoise(args.config)
-    app = get_app_name(args, config)
+    app, apps = get_app_name(args, config), get_app_names(config)
 
     # The migrations directory is now the base directory, no need to join with app name
     migration_dir = args.directory or "migrations"
 
-    manager = MigrationManager(app, migration_dir)
+    manager = MigrationManager(apps, migration_dir)
     await manager.initialize()
 
-    applied = manager.get_applied_migrations()
-    pending = manager.get_pending_migrations()
+    applied = manager.get_applied_migrations(app=app)
+    pending = manager.get_pending_migrations(app=app)
 
-    print(f"Migrations for {app}:")
+    print(f"Migrations for {app}:" if app else "All Migrations:")
     print("\nApplied migrations:")
     if applied:
         for migration in applied:
-            print(f"  [X] {migration.name()}")
+            print(f"  [X] {migration.display_name()}")
     else:
         print("  (none)")
 
     print("\nPending migrations:")
     if pending:
         for migration in pending:
-            print(f"  [ ] {migration.name()}")
+            print(f"  [ ] {migration.display_name()}")
     else:
         print("  (none)")
 
@@ -233,31 +233,35 @@ def main() -> None:
 
     # make command
     make_parser = subparsers.add_parser("make", help="Create new migration(s)")
-    make_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    make_parser.add_argument("--app", help="App name")
     make_parser.add_argument("--name", help="Migration name (default: 'auto')")
-    make_parser.add_argument("--empty", action="store_true", help="Create an empty migration")
+    make_parser.add_argument(
+        "--empty", action="store_true", help="Create an empty migration"
+    )
     make_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
 
     # migrate command
     migrate_parser = subparsers.add_parser("migrate", help="Apply migrations")
-    migrate_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    migrate_parser.add_argument("--app", help="App name (optional)")
     migrate_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
 
     # rollback command
     rollback_parser = subparsers.add_parser("rollback", help="Revert migrations")
-    rollback_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    rollback_parser.add_argument("--app", help="App name")
     rollback_parser.add_argument("--migration", help="Specific migration to revert")
     rollback_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
 
     # showmigrations command
-    show_parser = subparsers.add_parser("showmigrations", help="List migrations and their status")
-    show_parser.add_argument("--app", help="App name (optional if config has only one app)")
+    show_parser = subparsers.add_parser(
+        "showmigrations", help="List migrations and their status"
+    )
+    show_parser.add_argument("--app", help="App name")
     show_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )

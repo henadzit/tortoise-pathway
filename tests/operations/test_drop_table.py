@@ -8,7 +8,7 @@ from tortoise_pathway.state import State
 
 async def test_drop_table(setup_test_db):
     """Test DropModel operation."""
-    state = State("tests")
+    state = State()
 
     # First create a table
     fields_dict = {

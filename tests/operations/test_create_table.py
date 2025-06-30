@@ -11,7 +11,7 @@ from tortoise_pathway.state import State
 
 async def test_create_table(setup_test_db):
     """Test CreateModel operation."""
-    state = State("test")
+    state = State()
 
     # Create fields dictionary
     fields_dict = {
@@ -44,7 +44,7 @@ async def test_create_table(setup_test_db):
 class TestSqliteDialect:
     def test_forward_sql_basic_fields(self):
         """Test SQL generation for basic field types."""
-        state = State("test")
+        state = State()
 
         fields_dict = {
             "id": fields.IntField(primary_key=True),
@@ -78,7 +78,7 @@ class TestSqliteDialect:
 
     def test_forward_sql_field_constraints(self):
         """Test SQL generation with various field constraints."""
-        state = State("test")
+        state = State()
 
         fields_dict = {
             "id": fields.IntField(primary_key=True),
@@ -109,17 +109,17 @@ class TestSqliteDialect:
 
     def test_forward_sql_foreign_key(self):
         """Test SQL generation with foreign key fields."""
-        state = State("test", schema={"models": {"User": {"table": "users", "app": "tests"}}})
+        state = State(schema={"test": {"models": {"User": {"table": "users", "app": "test"}}}})
 
         # Create model with a foreign key
         fields_dict = {
             "id": fields.IntField(primary_key=True),
             "title": fields.CharField(max_length=100),
-            "user": fields.ForeignKeyField("tests.User", related_name="posts"),
+            "user": fields.ForeignKeyField("test.User", related_name="posts"),
         }
 
         operation = CreateModel(
-            model="tests.models.Post",
+            model="test.Post",
             table="posts",
             fields=fields_dict,
         )
@@ -140,7 +140,7 @@ class TestSqliteDialect:
 class TestPostgresDialect:
     def test_forward_sql(self):
         """Test SQL generation with PostgreSQL dialect."""
-        state = State("test")
+        state = State()
 
         fields_dict = {
             "id": fields.IntField(primary_key=True),
