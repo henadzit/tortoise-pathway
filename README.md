@@ -8,6 +8,8 @@
 
 Tortoise Pathway is a migration system for [Tortoise ORM](https://github.com/tortoise/tortoise-orm/), inspired by Django's migration approach.
 
+See [CHANGELOG.md](CHANGELOG.md) for the latest changes.
+
 ## Features
 
 - Generate schema migrations from Tortoise models
