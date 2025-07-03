@@ -96,7 +96,7 @@ class State:
         Args:
             name: The name of the snapshot.
         """
-        self._snapshots.append((name, copy.deepcopy(self)))
+        self._snapshots.append((name, self.copy()))
 
     def prev(self) -> "State":
         """
@@ -106,6 +106,12 @@ class State:
             return State()
         _, state = self._snapshots[-2]
         return state
+
+    def copy(self) -> "State":
+        """
+        Copy the state.
+        """
+        return copy.deepcopy(self)
 
     def _get_app_models(
         self, app_name: str, create: bool = False
