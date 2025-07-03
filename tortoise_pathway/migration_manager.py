@@ -4,10 +4,11 @@ import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Type, cast
 
-from tortoise import Tortoise
+from tortoise import Tortoise, connections
 
 from tortoise_pathway.migration import Migration
 from tortoise_pathway.operations.operation import Operation
+from tortoise_pathway.schema import get_schema_manager
 from tortoise_pathway.schema_differ import SchemaDiffer
 from tortoise_pathway.state import State
 from tortoise_pathway.generators import (
@@ -306,7 +307,7 @@ class MigrationManager:
             # Rollback transaction if supported
             raise
 
-    def get_pending_migrations(self, app: str = None) -> list[Type[Migration]]:
+    def get_pending_migrations(self, app: str | None = None) -> list[Type[Migration]]:
         """
         Get list of pending migrations.
 
@@ -333,6 +334,33 @@ class MigrationManager:
             if (m.app_name, m.name()) in self.applied_migrations
             if app is None or m.app_name == app
         ]
+
+    def get_pending_migrations_sql(self, app: str | None = None) -> str:
+        """
+        Get SQL statements for pending migrations without applying them.
+
+        Args:
+            app: The app to get the SQL for
+
+        Returns:
+            SQL statements
+        """
+        # we need to copy the state because the state is modified when SQL is generated
+        state = self.applied_state.copy()
+        # Tortoise doesn't support the databases of different dialects in the same connection,
+        # hence we can just use the default connection
+        connection = connections.get("default")
+        schema_manager = get_schema_manager(connection)
+        sql_statements = []
+        for migration in self.get_pending_migrations(app=app):
+            sql_statements.append(f"-- Migration: {migration.display_name()}")
+
+            for operation in migration.operations:
+                sql = operation.forward_sql(state=state, schema_manager=schema_manager)
+                sql_statements.append(sql)
+                state.apply_operation(operation)
+
+        return "\n".join(sql_statements)
 
     def _rebuild_state(self) -> None:
         """Build the state from applied migrations."""

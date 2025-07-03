@@ -143,6 +143,11 @@ async def migrate(args: argparse.Namespace) -> None:
         print("No pending migrations.")
         return
 
+    if args.dry_run:
+        print(f"SQL for {len(pending)} pending migration(s):")
+        print(manager.get_pending_migrations_sql(app=app))
+        return
+
     print(f"Applying {len(pending)} migration(s):")
     for migration in pending:
         print(f"  - {migration.display_name()}")
@@ -248,6 +253,7 @@ def main() -> None:
     migrate_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
+    migrate_parser.add_argument("--dry-run", action="store_true", help="Show SQL without applying")
 
     # rollback command
     rollback_parser = subparsers.add_parser("rollback", help="Revert migrations")
