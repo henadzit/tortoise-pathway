@@ -241,7 +241,9 @@ def main() -> None:
     make_parser = subparsers.add_parser("make", help="Create new migration(s)")
     make_parser.add_argument("--app", help="App name")
     make_parser.add_argument("--name", help="Migration name (default: 'auto')")
-    make_parser.add_argument("--empty", action="store_true", help="Create an empty migration")
+    make_parser.add_argument(
+        "--empty", action="store_true", help="Create an empty migration"
+    )
     make_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
     )
@@ -262,7 +264,9 @@ def main() -> None:
     )
 
     # showmigrations command
-    show_parser = subparsers.add_parser("showmigrations", help="List migrations and their status")
+    show_parser = subparsers.add_parser(
+        "showmigrations", help="List migrations and their status"
+    )
     show_parser.add_argument("--app", help="App name")
     show_parser.add_argument(
         "--directory", help="Base migrations directory (default: 'migrations')"
