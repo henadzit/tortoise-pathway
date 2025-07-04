@@ -153,7 +153,9 @@ async def migrate(args: argparse.Namespace) -> None:
             migrations.append(migration)
 
         if migrations:
-            print(f"Successfully applied {len(migrations)} migration(s).")
+            print(
+                f"Successfully applied {len(migrations)} migration{'s' if len(migrations) > 1 else ''}."
+            )
         else:
             print("No migrations were applied.")
     except Exception as e:
