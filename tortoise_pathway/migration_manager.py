@@ -2,7 +2,7 @@ from collections import defaultdict
 import inspect
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Type, cast
+from typing import AsyncGenerator, Dict, List, Optional, Type, cast
 
 from tortoise import Tortoise
 
@@ -75,27 +75,21 @@ class MigrationManager:
         conn = connection or Tortoise.get_connection("default")
 
         where = f"WHERE app = '{app}'" if app else ""
-        records = await conn.execute_query(
-            f"SELECT app, name FROM tortoise_migrations {where}"
-        )
+        records = await conn.execute_query(f"SELECT app, name FROM tortoise_migrations {where}")
 
-        self.applied_migrations = {
-            (record["app"], record["name"]) for record in records[1]
-        }
+        self.applied_migrations = {(record["app"], record["name"]) for record in records[1]}
 
     def _discover_migrations(self) -> None:
         """Discover available migrations in the migrations directory and sort them based on dependencies."""
         migrations = []
         for app_name in self.app_names:
-            app_migrations = load_migrations_from_disk(
-                app_name, self.get_migrations_dir(app_name)
-            )
+            app_migrations = load_migrations_from_disk(app_name, self.get_migrations_dir(app_name))
             migrations.extend(app_migrations)
         self.migrations = sort_migrations(migrations)
 
     async def create_migrations(
         self, name: str = None, app: str = None, auto: bool = True
-    ) -> list[Type[Migration]]:
+    ) -> AsyncGenerator[Type[Migration], None]:
         """
         Create new migration files and return the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
 
@@ -125,7 +119,7 @@ class MigrationManager:
 
             # No changes to selected app? (or any)
             if not (changes_by_app.get(app) if app else changes_by_app):
-                return []
+                return
 
             if app:
                 # Check dependencies for the selected app (foreign key references)
@@ -146,7 +140,6 @@ class MigrationManager:
             apps_updated = [app]
 
         # Generate migrations for all effected apps
-        new_migrations = []
         for app_name in apps_updated:
             migrations_dir = self.get_migrations_dir(app_name)
 
@@ -154,9 +147,7 @@ class MigrationManager:
             migrations_dir.mkdir(parents=True, exist_ok=True)
 
             changes = changes_by_app.get(app_name)
-            file_name = name or (
-                gen_name_from_changes(changes) if changes else "migration"
-            )
+            file_name = name or (gen_name_from_changes(changes) if changes else "migration")
             migration_name = f"{timestamp}_{file_name}"
 
             # Create migration file path
@@ -187,17 +178,14 @@ class MigrationManager:
                 # Inject app name
                 migration.app_name = app_name
 
-                new_migrations.append(migration)
+                yield migration
 
             except (ImportError, AttributeError) as e:
-                print(f"Error loading migration {migration_name}: {e}")
                 raise ImportError(f"Failed to load newly created migration: {e}")
-
-        return new_migrations
 
     async def apply_migrations(
         self, app: str = None, connection=None
-    ) -> List[Type[Migration]]:
+    ) -> AsyncGenerator[Type[Migration], None]:
         """
         Apply pending migrations.
 
@@ -205,7 +193,6 @@ class MigrationManager:
             List of Migration instances that were applied
         """
         conn = connection or Tortoise.get_connection("default")
-        applied_migrations = []
 
         # Get pending migrations
         pending_migrations = self.get_pending_migrations(app=app)
@@ -229,15 +216,12 @@ class MigrationManager:
                 )
 
                 self.applied_migrations.add((migration.app_name, migration_name))
-                applied_migrations.append(migration)
                 self.applied_state.snapshot(migration_name)
-                print(f"Applied migration: {migration.display_name()}")
-            except Exception as e:
-                print(f"Error applying migration {migration.display_name()}: {e}")
-                # Rollback transaction if supported
-                raise
 
-        return applied_migrations
+                yield migration
+            except Exception:
+                # TODO: Rollback transaction if supported
+                raise
 
     async def revert_migration(
         self,
@@ -271,9 +255,7 @@ class MigrationManager:
             migration_name = cast(str, record["name"])
             app = cast(str, record["app"])
 
-        if (app, migration_name) not in set(
-            [(m.app_name, m.name()) for m in self.migrations]
-        ):
+        if (app, migration_name) not in set([(m.app_name, m.name()) for m in self.migrations]):
             raise ValueError(f"Migration {app} -> {migration_name} not found")
 
         if (app, migration_name) not in self.applied_migrations:
@@ -381,9 +363,7 @@ def gen_name_from_changes(changes: List[Operation]) -> str:
     return name
 
 
-def load_migrations_from_disk(
-    app_name: str, migrations_dir: Path
-) -> List[Type[Migration]]:
+def load_migrations_from_disk(app_name: str, migrations_dir: Path) -> List[Type[Migration]]:
     """Load migrations from the migrations directory."""
     # Ensure the app-specific migrations directory exists
     if not migrations_dir.exists():
@@ -424,9 +404,7 @@ def sort_migrations(migrations: list[Type[Migration]]) -> list[Type[Migration]]:
     """Sort migrations based on dependencies."""
     root = None
     # for traversing the dependency graph from the root to the leaves
-    reverse_dependency_graph: dict[tuple[str, str], list[Type[Migration]]] = (
-        defaultdict(list)
-    )
+    reverse_dependency_graph: dict[tuple[str, str], list[Type[Migration]]] = defaultdict(list)
 
     for migration in migrations:
         for dependency in migration.dependencies:
@@ -467,9 +445,7 @@ def sort_migrations(migrations: list[Type[Migration]]) -> list[Type[Migration]]:
             stack.append(next_node)
 
     if len(sorted_migrations) != len(migrations):
-        raise ValueError(
-            f"Circular dependency detected to {migration.app_name} {migration.name()}"
-        )
+        raise ValueError(f"Circular dependency detected to {migration.app_name} {migration.name()}")
 
     return sorted_migrations
 

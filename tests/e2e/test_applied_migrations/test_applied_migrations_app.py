@@ -29,7 +29,9 @@ async def test_applied_migrations(setup_test_db):
     assert len(manager.get_pending_migrations()) == 1
 
     # Apply the migration
-    applied = await manager.apply_migrations()
+    applied = []
+    async for migration in manager.apply_migrations():
+        applied.append(migration)
     assert len(applied) == 1
 
     # Verify migration was applied
