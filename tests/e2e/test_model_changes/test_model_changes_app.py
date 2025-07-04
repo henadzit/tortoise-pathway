@@ -39,7 +39,9 @@ async def test_model_changes(setup_test_db):
     assert len(manager.get_pending_migrations()) == 1
 
     # Apply the initial migration
-    applied = await manager.apply_migrations()
+    applied = []
+    async for migration in manager.apply_migrations():
+        applied.append(migration)
     assert len(applied) == 1
 
     # Check the database to verify initial tables were created
@@ -50,9 +52,11 @@ async def test_model_changes(setup_test_db):
         await conn.execute_query("SELECT * FROM comments")
 
     # Detect changes and create a new migration
-    migrations = await manager.create_migrations("model_changes", auto=True)
-    assert len(migrations) == 1
-    migration = migrations[0]
+    created = []
+    async for migration in manager.create_migrations("model_changes", auto=True):
+        created.append(migration)
+    assert len(created) == 1
+    migration = created[0]
     assert migration.path().exists()
 
     # Verify operations in the migration
@@ -146,7 +150,9 @@ async def test_model_changes(setup_test_db):
         assert "content" in content
 
     # Apply the new migration
-    applied = await manager.apply_migrations()
+    applied = []
+    async for migration in manager.apply_migrations():
+        applied.append(migration)
     assert len(applied) == 1
 
     # Verify all migrations are now applied
