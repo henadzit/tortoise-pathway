@@ -91,7 +91,7 @@ class MigrationManager:
         self, name: str = None, app: str = None, auto: bool = True
     ) -> AsyncGenerator[Type[Migration], None]:
         """
-        Create new migration files and return the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
+        Create new migration files and yield the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
 
         Args:
             name: The descriptive name for the migration. If None, a name will be generated based on detected changes.
@@ -99,11 +99,12 @@ class MigrationManager:
             auto: Whether to auto-generate migration operations based on model changes
 
         Returns:
-            A Migration instance representing the newly created migration.
-            None if no changes were detected.
+            An async generator of Migration instances representing the newly created migrations.
+            Empty if no changes were detected.
 
         Raises:
             ImportError: If the migration file couldn't be loaded or no Migration class was found
+            ValueError: If no app is specified for an empty migration
         """
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -190,7 +191,7 @@ class MigrationManager:
         Apply pending migrations.
 
         Returns:
-            List of Migration instances that were applied
+            An async generator of Migration instances that were applied
         """
         conn = connection or Tortoise.get_connection("default")
 
