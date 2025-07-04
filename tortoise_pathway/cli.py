@@ -160,7 +160,6 @@ async def migrate(args: argparse.Namespace) -> None:
             print("No migrations were applied.")
     except Exception as e:
         print(f"Error applying migrations: {e}")
-        sys.exit(1)
 
 
 @close_connections_after
@@ -175,15 +174,18 @@ async def rollback(args: argparse.Namespace) -> None:
     manager = MigrationManager(apps, migration_dir)
     await manager.initialize()
 
-    if args.migration:
-        reverted = await manager.revert_migration(args.migration, app=app)
-    else:
-        reverted = await manager.revert_migration(app=app)
+    try:
+        if args.migration:
+            reverted = await manager.revert_migration(args.migration, app=app)
+        else:
+            reverted = await manager.revert_migration(app=app)
 
-    if reverted:
-        print(f"Successfully reverted migration: {reverted.display_name()}")
-    else:
-        print("No migration was reverted.")
+        if reverted:
+            print(f"Successfully reverted migration: {reverted.display_name()}")
+        else:
+            print("No migration was reverted.")
+    except Exception as e:
+        print(f"Error reverting migration: {e}")
 
 
 @close_connections_after

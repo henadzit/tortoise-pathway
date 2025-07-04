@@ -291,11 +291,9 @@ class MigrationManager:
             # Rebuild state from remaining applied migrations
             self.applied_state = self.applied_state.prev()
 
-            print(f"Reverted migration: {migration_name}")
             return migration
 
         except Exception as e:
-            print(f"Error reverting migration {migration_name}: {e}")
             # Rollback transaction if supported
             raise
 
