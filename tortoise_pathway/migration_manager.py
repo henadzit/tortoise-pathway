@@ -293,8 +293,8 @@ class MigrationManager:
 
             return migration
 
-        except Exception as e:
-            # Rollback transaction if supported
+        except Exception:
+            # TODO: Rollback transaction if supported
             raise
 
     def get_pending_migrations(self, app: str = None) -> list[Type[Migration]]:
