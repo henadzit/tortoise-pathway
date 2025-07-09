@@ -9,6 +9,7 @@ import asyncio
 import argparse
 import importlib
 import functools
+import traceback
 from typing import Dict, Any, Callable, TypeVar, Coroutine
 
 from tortoise import Tortoise
@@ -110,8 +111,6 @@ async def make(args: argparse.Namespace) -> None:
     await manager.initialize()
 
     name = args.name or None
-
-    # Generate automatic migration based on model changes?
     auto = not args.empty
 
     migrations = []
@@ -158,8 +157,9 @@ async def migrate(args: argparse.Namespace) -> None:
             )
         else:
             print("No migrations were applied.")
-    except Exception as e:
-        print(f"Error applying migrations: {e}")
+    except Exception:
+        print("Error applying migrations:")
+        print(traceback.format_exc())
 
 
 @close_connections_after
@@ -184,8 +184,9 @@ async def rollback(args: argparse.Namespace) -> None:
             print(f"Successfully reverted migration: {reverted.display_name()}")
         else:
             print("No migration was reverted.")
-    except Exception as e:
-        print(f"Error reverting migration: {e}")
+    except Exception:
+        print("Error reverting migration:")
+        print(traceback.format_exc())
 
 
 @close_connections_after
