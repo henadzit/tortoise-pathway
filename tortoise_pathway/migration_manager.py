@@ -2,7 +2,7 @@ from collections import defaultdict
 import inspect
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Type, cast
+from typing import AsyncGenerator, Dict, List, Optional, Type, cast
 
 from tortoise import Tortoise
 
@@ -95,9 +95,9 @@ class MigrationManager:
 
     async def create_migrations(
         self, name: str = None, app: str = None, auto: bool = True
-    ) -> list[Type[Migration]]:
+    ) -> AsyncGenerator[Type[Migration], None]:
         """
-        Create new migration files and return the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
+        Create new migration files and yield the Migration instances.  If app is specified, the migration will be created for that app only (and all its dependencies).
 
         Args:
             name: The descriptive name for the migration. If None, a name will be generated based on detected changes.
@@ -105,11 +105,12 @@ class MigrationManager:
             auto: Whether to auto-generate migration operations based on model changes
 
         Returns:
-            A Migration instance representing the newly created migration.
-            None if no changes were detected.
+            An async generator of Migration instances representing the newly created migrations.
+            Empty if no changes were detected.
 
         Raises:
             ImportError: If the migration file couldn't be loaded or no Migration class was found
+            ValueError: If no app is specified for an empty migration
         """
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -125,7 +126,7 @@ class MigrationManager:
 
             # No changes to selected app? (or any)
             if not (changes_by_app.get(app) if app else changes_by_app):
-                return []
+                return
 
             if app:
                 # Check dependencies for the selected app (foreign key references)
@@ -146,7 +147,6 @@ class MigrationManager:
             apps_updated = [app]
 
         # Generate migrations for all effected apps
-        new_migrations = []
         for app_name in apps_updated:
             migrations_dir = self.get_migrations_dir(app_name)
 
@@ -187,25 +187,21 @@ class MigrationManager:
                 # Inject app name
                 migration.app_name = app_name
 
-                new_migrations.append(migration)
+                yield migration
 
             except (ImportError, AttributeError) as e:
-                print(f"Error loading migration {migration_name}: {e}")
                 raise ImportError(f"Failed to load newly created migration: {e}")
-
-        return new_migrations
 
     async def apply_migrations(
         self, app: str = None, connection=None
-    ) -> List[Type[Migration]]:
+    ) -> AsyncGenerator[Type[Migration], None]:
         """
         Apply pending migrations.
 
         Returns:
-            List of Migration instances that were applied
+            An async generator of Migration instances that were applied
         """
         conn = connection or Tortoise.get_connection("default")
-        applied_migrations = []
 
         # Get pending migrations
         pending_migrations = self.get_pending_migrations(app=app)
@@ -229,15 +225,12 @@ class MigrationManager:
                 )
 
                 self.applied_migrations.add((migration.app_name, migration_name))
-                applied_migrations.append(migration)
                 self.applied_state.snapshot(migration_name)
-                print(f"Applied migration: {migration.display_name()}")
-            except Exception as e:
-                print(f"Error applying migration {migration.display_name()}: {e}")
-                # Rollback transaction if supported
-                raise
 
-        return applied_migrations
+                yield migration
+            except Exception:
+                # TODO: Rollback transaction if supported
+                raise
 
     async def revert_migration(
         self,
@@ -298,12 +291,10 @@ class MigrationManager:
             # Rebuild state from remaining applied migrations
             self.applied_state = self.applied_state.prev()
 
-            print(f"Reverted migration: {migration_name}")
             return migration
 
-        except Exception as e:
-            print(f"Error reverting migration {migration_name}: {e}")
-            # Rollback transaction if supported
+        except Exception:
+            # TODO: Rollback transaction if supported
             raise
 
     def get_pending_migrations(self, app: str = None) -> list[Type[Migration]]:

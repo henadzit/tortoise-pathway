@@ -32,9 +32,11 @@ async def test_create_initial_migration(setup_test_db):
     assert len(manager.get_pending_migrations()) == 0
 
     # Create an initial migration
-    migrations = await manager.create_migrations("initial", auto=True)
-    assert len(migrations) == 1
-    migration = migrations[0]
+    created = []
+    async for migration in manager.create_migrations("initial", auto=True):
+        created.append(migration)
+    assert len(created) == 1
+    migration = created[0]
     assert migration.path().exists()
 
     # Re-discover migrations and verify the new migration is found
@@ -74,11 +76,16 @@ async def test_create_initial_migration(setup_test_db):
     assert operations[3].index.name == "uniq_notes_user_ti_70d5aa"
     assert operations[3].index.fields == ["user", "title"]
 
-    applied = await manager.apply_migrations()
+    applied = []
+    async for migration in manager.apply_migrations():
+        applied.append(migration)
     assert len(applied) == 1
 
     # Verify all migrations are now applied
     assert len(manager.get_applied_migrations()) == 1
     assert len(manager.get_pending_migrations()) == 0
 
-    assert await manager.create_migrations("no_changes", auto=True) == []
+    created = []
+    async for migration in manager.create_migrations("no_changes", auto=True):
+        created.append(migration)
+    assert len(created) == 0

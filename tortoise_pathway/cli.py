@@ -9,6 +9,7 @@ import asyncio
 import argparse
 import importlib
 import functools
+import traceback
 from typing import Dict, Any, Callable, TypeVar, Coroutine
 
 from tortoise import Tortoise
@@ -110,19 +111,16 @@ async def make(args: argparse.Namespace) -> None:
     await manager.initialize()
 
     name = args.name or None
+    auto = not args.empty
 
-    if not args.empty:
-        # Generate automatic migration based on model changes
-        migrations = await manager.create_migrations(name, app=app, auto=True)
-        if not migrations:
-            print("No changes detected.")
-            return
-    else:
-        # Create an empty migration
-        migrations = await manager.create_migrations(name, app=app, auto=False)
-
-    for migration in migrations:
+    migrations = []
+    async for migration in manager.create_migrations(name, app=app, auto=auto):
         print(f"Created migration {migration.display_name()} at {migration.path()}")
+        migrations.append(migration)
+
+    if not migrations:
+        print("No changes detected.")
+        return
 
 
 @close_connections_after
@@ -147,12 +145,21 @@ async def migrate(args: argparse.Namespace) -> None:
     for migration in pending:
         print(f"  - {migration.display_name()}")
 
-    applied = await manager.apply_migrations(app=app)
+    try:
+        migrations = []
+        async for migration in manager.apply_migrations(app=app):
+            print(f"Applied migration: {migration.display_name()}")
+            migrations.append(migration)
 
-    if applied:
-        print(f"Successfully applied {len(applied)} migration(s).")
-    else:
-        print("No migrations were applied.")
+        if migrations:
+            print(
+                f"Successfully applied {len(migrations)} migration{'s' if len(migrations) > 1 else ''}."
+            )
+        else:
+            print("No migrations were applied.")
+    except Exception:
+        print("Error applying migrations:")
+        print(traceback.format_exc())
 
 
 @close_connections_after
@@ -167,15 +174,19 @@ async def rollback(args: argparse.Namespace) -> None:
     manager = MigrationManager(apps, migration_dir)
     await manager.initialize()
 
-    if args.migration:
-        reverted = await manager.revert_migration(args.migration, app=app)
-    else:
-        reverted = await manager.revert_migration(app=app)
+    try:
+        if args.migration:
+            reverted = await manager.revert_migration(args.migration, app=app)
+        else:
+            reverted = await manager.revert_migration(app=app)
 
-    if reverted:
-        print(f"Successfully reverted migration: {reverted.display_name()}")
-    else:
-        print("No migration was reverted.")
+        if reverted:
+            print(f"Successfully reverted migration: {reverted.display_name()}")
+        else:
+            print("No migration was reverted.")
+    except Exception:
+        print("Error reverting migration:")
+        print(traceback.format_exc())
 
 
 @close_connections_after
