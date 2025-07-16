@@ -1,11 +1,16 @@
 import pytest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from typing import List, Dict
 from tortoise.fields import CharField, IntField, Field
 
 from tortoise_pathway.migration import Migration
-from tortoise_pathway.migration_manager import sort_migrations, gen_name_from_changes
+from tortoise_pathway.migration_manager import (
+    sort_migrations,
+    gen_name_from_changes,
+    MigrationManager,
+)
 from tortoise_pathway.operations import Operation, CreateModel, AddField, AlterField
+from tortoise_pathway.state import State
 
 
 class TestSortMigrations:
@@ -182,3 +187,61 @@ class TestGenNameFromChanges:
             AlterField("app.User", CharField(max_length=50), "username"),
         ]
         assert gen_name_from_changes(changes) == "user_username"
+
+
+class TestGetPendingMigrationsSql:
+    """Test the get_pending_migrations_sql method."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.manager = MigrationManager(["test_app", "other_app"])
+        self.manager.applied_state = State()
+        self.manager.migrations = []
+        self.manager.applied_migrations = set()
+
+    @patch("tortoise_pathway.migration_manager.connections")
+    def test_empty_pending_migrations(self, mock_connections):
+        """Test when there are no pending migrations."""
+        # Mock connection and schema manager
+        mock_connection = Mock()
+        mock_connection.capabilities.dialect = "sqlite"
+        mock_connections.get.return_value = mock_connection
+
+        result = self.manager.get_pending_migrations_sql()
+
+        assert result == ""
+
+    @patch("tortoise_pathway.migration_manager.connections")
+    def test_multiple_pending_migrations(self, mock_connections):
+        """Test with multiple pending migrations."""
+        # Mock connection and schema manager
+        mock_connection = Mock()
+        mock_connection.capabilities.dialect = "postgres"
+        mock_connections.get.return_value = mock_connection
+
+        class Migration1(Migration):
+            app_name = "test_app"
+            operations = [
+                CreateModel("test_app.User", "users", {"id": IntField(primary_key=True)}),
+            ]
+
+        class Migration2(Migration):
+            app_name = "test_app"
+            operations = [
+                AddField("test_app.User", CharField(max_length=255), "email"),
+            ]
+
+        # Set up the manager state
+        self.manager.migrations = [Migration1, Migration2]
+        self.manager.applied_migrations = set()  # No applied migrations
+
+        result = self.manager.get_pending_migrations_sql()
+
+        expected_sql = """-- Migration: test_app -> test_migration_manager
+CREATE TABLE "users" (
+    id SERIAL PRIMARY KEY
+);
+-- Migration: test_app -> test_migration_manager
+ALTER TABLE users ADD COLUMN email VARCHAR(255) NOT NULL"""
+
+        assert result == expected_sql

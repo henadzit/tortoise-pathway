@@ -14,19 +14,6 @@ if TYPE_CHECKING:
     from tortoise_pathway.state import State
 
 
-def get_dialect(connection) -> str:
-    """
-    Determine the database dialect from a connection.
-
-    Args:
-        connection: The database connection.
-
-    Returns:
-        A string representing the dialect ('sqlite', 'postgres', etc.)
-    """
-    return connection.capabilities.dialect
-
-
 class Operation:
     """Base class for all schema change operations.
 
@@ -121,7 +108,7 @@ class Operation:
             connection_name: The database connection name to use.
         """
         connection = connections.get(connection_name)
-        schema_manager = get_schema_manager(get_dialect(connection))
+        schema_manager = get_schema_manager(connection)
         sql = self.forward_sql(state=state, schema_manager=schema_manager)
         await connection.execute_script(sql)
 
@@ -134,7 +121,7 @@ class Operation:
             connection_name: The database connection name to use.
         """
         connection = connections.get(connection_name)
-        schema_manager = get_schema_manager(get_dialect(connection))
+        schema_manager = get_schema_manager(connection)
         sql = self.backward_sql(state=state, schema_manager=schema_manager)
         await connection.execute_script(sql)
 
