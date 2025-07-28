@@ -1,8 +1,7 @@
 # Tortoise Pathway
 
-⚠️ **This project is in VERY early development and not yet ready for production use. Most things are broken and they will break again, APIs will change.**
-
-⚠️ **Most of the code is written with Claude, there are issues with code style that are common for AI generated code.**
+⚠️ **This project is in development and some things might break.**
+⚠️ **Only Postgres and Sqlite are supported for now.**
 
 🤓 Code contributions and assistance with testing are welcome and appreciated!
 
